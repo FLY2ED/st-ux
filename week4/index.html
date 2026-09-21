@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>우땅이 ASMR</title>
+<style>
+  @font-face {
+    font-family: "Gaegu";
+    src: url("assets/gaegu-title.ttf") format("truetype");
+    font-weight: 700;
+    font-display: swap;
+  }
+
+  body {
+    margin: 0;
+    height: 100dvh;
+    overflow: hidden;
+    background: #74795d url("assets/pattern.png") center / 640px 640px repeat;
+  }
+
+  h1 {
+    position: absolute;
+    top: 5%;
+    left: 50%;
+    margin: 0;
+    transform: translateX(-50%) rotate(-3deg);
+    font: 700 clamp(88px, 10vw, 152px) / 1 "Gaegu", cursive;
+    letter-spacing: .05em;
+    color: white;
+    white-space: nowrap;
+  }
+
+  .woottang {
+    position: absolute;
+    transform: translate(-50%, -50%);
+  }
+
+  img {
+    display: block;
+    width: 100%;
+    cursor: pointer;
+  }
+
+  #stretching {
+    left: 62%;
+    top: 43%;
+    width: min(17vw, 25dvh);
+  }
+
+  #dressing {
+    left: 76%;
+    top: 64%;
+    width: min(21vw, 31dvh);
+  }
+
+  #resting {
+    left: 34%;
+    top: 60%;
+    width: min(21vw, 31dvh);
+  }
+
+  #laughing {
+    left: 31%;
+    top: 34%;
+    width: min(17vw, 25dvh);
+  }
+
+  #asking {
+    left: 50%;
+    bottom: 0;
+    width: min(19vw, 27dvh);
+    transform: translateX(-50%);
+  }
+</style>
+</head>
+<body>
+  <h1>우땅이</h1>
+  <audio src="assets/yawn.wav" id="yawnSound"></audio>
+  <audio src="assets/cloth.wav" id="dressSound"></audio>
+  <audio src="assets/snore.wav" id="restSound"></audio>
+  <audio src="assets/laugh-soft.wav" id="laughSound"></audio>
+  <audio src="assets/hmm-soft.wav" id="questionSound"></audio>
+
+  <div class="woottang" id="stretching"><img src="assets/woottang-clap-before.png" id="yawn"></div>
+  <div class="woottang" id="dressing"><img src="assets/woottang-dress-before.png" id="dress"></div>
+  <div class="woottang" id="resting"><img src="assets/woottang-rest-before.png" id="rest"></div>
+  <div class="woottang" id="laughing"><img src="assets/woottang-laugh-before.png" id="laugh"></div>
+  <div class="woottang" id="asking"><img src="assets/woottang-question-before.png" id="question"></div>
+
+<script>
+  const connect = (imageId, soundId, afterImage, volume) => {
+    const img = document.getElementById(imageId);
+    const audio = document.getElementById(soundId);
+    const beforeImage = img.getAttribute("src");
+    audio.volume = volume;
+
+    const reset = () => {
+      img.src = beforeImage;
+    };
+
+    img.onclick = () => {
+      if (audio.paused) {
+        audio.currentTime = 0;
+        audio.play().catch(reset);
+      } else {
+        audio.pause();
+        reset();
+      }
+    };
+
+    audio.onplaying = () => {
+      img.src = afterImage;
+    };
+    audio.onended = reset;
+  };
+
+  connect("yawn", "yawnSound", "assets/woottang-yawn.png", 0.45);
+  connect("dress", "dressSound", "assets/woottang-dress-after.png", 0.45);
+  connect("rest", "restSound", "assets/woottang-sleep.png", 0.6);
+  connect("laugh", "laughSound", "assets/woottang-laugh-after.png", 0.6);
+  connect("question", "questionSound", "assets/woottang-question-after.png", 0.6);
+</script>
+</body>
+</html>

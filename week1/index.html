@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jakob Nielsen's 10 Usability Heuristics</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: Arial, sans-serif; background: #f6f7fb; color: #171717;
+  }
+  header {
+    background: #111; color: white; padding: 56px 24px; text-align: center;
+  }
+  header h1 { margin: 0 0 12px; font-size: clamp(32px, 6vw, 64px); }
+  header p { margin: 0; color: #bbb; font-size: 17px; }
+  main { max-width: 1100px; margin: 40px auto; padding: 0 20px; }
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px;
+  }
+  .card {
+    background: white; border: 1px solid #e6e6e6; border-radius: 18px;
+    padding: 24px; min-height: 190px; transition: .2s;
+  }
+  .card:hover { transform: translateY(-4px); box-shadow: 0 10px 25px #00000012; }
+  .num { font-size: 14px; font-weight: bold; color: #777; }
+  h2 { font-size: 20px; margin: 10px 0; }
+  .ko { color: #555; font-weight: bold; margin-bottom: 10px; }
+  .desc { color: #666; line-height: 1.55; font-size: 14px; }
+  footer { text-align:center; padding: 30px; color:#888; font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>10 Usability Heuristics</h1>
+  <p>Jakob Nielsen's principles for user-friendly interface design</p>
+</header>
+
+<main>
+  <div class="grid">
+    <article class="card"><div class="num">01</div><h2>Visibility of System Status</h2><div class="ko">시스템 상태의 가시성</div><div class="desc">사용자에게 지금 시스템에서 무슨 일이 일어나고 있는지 알려주세요.</div></article>
+    <article class="card"><div class="num">02</div><h2>Match Between System and the Real World</h2><div class="ko">시스템과 현실 세계의 일치</div><div class="desc">사용자가 익숙한 단어와 개념을 사용하세요.</div></article>
+    <article class="card"><div class="num">03</div><h2>User Control and Freedom</h2><div class="ko">사용자 제어와 자유</div><div class="desc">실수했을 때 쉽게 취소하거나 되돌아갈 수 있게 하세요.</div></article>
+    <article class="card"><div class="num">04</div><h2>Consistency and Standards</h2><div class="ko">일관성과 표준</div><div class="desc">같은 의미와 기능은 어디서나 같은 방식으로 보여주세요.</div></article>
+    <article class="card"><div class="num">05</div><h2>Error Prevention</h2><div class="ko">오류 예방</div><div class="desc">오류가 발생한 뒤 알려주는 것보다, 오류 자체를 예방하세요.</div></article>
+    <article class="card"><div class="num">06</div><h2>Recognition Rather Than Recall</h2><div class="ko">기억보다 인식</div><div class="desc">사용자가 정보를 기억하지 않아도 선택하고 이해할 수 있게 하세요.</div></article>
+    <article class="card"><div class="num">07</div><h2>Flexibility and Efficiency of Use</h2><div class="ko">사용의 유연성과 효율성</div><div class="desc">초보자와 숙련자 모두 편하게 사용할 수 있도록 하세요.</div></article>
+    <article class="card"><div class="num">08</div><h2>Aesthetic and Minimalist Design</h2><div class="ko">미적이고 미니멀한 디자인</div><div class="desc">불필요한 정보는 줄이고 핵심 내용에 집중하게 하세요.</div></article>
+    <article class="card"><div class="num">09</div><h2>Help Users Recognize, Diagnose, and Recover from Errors</h2><div class="ko">오류 인식·진단·복구 지원</div><div class="desc">오류가 났다면 원인과 해결 방법을 쉽게 이해할 수 있게 알려주세요.</div></article>
+    <article class="card"><div class="num">10</div><h2>Help and Documentation</h2><div class="ko">도움말과 문서</div><div class="desc">필요할 때 쉽게 찾을 수 있는 간단하고 유용한 도움말을 제공하세요.</div></article>
+  </div>
+</main>
+<footer>Based on Jakob Nielsen's 10 Usability Heuristics</footer>
+</body>
+</html>
