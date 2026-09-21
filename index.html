@@ -5,32 +5,59 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>웹 인터랙션 과제 모음</title>
 <style>
-* { box-sizing: border-box; }
-body { margin: 0; background: #f5f2ea; color: #373e32; font-family: Arial, sans-serif; }
-main { max-width: 880px; margin: 12vh auto; padding: 28px; }
-.eyebrow { font-size: 12px; letter-spacing: .18em; color: #737969; }
-h1 { font-size: clamp(32px, 6vw, 58px); letter-spacing: -.06em; margin: 22px 0; }
-p { line-height: 1.8; color: #6b7065; }
-nav { margin-top: 60px; border-top: 1px solid #bfc2b5; }
-a { display: flex; gap: 24px; align-items: center; padding: 30px 0; border-bottom: 1px solid #bfc2b5; text-decoration: none; color: inherit; }
-a:hover { color: #688049; }
-a:focus-visible { outline: 3px solid #688049; outline-offset: 5px; }
-.week { font-size: 13px; color: #737969; white-space: nowrap; }
-strong { font-size: clamp(18px, 3vw, 24px); font-weight: 500; }
-.arrow { margin-left: auto; font-size: 24px; }
-footer { margin-top: 60px; font-size: 12px; color: #737969; }
+  body {
+    margin: 0;
+    background: white;
+    color: #111;
+    font-family: Arial, sans-serif;
+  }
+
+  main {
+    max-width: 1000px;
+    margin: 14vh auto;
+    padding: 32px;
+  }
+
+  a {
+    display: block;
+    width: fit-content;
+    margin-bottom: 64px;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  a:hover strong {
+    text-decoration: underline;
+    text-underline-offset: 8px;
+  }
+
+  .week {
+    display: block;
+    margin-bottom: 16px;
+    color: #777;
+    font-size: 16px;
+  }
+
+  strong {
+    font-size: clamp(36px, 7vw, 88px);
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -.05em;
+  }
 </style>
 </head>
 <body>
 <main>
-<p class="eyebrow">WEB INTERACTION · CLASS ARCHIVE</p>
-<h1>작은 실험들을 모아.</h1>
-<p>직접 코딩하며 만들어가는 웹 인터랙션 과제 모음.</p>
 <nav aria-label="주차별 과제">
-<a href="week1/index.html"><span class="week">1주차</span><strong>사용성 원칙</strong><span class="arrow" aria-hidden="true">↗</span></a>
-<a href="week4/index.html"><span class="week">4주차</span><strong>우땅이의 비 오는 오후</strong><span class="arrow" aria-hidden="true">↗</span></a>
+  <a href="week1/index.html">
+    <span class="week">1주차</span>
+    <strong>사용성 원칙</strong>
+  </a>
+  <a href="week4/index.html">
+    <span class="week">4주차</span>
+    <strong>우땅이 ASMR</strong>
+  </a>
 </nav>
-<footer>HTML · CSS · JavaScript</footer>
 </main>
 </body>
 </html>
