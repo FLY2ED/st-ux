@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>마크 서버 채팅</title>
+<style>
+  @font-face {
+    font-family: "Galmuri11";
+    src: url("assets/galmuri11.woff2") format("woff2");
+    font-display: swap;
+  }
+
+  /* 배경: Minecraft 정글 게임 화면, Xbox México (CC BY 3.0)
+     https://commons.wikimedia.org/wiki/File:Minecraft_-_Jungle.jpg
+     (AI로 선명하게 보정)
+     설정창 테두리: CSSCraft (CC0 / Unlicense)
+     https://github.com/QbDesu/CSSCraft */
+
+  body {
+    margin: 0;
+    height: 100dvh;
+    overflow: hidden;
+    background: #7cb6ff url("assets/ingame-hd.png") center bottom / cover no-repeat;
+    font-family: "Galmuri11", monospace;
+    color: white;
+  }
+
+  /* 오른쪽 위: 채팅 설정 */
+  #settings {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    padding: 4px 6px;
+    background-color: #c6c6c6;
+    border: 8px solid;
+    border-image: url("assets/csscraft/mc-gui-border-48x48.png") 16 repeat;
+    background-clip: padding-box;
+    color: #3f3f3f;
+    font-size: 13px;
+  }
+
+  #settings label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 6px 0;
+  }
+
+  /* 왼쪽 아래: 채팅 기록 (핫바 위) */
+  #chat {
+    position: absolute;
+    left: 2px;
+    bottom: 18dvh;
+    box-sizing: border-box;
+    width: max(60%, min(640px, 100% - 4px));
+    padding: 4px 8px;
+    background: hsl(0, 0%, 0%, .5);
+    font-size: 20px;
+    text-shadow: 2px 2px #3f3f3f;
+  }
+
+  #myChat p,
+  #myChat h1 {
+    margin: 2px 0;
+    font-size: 1em;
+    font-weight: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .join {
+    color: #ffff55;
+  }
+
+  /* 맨 아래: 채팅 입력줄 (Enter로 전송) */
+  #myText {
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    bottom: 2px;
+    box-sizing: border-box;
+    width: calc(100% - 4px);
+    height: 34px;
+    padding: 0 6px;
+    border: 0;
+    outline: 0;
+    background: hsl(0, 0%, 0%, .5);
+    color: white;
+    caret-color: transparent;
+    text-shadow: 2px 2px #3f3f3f;
+    font: inherit;
+    font-size: 20px;
+  }
+
+  /* 마크처럼 글자 뒤에서 깜빡이는 _ 커서 */
+  #myCursor {
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    bottom: 2px;
+    height: 34px;
+    padding: 0 6px;
+    overflow: hidden;
+    line-height: 34px;
+    font-size: 20px;
+    white-space: pre;
+    text-shadow: 2px 2px #3f3f3f;
+    pointer-events: none;
+  }
+
+  #myTyped {
+    visibility: hidden;
+  }
+
+  #myCursor b {
+    font-weight: normal;
+    animation: blink .6s steps(1) infinite;
+  }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+</style>
+</head>
+<body>
+  <div id="settings">
+    <label>채팅 글씨 크기 <input type="range" id="mySlider" min="12" max="40" value="20"></label>
+    <label>닉네임 색 <input type="color" id="fontColor" value="#ffffff"></label>
+    <label>메시지 색 <input type="color" id="backColor" value="#ffffff"></label>
+  </div>
+
+  <div id="chat">
+    <div id="myChat">
+      <p class="join">Steve님이 서버에 들어왔습니다</p>
+      <p class="join">Alex님이 서버에 들어왔습니다</p>
+      <p><span id="alexName">&lt;Alex&gt;</span> <span id="alexMessage">다들 안녕!</span></p>
+      <h1><span id="myName">&lt;Steve&gt;</span> <span id="myMonitor">...</span></h1>
+    </div>
+  </div>
+  <input type="text" id="myText" autofocus>
+  <div id="myCursor"><span id="myTyped"></span><b>_</b></div>
+
+<script>
+  mySlider.oninput = function(){
+    myChat.style.fontSize = mySlider.value + "px";
+  }
+
+  myText.onkeydown = function(event){
+    if (event.key == "Enter") {
+      alert("알 수 없거나 불완전한 명령어입니다.\n전송 기능은 아직 제작대에서 만드는 중이에요!<--[여기]");
+    }
+  }
+  myText.oninput = function(){
+    myTyped.textContent = myText.value;
+    myMonitor.innerHTML = myText.value;
+  }
+  fontColor.oninput = function(){
+    myName.style.color = fontColor.value;
+    alexName.style.color = fontColor.value;
+  }
+  backColor.oninput = function(){
+    myMonitor.style.color = backColor.value;
+    alexMessage.style.color = backColor.value;
+  }
+</script>
+</body>
+</html>
