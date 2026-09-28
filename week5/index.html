@@ -11,12 +11,6 @@
     font-display: swap;
   }
 
-  /* 배경: Minecraft 정글 게임 화면, Xbox México (CC BY 3.0)
-     https://commons.wikimedia.org/wiki/File:Minecraft_-_Jungle.jpg
-     (AI로 선명하게 보정)
-     설정창 테두리: CSSCraft (CC0 / Unlicense)
-     https://github.com/QbDesu/CSSCraft */
-
   body {
     margin: 0;
     height: 100dvh;
@@ -26,7 +20,6 @@
     color: white;
   }
 
-  /* 오른쪽 위: 채팅 설정 */
   #settings {
     position: absolute;
     top: 16px;
@@ -48,7 +41,6 @@
     margin: 6px 0;
   }
 
-  /* 배경음악: C418 공식 유튜브 영상 */
   #myMusic {
     display: block;
     width: 200px;
@@ -57,7 +49,6 @@
     border: 0;
   }
 
-  /* 왼쪽 아래: 채팅 기록 (핫바 위) */
   #chat {
     position: absolute;
     left: 2px;
@@ -82,7 +73,6 @@
     color: #ffff55;
   }
 
-  /* 맨 아래: 채팅 입력줄 (Enter로 전송) */
   #myText {
     position: absolute;
     left: 2px;
@@ -102,7 +92,6 @@
     font-size: 20px;
   }
 
-  /* 마크처럼 글자 뒤에서 깜빡이는 _ 커서 */
   #myCursor {
     position: absolute;
     left: 2px;
@@ -153,7 +142,6 @@
   <div id="myCursor"><span id="myTyped"></span><b>_</b></div>
 
 <script>
-  // 브라우저는 소리 자동재생을 막아서, 처음 키보드나 마우스를 쓸 때 음악을 켠다
   function playMusic(){
     if (!myMusic.src.includes("autoplay")) {
       myMusic.src = myMusic.src + "&autoplay=1";
