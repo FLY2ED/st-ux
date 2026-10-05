@@ -11,11 +11,9 @@
     --ink: #f2f2f7;
     --surface: color-mix(in srgb, var(--bg) 74%, transparent);
     --line: color-mix(in srgb, var(--ink) 14%, transparent);
-    --muted: color-mix(in srgb, var(--ink) 52%, transparent);
+    --muted: color-mix(in srgb, var(--ink) 55%, transparent);
     --hover: color-mix(in srgb, var(--ink) 8%, transparent);
-    --danger: #ff5a4a;
     --sans: "Pretendard Variable", Pretendard, -apple-system, system-ui, sans-serif;
-    --h: 34px;
   }
 
   * {
@@ -51,117 +49,55 @@
     cursor: crosshair;
   }
 
-  #ui {
+  #formula,
+  #panel {
     position: fixed;
     z-index: 2;
-    left: 24px;
-    bottom: max(24px, env(safe-area-inset-bottom));
-    width: min(880px, 100% - 48px);
-    display: flex;
-    flex-direction: column;
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: var(--surface);
-    backdrop-filter: blur(18px) saturate(1.4);
-    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    bottom: max(28px, env(safe-area-inset-bottom));
     transition: opacity .4s, transform .4s;
   }
 
-  body.hide #ui {
+  body.hide #formula,
+  body.hide #panel {
     opacity: 0;
     transform: translateY(8px);
     pointer-events: none;
   }
 
   #formula {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 16px 20px 14px;
-  }
-
-  .head {
+    left: 32px;
+    right: 300px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 24px;
-  }
-
-  .label {
-    font: 500 11px / 1 var(--sans);
-    letter-spacing: .06em;
-    color: var(--muted);
-  }
-
-  .stepper {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-  }
-
-  .stepper output {
-    min-width: 5.5ch;
-    text-align: center;
-    font: 500 12px / 1 var(--sans);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .icon {
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    font-size: 16px;
-    cursor: pointer;
-    transition: background .15s;
-  }
-
-  .icon:hover {
-    background: var(--hover);
-  }
-
-  .eq {
-    display: flex;
-    align-items: baseline;
-    gap: .32em;
-    font: 700 clamp(22px, 3.4vw, 50px) / 1.15 var(--sans);
-    letter-spacing: -.03em;
-  }
-
-  .lhs {
-    flex: none;
-    color: var(--muted);
-    font-weight: 500;
+    gap: 16px;
+    font-size: clamp(28px, 4.4vw, 68px);
   }
 
   #expr {
     min-width: 2ch;
+    font: 700 1em / 1.1 var(--sans);
+    letter-spacing: -.035em;
     word-break: break-word;
+    text-shadow: 0 0 28px var(--bg), 0 0 8px var(--bg);
     outline: none;
     cursor: text;
-    caret-color: #ff3fa4;
-    text-decoration: underline dashed transparent;
-    text-decoration-thickness: 2px;
-    text-underline-offset: .18em;
-    transition: text-decoration-color .2s;
   }
 
-  #expr:hover {
-    text-decoration-color: var(--muted);
+  #expr .v {
+    font-style: italic;
+    padding-right: .04em;
   }
 
-  #expr:focus {
-    text-decoration: underline solid var(--ink);
-    text-decoration-thickness: 2px;
+  #expr .fn {
+    font-weight: 500;
   }
 
-  #formula.bad #expr {
+  #expr .n {
+    font-variant-numeric: tabular-nums;
+  }
+
+  #expr.bad {
     animation: shake .35s;
-    text-decoration-color: var(--danger);
   }
 
   @keyframes shake {
@@ -169,74 +105,63 @@
     75% { transform: translateX(6px); }
   }
 
-  #assist {
+  .arrows {
+    position: relative;
+    top: .1em;
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px 12px;
-    min-height: 20px;
+    flex: none;
+    padding: 3px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    backdrop-filter: blur(18px) saturate(1.4);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
   }
 
-  #msg {
-    margin: 0;
-    font-size: 12px;
-    color: var(--muted);
-  }
-
-  #formula.bad #msg {
-    color: var(--danger);
-  }
-
-  #tokens,
-  #apply {
-    display: none;
-  }
-
-  .eq:focus-within + #assist #tokens {
-    display: flex;
-    flex: 1 1 100%;
-    flex-wrap: wrap;
-    gap: 2px 16px;
-  }
-
-  .eq:focus-within + #assist #apply {
-    display: block;
-  }
-
-  .token {
-    padding: 2px 0;
+  .arrow {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    padding: 0;
     border: 0;
+    border-radius: 50%;
     background: transparent;
-    font: 500 14px / 1.4 var(--sans);
-    color: var(--muted);
     cursor: pointer;
-    transition: color .15s;
+    transition: background .15s, transform .15s;
   }
 
-  .token:hover {
-    color: var(--ink);
-    text-decoration: underline;
-    text-underline-offset: 4px;
+  .arrow:hover {
+    background: var(--hover);
   }
 
-  #apply {
-    margin-left: auto;
-    padding: 6px 12px;
-    border: 0;
-    border-radius: 8px;
-    background: var(--ink);
-    color: var(--bg);
-    font-size: 12px;
-    cursor: pointer;
+  .arrow:active {
+    transform: scale(.92);
+  }
+
+  .arrow svg {
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.25;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   #panel {
+    right: 32px;
+    width: 236px;
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px 24px;
-    padding: 12px 20px;
-    border-top: 1px solid var(--line);
+    flex-direction: column;
+    gap: 14px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    backdrop-filter: blur(18px) saturate(1.4);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    font-size: 13px;
   }
 
   .segmented {
@@ -247,12 +172,11 @@
   }
 
   .segmented button {
-    height: calc(var(--h) - 6px);
-    padding: 0 14px;
+    flex: 1;
+    height: 30px;
     border: 0;
     border-radius: 7px;
     background: transparent;
-    font-size: 12px;
     color: var(--muted);
     cursor: pointer;
     transition: background .2s, color .2s;
@@ -263,26 +187,24 @@
     color: var(--bg);
   }
 
-  .slider {
-    display: flex;
+  .row {
+    display: grid;
+    grid-template-columns: 36px 1fr 30px;
     align-items: center;
     gap: 10px;
-    height: var(--h);
-    font-size: 12px;
   }
 
-  .slider span {
+  .row span {
     color: var(--muted);
   }
 
-  .slider output {
-    min-width: 3ch;
-    font: 500 12px / 1 var(--sans);
+  .row output {
+    text-align: right;
     font-variant-numeric: tabular-nums;
   }
 
   input[type="range"] {
-    width: 112px;
+    width: 100%;
     height: 18px;
     margin: 0;
     background: transparent;
@@ -330,46 +252,57 @@
     background: var(--ink);
   }
 
+  input[type="color"] {
+    grid-column: 2 / 4;
+    width: 100%;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 3px;
+  }
+
+  input[type="color"]::-webkit-color-swatch {
+    border: 0;
+    border-radius: 4px;
+  }
+
+  input[type="color"]::-moz-color-swatch {
+    border: 0;
+    border-radius: 4px;
+  }
+
   button:focus-visible,
   input:focus-visible {
-    outline: 2px solid #ff3fa4;
+    outline: 2px solid var(--ink);
     outline-offset: 2px;
   }
 
-  @media (max-width: 640px) {
-    #ui {
-      left: 12px;
-      right: 12px;
-      bottom: max(12px, env(safe-area-inset-bottom));
-      width: auto;
+  @media (max-width: 720px) {
+    #formula {
+      left: 16px;
+      right: 16px;
+      bottom: auto;
+      top: max(20px, env(safe-area-inset-top));
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
     }
 
-    #formula,
+    .arrows {
+      top: 0;
+    }
+
     #panel {
-      padding-left: 16px;
-      padding-right: 16px;
-    }
-
-    #panel {
-      gap: 8px 16px;
-    }
-
-    .segmented {
-      flex: 1 1 100%;
-    }
-
-    .segmented button {
-      flex: 1;
-    }
-
-    .slider {
-      flex: 1 1 40%;
-    }
-
-    .slider input {
-      flex: 1;
+      left: 16px;
+      right: 16px;
+      bottom: max(16px, env(safe-area-inset-bottom));
       width: auto;
-      min-width: 0;
     }
   }
 </style>
@@ -377,28 +310,15 @@
 <body>
   <canvas id="wind" aria-label="바람 드로잉 캔버스"></canvas>
 
-  <section id="ui">
-    <div id="formula">
-      <div class="head">
-        <span class="label">θ 방향 · x, y 위치 · t 시간</span>
-        <div class="stepper">
-          <button class="icon" type="button" data-next="-1" aria-label="이전 식" title="이전 식 (←)">‹</button>
-          <output id="count">01 / 10</output>
-          <button class="icon" type="button" data-next="1" aria-label="다음 식" title="다음 식 (→)">›</button>
-        </div>
-      </div>
-      <div class="eq">
-        <span class="lhs" aria-hidden="true">θ =</span>
-        <div id="expr" contenteditable="true" spellcheck="false" role="textbox" aria-label="바람 수식" aria-describedby="msg"></div>
-      </div>
-      <div id="assist">
-        <div id="tokens"></div>
-        <p id="msg" role="status"></p>
-        <button id="apply" type="button">적용</button>
-      </div>
+  <section id="formula">
+    <div class="arrows">
+      <button class="arrow" type="button" data-next="-1" aria-label="이전 식"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5l-7 7 7 7"/></svg></button>
+      <button class="arrow" type="button" data-next="1" aria-label="다음 식"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 5l7 7-7 7"/></svg></button>
     </div>
-    <div id="panel"></div>
+    <div id="expr" contenteditable="true" spellcheck="false" role="textbox" aria-label="바람 수식"></div>
   </section>
+
+  <section id="panel"></section>
 
 <script>
   const formulas = [
@@ -415,8 +335,8 @@
   ];
 
   const palettes = [
-    { name: "Dark", bg: "#0b0b12", ink: "#f2f2f7", colors: ["#ff3fa4", "#00e0ff", "#c6ff00", "#ffb000", "#7a5cff"] },
-    { name: "Light", bg: "#ffffff", ink: "#14151f", colors: ["#f5d259", "#f19648", "#f55a3c", "#063e7b", "#14151f"] }
+    { name: "Dark", bg: "#0b0b12", ink: "#f2f2f7" },
+    { name: "Light", bg: "#ffffff", ink: "#14151f" }
   ];
 
   const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -427,7 +347,7 @@
   const COUNT = calm ? 1500 : 4000;
   const WEIGHT = 1.5;
 
-  const state = { palette: 0 };
+  const state = { palette: 0, color: "#ff3fa4" };
   const values = {};
   for (let i = 0; i < sliders.length; i++) {
     values[sliders[i].key] = sliders[i].value;
@@ -436,17 +356,8 @@
   const wind = document.getElementById("wind");
   const ctx = wind.getContext("2d");
   const exprEl = document.getElementById("expr");
-  const panel = document.getElementById("panel");
-  const ui = document.getElementById("ui");
   const formulaEl = document.getElementById("formula");
-  const msgEl = document.getElementById("msg");
-
-  const tokens = ["x", "y", "t", "sin(", "cos(", "atan2(", "hypot(", "floor(", "abs(", "PI", "TAU"];
-  const messages = {
-    idle: "눌러서 수정",
-    edit: "Enter 적용 · Esc 취소",
-    bad: "식 오류"
-  };
+  const panel = document.getElementById("panel");
 
   const px = new Float32Array(COUNT);
   const py = new Float32Array(COUNT);
@@ -470,7 +381,6 @@
   let fadeDebt = 0;
   const pointer = { down: false, x: 0, y: 0, dx: 0, dy: 0, moved: 0 };
 
-  const TAU = Math.PI * 2;
   const now = () => performance.now() / 1000;
 
   function compile(expr) {
@@ -497,8 +407,6 @@
     blendStart = now();
     currentExpr = expr;
     if (index !== null) fi = index;
-    const total = String(formulas.length).padStart(2, "0");
-    document.getElementById("count").textContent = index === null ? `직접 / ${total}` : `${String(fi + 1).padStart(2, "0")} / ${total}`;
     showFormula(expr);
     return true;
   }
@@ -508,20 +416,57 @@
     useFormula(formulas[i], i);
   }
 
+  const FN = "atan2|sin|cos|tan|hypot|sqrt|abs|floor|round|min|max|exp|log|pow|sign";
+  const NUM = "\\d+(?:\\.\\d+)?";
+
+  function pretty(expr) {
+    let s = expr
+      .replace(new RegExp(`hypot\\(x, y\\) \\* (${NUM})`, "g"), "$1√(x² + y²)")
+      .replace(/hypot\(x, y\)/g, "√(x² + y²)")
+      .replace(/floor\(([^()]*)\)/g, "⌊$1⌋")
+      .replace(new RegExp(`\\b([xyt]) \\* ([xyt]) \\* (${NUM})`, "g"), "$3$1$2")
+      .replace(new RegExp(`\\b([xyt]) \\* (${NUM})`, "g"), "$2$1")
+      .replace(new RegExp(`\\b(${NUM}) \\* ([xyt])\\b`, "g"), "$1$2")
+      .replace(/\bTAU\b/g, "τ")
+      .replace(/\bPI\b/g, "π")
+      .replace(/ \* /g, "·")
+      .replace(/ \/ /g, "/")
+      .replace(/-/g, "−");
+    const tokens = [];
+    const re = new RegExp(`(${FN})|([xytπτ])|(${NUM})|(.)`, "g");
+    let m;
+    while ((m = re.exec(s))) {
+      tokens.push({ text: m[0], cls: m[1] ? "fn" : m[2] ? "v" : m[3] ? "n" : "" });
+    }
+    return tokens;
+  }
+
+  function renderTokens(tokens, done) {
+    const glyphs = "xyt+−·0123456789sincoaπ";
+    const esc = { "<": "&lt;", ">": "&gt;", "&": "&amp;" };
+    let html = "";
+    let n = 0;
+    for (let i = 0; i < tokens.length; i++) {
+      let text = "";
+      for (const ch of tokens[i].text) {
+        if (n < done || ch === " ") text += esc[ch] || ch;
+        else text += glyphs[Math.floor(Math.random() * glyphs.length)];
+        n++;
+      }
+      html += tokens[i].cls ? `<span class="${tokens[i].cls}">${text}</span>` : text;
+    }
+    exprEl.innerHTML = html;
+  }
+
   function showFormula(expr) {
     clearInterval(scrambleTimer);
     if (document.activeElement === exprEl) return;
-    const glyphs = "xyt+-*/()0123456789sincoatPIhy";
+    const tokens = pretty(expr);
+    const length = tokens.reduce((sum, token) => sum + [...token.text].length, 0);
     let frame = 0;
     scrambleTimer = setInterval(() => {
       frame++;
-      const done = Math.floor(expr.length * frame / 16);
-      let text = "";
-      for (let i = 0; i < expr.length; i++) {
-        if (i < done || expr[i] === " ") text += expr[i];
-        else text += glyphs[Math.floor(Math.random() * glyphs.length)];
-      }
-      exprEl.textContent = text;
+      renderTokens(tokens, Math.floor(length * frame / 16));
       if (frame >= 16) clearInterval(scrambleTimer);
     }, 28);
   }
@@ -555,7 +500,7 @@
       fx += (-dy / d) * swirl + pointer.dx * 0.35 * push;
       fy += (dx / d) * swirl + pointer.dy * 0.35 * push;
     }
-    return [fx, fy, Math.atan2(-fy, fx)];
+    return [fx, fy];
   }
 
   function spawn(i) {
@@ -594,8 +539,6 @@
 
   function step() {
     const t = now() * 0.4;
-    const pal = palettes[state.palette];
-    const n = pal.colors.length;
     const fade = 0.22 / (1 + values.trail * 0.55);
 
     fadeDebt += fade;
@@ -604,9 +547,7 @@
       fadeDebt = 0;
     }
 
-    const paths = [];
-    for (let c = 0; c < n; c++) paths.push(new Path2D());
-
+    const path = new Path2D();
     for (let i = 0; i < COUNT; i++) {
       const f = force(px[i], py[i], t);
       vx[i] += (f[0] - vx[i]) * 0.14;
@@ -622,17 +563,14 @@
         continue;
       }
 
-      const k = Math.floor((((f[2] % TAU) + TAU) % TAU) / TAU * n) % n;
-      paths[k].moveTo(ox[i], oy[i]);
-      paths[k].lineTo(px[i], py[i]);
+      path.moveTo(ox[i], oy[i]);
+      path.lineTo(px[i], py[i]);
     }
 
     ctx.lineCap = "round";
     ctx.lineWidth = WEIGHT;
-    for (let c = 0; c < n; c++) {
-      ctx.strokeStyle = pal.colors[c];
-      ctx.stroke(paths[c]);
-    }
+    ctx.strokeStyle = state.color;
+    ctx.stroke(path);
   }
 
   function burst(x, y) {
@@ -653,57 +591,34 @@
     document.documentElement.style.setProperty("--bg", pal.bg);
     document.documentElement.style.setProperty("--ink", pal.ink);
     paintBackground(1);
+    for (const b of panel.querySelectorAll("[data-palette]")) {
+      b.classList.toggle("on", Number(b.dataset.palette) === i);
+      b.setAttribute("aria-pressed", Number(b.dataset.palette) === i);
+    }
   }
 
   function buildPanel() {
-    let html = "";
-
     let themes = "";
     for (let i = 0; i < palettes.length; i++) {
-      themes += `<button class="${state.palette === i ? "on" : ""}" type="button" data-key="palette" data-i="${i}" aria-pressed="${state.palette === i}">${palettes[i].name}</button>`;
+      themes += `<button type="button" data-palette="${i}">${palettes[i].name}</button>`;
     }
-    html += `<div class="segmented" role="group" aria-label="화면">${themes}</div>`;
+    let html = `<div class="segmented" role="group" aria-label="화면">${themes}</div>`;
 
     for (const s of sliders) {
       html += `
-        <label class="slider">
+        <label class="row">
           <span>${s.label}</span>
           <input type="range" min="${s.min}" max="${s.max}" step="${s.step}" value="${values[s.key]}" data-slider="${s.key}" style="--p: ${(values[s.key] - s.min) / (s.max - s.min) * 100}%">
           <output id="out-${s.key}">${values[s.key]}</output>
         </label>`;
     }
+
+    html += `
+      <label class="row">
+        <span>색</span>
+        <input type="color" value="${state.color}" data-color>
+      </label>`;
     panel.innerHTML = html;
-
-    let chips = "";
-    for (const token of tokens) {
-      chips += `<button class="token" type="button" data-token="${token}">${token.endsWith("(") ? token.slice(0, -1) : token}</button>`;
-    }
-    document.getElementById("tokens").innerHTML = chips;
-  }
-
-  function setMessage(mode) {
-    formulaEl.classList.toggle("bad", mode === "bad");
-    msgEl.textContent = messages[mode];
-  }
-
-  function apply() {
-    const text = exprEl.textContent.trim();
-    const index = formulas.indexOf(text);
-    if (useFormula(text, index === -1 ? null : index)) {
-      exprEl.blur();
-    } else {
-      formulaEl.classList.remove("bad");
-      void formulaEl.offsetWidth;
-      setMessage("bad");
-    }
-  }
-
-  function setChoice(key, i) {
-    if (key === "palette") applyPalette(i);
-    for (const b of panel.querySelectorAll(`[data-key="${key}"]`)) {
-      b.classList.toggle("on", Number(b.dataset.i) === i);
-      b.setAttribute("aria-pressed", Number(b.dataset.i) === i);
-    }
   }
 
   function save() {
@@ -713,20 +628,21 @@
     link.click();
   }
 
-  ui.onmousedown = (e) => {
-    if (e.target.closest(".token, #apply")) e.preventDefault();
+  formulaEl.onclick = (e) => {
+    const b = e.target.closest("[data-next]");
+    if (b) next(Number(b.dataset.next));
   };
 
-  ui.onclick = (e) => {
-    const b = e.target.closest("button");
-    if (!b) return;
-    if (b.dataset.next) next(Number(b.dataset.next));
-    else if (b.dataset.token) document.execCommand("insertText", false, b.dataset.token);
-    else if (b.id === "apply") apply();
-    else if (b.dataset.key) setChoice(b.dataset.key, Number(b.dataset.i));
+  panel.onclick = (e) => {
+    const b = e.target.closest("[data-palette]");
+    if (b) applyPalette(Number(b.dataset.palette));
   };
 
   panel.oninput = (e) => {
+    if (e.target.dataset.color !== undefined) {
+      state.color = e.target.value;
+      return;
+    }
     const key = e.target.dataset.slider;
     if (!key) return;
     const s = sliders.find((item) => item.key === key);
@@ -738,12 +654,17 @@
   exprEl.onkeydown = (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      apply();
+      const text = exprEl.textContent.trim();
+      const index = formulas.indexOf(text);
+      if (useFormula(text, index === -1 ? null : index)) {
+        exprEl.blur();
+      } else {
+        exprEl.classList.remove("bad");
+        void exprEl.offsetWidth;
+        exprEl.classList.add("bad");
+      }
     }
     if (e.key === "Escape") exprEl.blur();
-  };
-  exprEl.oninput = () => {
-    if (formulaEl.classList.contains("bad")) setMessage("edit");
   };
   exprEl.onfocus = () => {
     clearInterval(scrambleTimer);
@@ -752,11 +673,10 @@
       getSelection().selectAllChildren(exprEl);
       getSelection().collapseToEnd();
     }
-    setMessage("edit");
   };
   exprEl.onblur = () => {
-    setMessage("idle");
-    exprEl.textContent = currentExpr;
+    exprEl.classList.remove("bad");
+    renderTokens(pretty(currentExpr), Infinity);
   };
 
   wind.onpointerdown = (e) => {
@@ -792,7 +712,7 @@
     }
     if (e.key === "ArrowRight") next(1);
     if (e.key === "ArrowLeft") next(-1);
-    if (k === "p") setChoice("palette", (state.palette + 1) % palettes.length);
+    if (k === "p") applyPalette((state.palette + 1) % palettes.length);
     if (k === "c") paintBackground(1);
     if (k === "s") save();
     if (k === "h") document.body.classList.toggle("hide");
@@ -814,7 +734,6 @@
   }
 
   buildPanel();
-  setMessage("idle");
   applyPalette(0);
   resize();
   useFormula(formulas[0], 0);
