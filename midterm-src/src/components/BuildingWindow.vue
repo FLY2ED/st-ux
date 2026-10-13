@@ -1,5 +1,6 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
+import KoreaMap from './KoreaMap.vue'
 import { looksLikeName, search } from '../data.js'
 import { pastelOf } from '../shops.js'
 import { sfx } from '../sound.js'
@@ -11,6 +12,7 @@ const floors = ref([])
 const busy = ref(false)
 const error = ref('')
 const view = ref('building')
+const built = shallowRef([])
 
 const candidates = computed(() => {
   if (!result.value) return []
@@ -28,6 +30,7 @@ function build() {
     .sort(() => Math.random() - 0.5)
     .slice(0, MAX_FLOORS)
     .sort((a, b) => b.floor - a.floor)
+  built.value = picked
   floors.value = []
   picked
     .slice()
@@ -75,6 +78,8 @@ const listed = computed(() => {
     .sort((a, b) => a.accident - b.accident)
 })
 
+const mapRows = computed(() => (view.value === 'list' ? listed.value : built.value))
+
 const floorLabel = (f) => (f < 0 ? `B${-f}` : `${f}F`)
 </script>
 
@@ -95,36 +100,44 @@ const floorLabel = (f) => (f < 0 ? `B${-f}` : `${f}F`)
         <button :class="{ on: view === 'building' }" @click="view = 'building'">🏢 빌딩</button>
         <button :class="{ on: view === 'list' }" @click="view = 'list'">📋 간판 목록</button>
       </div>
-      <div v-if="view === 'list'" class="sunken-panel list">
-        <ul>
-          <li v-for="r in listed" :key="r.name" :class="{ accident: r.accident }">
-            <span>{{ r.parts[0] }}<b>{{ r.parts[1] }}</b>{{ r.parts[2] }}</span>
-            <span v-if="r.accident" class="huh">?!</span>
-            <small class="muted">{{ r.region.split(' ').slice(-1)[0] }}</small>
-          </li>
-        </ul>
-        <p class="muted legend">노란 줄 = 이름이 아니라 우연히 걸린 곳</p>
-      </div>
-      <div v-else class="sky">
-        <div class="tower">
-          <div class="roof">{{ result.word }} 빌딩</div>
-          <TransitionGroup name="drop" tag="div">
-            <div
-              v-for="f in floors"
-              :key="f.name + f.floor + f.region"
-              class="floor"
-              :class="{ under: f.floor < 0 }"
-              :style="{ '--c': pastelOf(f.name) }"
-            >
-              <span class="no">{{ floorLabel(f.floor) }}</span>
-              <span class="sign">{{ f.name }}</span>
-              <span class="where">{{ f.region.split(' ').slice(-1)[0] }} · {{ f.cat }}</span>
+      <div class="split">
+        <div class="main">
+          <div v-if="view === 'list'" class="sunken-panel list">
+            <ul>
+              <li v-for="r in listed" :key="r.name" :class="{ accident: r.accident }">
+                <span>{{ r.parts[0] }}<b>{{ r.parts[1] }}</b>{{ r.parts[2] }}</span>
+                <span v-if="r.accident" class="huh">?!</span>
+                <small class="muted">{{ r.region.split(' ').slice(-1)[0] }}</small>
+              </li>
+            </ul>
+            <p class="muted legend">노란 줄 = 이름이 아니라 우연히 걸린 곳</p>
+          </div>
+          <div v-else class="sky">
+            <div class="tower">
+              <div class="roof">{{ result.word }} 빌딩</div>
+              <TransitionGroup name="drop" tag="div">
+                <div
+                  v-for="f in floors"
+                  :key="f.name + f.floor + f.region"
+                  class="floor"
+                  :class="{ under: f.floor < 0 }"
+                  :style="{ '--c': pastelOf(f.name) }"
+                >
+                  <span class="no">{{ floorLabel(f.floor) }}</span>
+                  <span class="sign">{{ f.name }}</span>
+                  <span class="where">{{ f.region.split(' ').slice(-1)[0] }} · {{ f.cat }}</span>
+                </div>
+              </TransitionGroup>
+              <div class="ground"></div>
             </div>
-          </TransitionGroup>
-          <div class="ground"></div>
+          </div>
+          <button v-if="view === 'building'" class="wide" @click="build(), sfx.click()">🔨 다시 짓기</button>
         </div>
+        <aside class="side">
+          <KoreaMap :rows="mapRows" quiet />
+          <p class="muted">{{ view === 'list' ? '목록에 있는 가게' : '빌딩에 들어온 가게' }}가 실제로 있는 동네예요. 간판 색 = 불빛 색.</p>
+        </aside>
       </div>
-      <button v-if="view === 'building'" class="wide" @click="build(), sfx.click()">🔨 다시 짓기</button>
     </template>
     <p v-else-if="!result" class="muted hint">
       이름을 넣으면 그 글자가 들어간 전국의 진짜 가게들을, 진짜 층에 맞춰 한 건물에 쌓아요.
@@ -137,6 +150,37 @@ const floorLabel = (f) => (f < 0 ? `B${-f}` : `${f}F`)
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: 10px;
+  align-items: start;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.side {
+  position: sticky;
+  top: 0;
+}
+
+.side p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+@media (max-width: 719px) {
+  .split {
+    grid-template-columns: 1fr;
+  }
 }
 
 .err {

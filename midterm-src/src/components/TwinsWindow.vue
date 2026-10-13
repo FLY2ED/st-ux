@@ -30,9 +30,9 @@ function another() {
 <template>
   <div v-if="data">
     <menu role="tablist">
-      <li role="tab" :aria-selected="tab === 'top'"><a href="#" @click.prevent="tab = 'top'">전국 쌍둥이</a></li>
-      <li role="tab" :aria-selected="tab === 'building'"><a href="#" @click.prevent="tab = 'building'">한 건물 쌍둥이</a></li>
-      <li role="tab" :aria-selected="tab === 'lonely'"><a href="#" @click.prevent="tab = 'lonely'">세상에 하나뿐</a></li>
+      <li role="tab" :aria-selected="tab === 'top'"><a href="#" @click.prevent="tab = 'top'">전국에 똑같은 이름</a></li>
+      <li role="tab" :aria-selected="tab === 'building'"><a href="#" @click.prevent="tab = 'building'">한 건물에 똑같은 이름</a></li>
+      <li role="tab" :aria-selected="tab === 'lonely'"><a href="#" @click.prevent="tab = 'lonely'">딱 한 곳뿐인 이름</a></li>
     </menu>
     <div class="window" role="tabpanel">
       <div class="window-body">

@@ -13,6 +13,9 @@ export const SHOP_STYLE = {
   snack: { wall: '#fde2d6', sign: '#e0604d' },
 }
 
+// 업종별 가게 그림 (간판 글씨는 HTML로 얹는다)
+export const shopImg = (key) => new URL(`./assets/shop-${key}.webp`, import.meta.url).href
+
 export const PASTEL = ['#f6a5c0', '#8fb3e6', '#ffd84d', '#9fd8a8', '#c69be0', '#f2b46b', '#7fd1d1', '#f08a7a']
 
 export const pastelOf = (text) => {

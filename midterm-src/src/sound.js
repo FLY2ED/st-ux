@@ -1,6 +1,26 @@
 let ctx
 
+export const sound = { muted: read() }
+
+function read() {
+  try {
+    return localStorage.getItem('gp-muted') === '1'
+  } catch {
+    return false
+  }
+}
+
+export function setMuted(v) {
+  sound.muted = v
+  try {
+    localStorage.setItem('gp-muted', v ? '1' : '0')
+  } catch {
+    // 저장이 막혀도 이번 방문 동안은 유지된다
+  }
+}
+
 function beep(freq, dur = 0.08, type = 'square', when = 0) {
+  if (sound.muted) return
   try {
     ctx ||= new (window.AudioContext || window.webkitAudioContext)()
     const t = ctx.currentTime + when

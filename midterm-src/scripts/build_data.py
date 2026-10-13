@@ -30,12 +30,53 @@ STREET = [
     ("hardware", "철물/공구 소매업", "철물점", "🔨"),
     ("snack", "김밥/만두/분식", "분식집", "🍙"),
 ]
-GENERIC = re.compile(r"(업소명없음|공인중개|컴퓨터수리|입주청소|학원$|컨설팅|업$|슈퍼마켓$|교습소?$|^약국$|^노래연습장$)")
+GENERIC = re.compile(r"(업소명없음|공인중개|컴퓨터수리|입주청소|학원$|컨설팅|업$|슈퍼마켓$|교습소?$|^약국$|^노래연습장$|^카페$|^서점$|^꽃집$)")
 HANGUL2 = re.compile(r"[가-힣]{2}")
-# 지점명을 거의 안 적는 체인과 표기가 갈리는 체인
-KNOWN_CHAINS = {"김밥천국", "김밥나라", "태후사랑", "아모레카운셀러", "신앙촌상회", "페리카나치킨", "큐사랑"}
-ALIAS = {"파리바게트": "파리바게뜨", "베스킨라빈스": "배스킨라빈스", "이디야": "이디야커피", "페리카나치킨": "페리카나"}
-
+# 프랜차이즈 브랜드. 이름이 이 표기로 시작하면 그 브랜드로 본다 (준오헤어코엑스몰 → 준오헤어).
+# 지점명 칸은 업종마다 채우는 습관이 달라서 브랜드 목록이 먼저고, 지점명 비율은 목록 밖을 찾는 데만 쓴다.
+BRANDS = {
+    # 카페·디저트
+    "스타벅스": [], "투썸플레이스": [], "이디야커피": ["이디야"], "메가커피": ["메가엠지씨커피", "메가MGC커피"],
+    "컴포즈커피": [], "빽다방": [], "더벤티": [], "할리스": [], "커피빈": [], "파스쿠찌": [], "엔제리너스": [],
+    "탐앤탐스": [], "폴바셋": [], "공차": [], "매머드커피": ["매머드익스프레스"], "커피베이": [], "요거프레소": [],
+    "설빙": [], "커피에반하다": [], "감성커피": [], "하삼동커피": [], "텐퍼센트커피": [], "더리터": [],
+    "셀렉토커피": [], "바나프레소": [], "달콤커피": [], "드롭탑": [], "빈스빈스": [], "만랩커피": [],
+    "배스킨라빈스": ["베스킨라빈스"], "던킨": [], "크리스피크림": [],
+    # 빵·떡
+    "파리바게뜨": ["파리바게트"], "뚜레쥬르": [], "떡보의하루": [], "빚은": [],
+    # 세탁·노래방
+    "크린토피아": [], "월드크리닝": [], "수노래연습장": ["수노래방"], "락휴": [], "세븐스타코인": [],
+    # 미용실
+    "준오헤어": [], "박승철헤어": [], "이철헤어커커": [], "리안헤어": [], "블루클럽": [], "헤어벨": [],
+    "차홍": [], "라뷰티코아": [], "아이디헤어": [], "박준뷰티랩": [], "이가자헤어비스": [], "태후사랑": [],
+    "큐사랑": [], "미랑컬": [],
+    # 치킨·버거·피자
+    "교촌치킨": [], "BBQ": ["비비큐"], "BHC": ["비에이치씨"], "굽네치킨": [], "네네치킨": [], "처갓집양념치킨": [],
+    "페리카나": [], "멕시카나": [], "멕시칸치킨": ["맥시칸치킨"], "호식이두마리치킨": [], "노랑통닭": [], "가마치통닭": [], "자담치킨": [],
+    "또봉이통닭": [], "푸라닭": [], "60계치킨": ["육십계"], "지코바": [], "바른치킨": [], "땅땅치킨": [],
+    "깐부치킨": [], "치킨플러스": [], "훌랄라": [], "둘둘치킨": [], "구어조은닭": [], "후라이드참잘하는집": [],
+    "오븐마루": [], "치킨마루": [], "맘스터치": [], "롯데리아": [], "맥도날드": [], "버거킹": [],
+    "KFC": ["케이에프씨"], "써브웨이": ["서브웨이"], "이삭토스트": [], "피자스쿨": [], "도미노피자": [],
+    "피자헛": [], "피자나라치킨공주": [], "피자마루": [], "반올림피자": [], "7번가피자": [],
+    # 분식·밥
+    "김밥천국": [], "김밥나라": [], "신전떡볶이": [], "엽기떡볶이": ["동대문엽기떡볶이"], "죠스떡볶이": [],
+    "국대떡볶이": [], "배떡": [], "청년다방": [], "두끼": [], "고봉민김밥": [], "바르다김선생": [], "김가네": [],
+    "봉구스밥버거": [], "얌샘김밥": [], "마녀김밥": [], "명랑핫도그": ["명랑시대쌀핫도그"], "감탄떡볶이": [], "응급실떡볶이": [],
+    "걸작떡볶이": [], "한솥": [], "본도시락": [], "본죽": [], "국수나무": [], "등촌샤브칼국수": [],
+    "탕화쿵푸마라탕": [], "땅스부대찌개": [], "명륜진사갈비": [], "가장맛있는족발": [], "투다리": [],
+    "역전할머니맥주": [], "홍콩반점": [], "새마을식당": [], "한신포차": [], "봉추찜닭": [], "원할머니보쌈": [],
+    # 편의점·소매
+    "CU": ["씨유"], "세븐일레븐": [], "GS25": ["지에스25"], "이마트24": [], "미니스톱": [], "올리브영": ["씨제이올리브영"],
+    "다이소": [], "정관장": [], "아모레카운셀러": [], "신앙촌상회": [], "이니스프리": [], "아리따움": [],
+    "더페이스샵": [], "파크랜드": [], "삼천리자전거": [], "교보문고": [], "영풍문고": [], "알라딘": [],
+    "아이북랜드": [], "온누리약국": [],
+    # 정비
+    "현대자동차": ["블루핸즈"], "기아오토큐": [], "애니카랜드": [], "스피드메이트": [],
+}
+# 다른 말로 이어질 수 있어 이름이 똑같을 때만 브랜드로 보는 짧은 표기
+EXACT = {"씨유", "CU", "BBQ", "BHC", "KFC", "공차", "빚은", "배떡", "두끼", "본죽", "한솥", "설빙", "락휴", "차홍", "알라딘"}
+BRAND_OF = {v: k for k, vs in BRANDS.items() for v in [k, *vs]}
+PREFIX_LENS = sorted({len(v) for v in BRAND_OF}, reverse=True)
 
 def floor_of(v):
     v = v.strip().upper()
@@ -83,15 +124,41 @@ name_count = collections.Counter(r[0] for r in rows)
 branch_count = collections.Counter(r[0] for r in rows if r[1])
 
 
+sido_of_name = collections.defaultdict(set)
+for r in rows:
+    sido_of_name[r[0]].add(regions[r[3]].split()[0])
+chain_cache = {}
+
+
+def chain_of(name):
+    """프랜차이즈면 브랜드 이름, 아니면 None."""
+    if name in chain_cache:
+        return chain_cache[name]
+    key = re.sub(r"\s+", "", name)
+    brand = BRAND_OF.get(key)
+    if brand is None and not GENERIC.search(key):
+        for n in PREFIX_LENS:
+            v = key[:n]
+            if len(key) > n and v in BRAND_OF and v not in EXACT:
+                brand = BRAND_OF[v]
+                break
+    # 목록 밖: 지점명을 적은 곳이 30% 넘고, 50곳 넘게 다섯 개 시도 이상에 퍼진 이름
+    if brand is None and name_count[name] >= 50 and len(sido_of_name[name]) >= 5 and branch_count[name] / name_count[name] >= 0.3 and not GENERIC.search(name):
+        brand = name
+    chain_cache[name] = brand
+    return brand
+
+
 def is_chain(name):
-    return name in KNOWN_CHAINS or name in ALIAS or branch_count[name] / name_count[name] >= 0.2
+    return chain_of(name) is not None
 
 
 def chain_top(counter, k):
     merged = collections.Counter()
     for n, c in counter.items():
-        if is_chain(n) and not GENERIC.search(n) and name_count[n] >= 30:
-            merged[ALIAS.get(n, n)] += c
+        b = chain_of(n)
+        if b:
+            merged[b] += c
     return [[n, c] for n, c in merged.most_common(k) if c >= 10]
 
 
@@ -136,7 +203,7 @@ for key, cat, label, emoji in STREET:
     counter = collections.Counter(names)
     top = [[n, c] for n, c in counter.most_common(300) if is_indie(n)][:10]
     chains = chain_top(counter, 10)
-    chain_rows = sum(c for n, c in counter.items() if is_chain(n) and name_count[n] >= 30)
+    chain_rows = sum(c for n, c in counter.items() if is_chain(n))
     grams = collections.Counter()
     for n in names:
         if is_chain(n):

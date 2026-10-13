@@ -1,89 +1,71 @@
 <script setup>
 import { computed } from 'vue'
-import { SHOP_STYLE } from '../shops.js'
+import { SHOP_STYLE, shopImg } from '../shops.js'
 
 const props = defineProps({ shop: Object, small: Boolean })
 const style = computed(() => SHOP_STYLE[props.shop.key] || { wall: '#eee', sign: '#888' })
 </script>
 
 <template>
-  <div class="shop" :class="{ small }" :style="{ '--wall': style.wall, '--sign': style.sign }">
-    <div class="awning"></div>
+  <div class="shop" :class="{ small }" :style="{ '--sign': style.sign }">
     <div class="sign">{{ shop.label }}</div>
-    <div class="front">
-      <div class="win">{{ shop.emoji }}</div>
-      <div class="door"></div>
-    </div>
+    <div class="posts"></div>
+    <img class="front pixel" :src="shopImg(shop.key)" alt="" draggable="false" />
   </div>
 </template>
 
 <style scoped>
 .shop {
-  width: 92px;
+  --w: 120px;
+  width: var(--w);
   flex: none;
   display: flex;
   flex-direction: column;
-  border: 3px solid var(--ink);
-  background: var(--wall);
-  box-shadow: 4px 4px 0 rgb(0 0 0 / 0.18);
-}
-
-.awning {
-  height: 14px;
-  background: repeating-linear-gradient(90deg, var(--sign) 0 12px, #fff 12px 24px);
-  border-bottom: 3px solid var(--ink);
+  align-items: center;
 }
 
 .sign {
-  margin: 6px 6px 0;
-  padding: 3px 0;
-  background: var(--sign);
+  max-width: 88%;
+  padding: 3px 8px;
   color: #fff;
-  text-align: center;
-  border: 2px solid var(--ink);
   font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding-inline: 2px;
+  background: var(--sign);
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  box-shadow: 2px 2px 0 var(--ink);
+  text-shadow: 1px 1px 0 rgb(0 0 0 / 0.35);
+}
+
+/* 간판을 지붕에 세우는 두 기둥 */
+.posts {
+  width: 46%;
+  height: 5px;
+  border-inline: 2px solid var(--ink);
 }
 
 .front {
-  display: flex;
-  gap: 6px;
-  padding: 6px;
-  align-items: flex-end;
-}
-
-.win {
-  flex: 1;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  font-size: 18px;
-  background: #fffbe8;
-  border: 2px solid var(--ink);
-}
-
-.door {
-  width: 22px;
-  height: 44px;
-  background: var(--sign);
-  border: 2px solid var(--ink);
-  opacity: 0.85;
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: -1px;
 }
 
 .small {
-  width: 74px;
+  --w: 92px;
 }
 
-.small .win {
-  height: 26px;
-  font-size: 15px;
+.small .sign {
+  padding: 2px 6px;
+  font-size: 11px;
 }
 
-.small .door {
-  width: 16px;
-  height: 34px;
+.small .posts {
+  height: 4px;
 }
 </style>
