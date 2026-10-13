@@ -281,4 +281,31 @@ for n, c in name_count.items():
 for b in range(BUCKETS):
     dump(f"names/{b}.json", named.get(b, {}))
 
-print("rows", total, "names", len(name_count), "bigrams", len(post))
+# 우리 동네 간판: 0.1도 블록 파일, 그 안의 0.01도 칸마다 많아야 NEAR_CAP곳 ([이름, 업종, 블록 안 경도·위도 0.001도 단위])
+NEAR_CAP = 60
+near_rand = random.Random(11)
+near_cells = collections.defaultdict(list)
+for r in rows:
+    if GENERIC.search(r[0]) or not r[0]:
+        continue
+    x, y = round(r[5] * 1000), round(r[6] * 1000)
+    near_cells[(x // 10, y // 10)].append((r[0], r[2], x, y))
+blocks = collections.defaultdict(list)
+for (cx, cy), items in near_cells.items():
+    pick = items if len(items) <= NEAR_CAP else near_rand.sample(items, NEAR_CAP)
+    for n, c, x, y in pick:
+        blocks[(x // 100, y // 100)].append([n, c, x % 100, y % 100])
+os.makedirs(os.path.join(OUT, "near"), exist_ok=True)
+for (bx, by), items in blocks.items():
+    dump(f"near/{bx}_{by}.json", items)
+
+# 간판 끝말잇기: 첫 글자별로 전국에 많은 간판 이름
+starts = collections.defaultdict(list)
+for n, c in name_count.most_common():
+    if c < 3:
+        break
+    if re.fullmatch(r"[가-힣]{2,8}", n) and not GENERIC.search(n) and len(starts[n[0]]) < 12:
+        starts[n[0]].append([n, c])
+dump("kkeut.json", starts)
+
+print("rows", total, "names", len(name_count), "bigrams", len(post), "near blocks", len(blocks))

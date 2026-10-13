@@ -63,3 +63,28 @@ export function looksLikeName(shopName, word) {
   if (i < 0) return false
   return i === 0 || (i === 1 && SURNAMES.has(shopName[0]))
 }
+
+// 내 위치 반경 안의 간판. 0.1도 블록 파일을 필요한 만큼만 받고, 가까운 순으로 돌려준다.
+export async function nearby(lng, lat, radius = 800) {
+  const kx = 111320 * Math.cos((lat * Math.PI) / 180)
+  const ky = 110540
+  const dx = radius / kx
+  const dy = radius / ky
+  const keys = new Set()
+  for (const x of [lng - dx, lng + dx]) for (const y of [lat - dy, lat + dy]) keys.add(`${Math.floor(x * 10)}_${Math.floor(y * 10)}`)
+  const cats = await load('cats.json')
+  const out = []
+  await Promise.all(
+    [...keys].map(async (key) => {
+      const [bx, by] = key.split('_').map(Number)
+      const rows = await load(`near/${key}.json`).catch(() => [])
+      for (const [name, cat, ox, oy] of rows) {
+        const sx = (bx * 100 + ox) / 1000
+        const sy = (by * 100 + oy) / 1000
+        const dist = Math.hypot((sx - lng) * kx, (sy - lat) * ky)
+        if (dist <= radius) out.push({ name, cat: cats[cat], dist: Math.round(dist), dx: (sx - lng) * kx, dy: (sy - lat) * ky })
+      }
+    }),
+  )
+  return out.sort((a, b) => a.dist - b.dist)
+}

@@ -9,6 +9,8 @@ import FameWindow from './components/FameWindow.vue'
 import BuildingWindow from './components/BuildingWindow.vue'
 import MapWindow from './components/MapWindow.vue'
 import OpenShopWindow from './components/OpenShopWindow.vue'
+import KkeutWindow from './components/KkeutWindow.vue'
+import NearbyWindow from './components/NearbyWindow.vue'
 import { load } from './data.js'
 import { setMuted, sfx, sound } from './sound.js'
 
@@ -23,6 +25,8 @@ const APPS = [
   { id: 'map', img: art('map'), title: '간판 지도', icon: '🗺️', comp: MapWindow, width: 420 },
   { id: 'building', img: art('building'), title: '내 이름 간판 찾기', icon: '🏢', comp: BuildingWindow, width: 620 },
   { id: 'open', img: art('open'), title: '내 가게 차리기', icon: '🏗️', comp: OpenShopWindow, width: 380 },
+  { id: 'kkeut', img: art('kkeut'), title: '간판 끝말잇기', icon: '🔗', comp: KkeutWindow, width: 360 },
+  { id: 'near', img: art('map'), title: '우리 동네 간판', icon: '📍', comp: NearbyWindow, width: 380 },
 ]
 const MY_KEY = 'gp-my-shops'
 
