@@ -114,7 +114,6 @@ onBeforeUnmount(() => clearInterval(timer))
   <main class="desk">
     <header class="hero">
       <h1>간판 도감</h1>
-      <p v-if="meta">전국 간판 {{ meta.total.toLocaleString() }}개를 다 읽어 봤습니다</p>
     </header>
 
     <nav class="icons">
@@ -232,13 +231,6 @@ onBeforeUnmount(() => clearInterval(timer))
   color: #fff;
   text-shadow: 3px 3px 0 var(--ink), -1px -1px 0 var(--ink), 1px -1px 0 var(--ink), -1px 1px 0 var(--ink);
   letter-spacing: 2px;
-}
-
-.hero p {
-  display: inline-block;
-  margin: 6px 0 0;
-  padding: 1px 6px;
-  background: rgb(255 255 255 / 0.75);
 }
 
 .icons {
