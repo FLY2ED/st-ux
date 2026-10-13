@@ -12,14 +12,17 @@ import OpenShopWindow from './components/OpenShopWindow.vue'
 import { load } from './data.js'
 import { sfx } from './sound.js'
 
+const art = (name) => new URL(`./assets/icon-${name}.webp`, import.meta.url).href
+const START_IMG = art('start')
+
 const APPS = [
-  { id: 'street', title: '간판 거리', icon: '🏪', comp: StreetWindow, width: 400 },
-  { id: 'highlow', title: '하이로우', icon: '🎲', comp: HighLowWindow, width: 380 },
-  { id: 'twins', title: '쌍둥이 간판', icon: '👯', comp: TwinsWindow, width: 420 },
-  { id: 'fame', title: '명예의 전당', icon: '🏆', comp: FameWindow, width: 400 },
-  { id: 'map', title: '간판 지도', icon: '🗺️', comp: MapWindow, width: 420 },
-  { id: 'building', title: '내 이름 빌딩', icon: '🏢', comp: BuildingWindow, width: 380 },
-  { id: 'open', title: '내 가게 차리기', icon: '🏗️', comp: OpenShopWindow, width: 380 },
+  { id: 'street', img: art('street'), title: '간판 거리', icon: '🏪', comp: StreetWindow, width: 400 },
+  { id: 'highlow', img: art('highlow'), title: '하이로우', icon: '🎲', comp: HighLowWindow, width: 380 },
+  { id: 'twins', img: art('twins'), title: '쌍둥이 간판', icon: '👯', comp: TwinsWindow, width: 420 },
+  { id: 'fame', img: art('fame'), title: '명예의 전당', icon: '🏆', comp: FameWindow, width: 400 },
+  { id: 'map', img: art('map'), title: '간판 지도', icon: '🗺️', comp: MapWindow, width: 420 },
+  { id: 'building', img: art('building'), title: '내 이름 빌딩', icon: '🏢', comp: BuildingWindow, width: 380 },
+  { id: 'open', img: art('open'), title: '내 가게 차리기', icon: '🏗️', comp: OpenShopWindow, width: 380 },
 ]
 const MY_KEY = 'gp-my-shops'
 
@@ -111,7 +114,7 @@ onBeforeUnmount(() => clearInterval(timer))
 
     <nav class="icons">
       <button v-for="a in APPS" :key="a.id" class="icon" @click="open(a.id)">
-        <span class="glyph">{{ a.icon }}</span>
+        <img class="glyph" :src="a.img" alt="" width="48" height="48" />
         <span class="name">{{ a.title }}</span>
       </button>
     </nav>
@@ -140,7 +143,7 @@ onBeforeUnmount(() => clearInterval(timer))
   </main>
 
   <footer class="taskbar">
-    <button class="start" @click="open('fame')"><b>🪧 시작</b></button>
+    <button class="start" @click="open('fame')"><img :src="START_IMG" alt="" width="20" height="20" /><b>시작</b></button>
     <div class="tasks">
       <button
         v-for="w in windows"
@@ -149,7 +152,7 @@ onBeforeUnmount(() => clearInterval(timer))
         :class="{ on: w.id === activeId }"
         @click="focus(w)"
       >
-        {{ w.icon }} {{ w.title }}
+        <img :src="w.img" alt="" width="16" height="16" />{{ w.title }}
       </button>
     </div>
     <div class="tray status-bar-field">{{ clock }}</div>
@@ -161,9 +164,8 @@ onBeforeUnmount(() => clearInterval(timer))
   position: relative;
   height: calc(100dvh - var(--taskbar-h));
   overflow: hidden;
-  background-color: var(--desk);
-  background-image: radial-gradient(var(--desk-dot) 1px, transparent 1px);
-  background-size: 8px 8px;
+  background: #3f97f2 url('./assets/wallpaper.webp') 30% 100% / cover no-repeat;
+  image-rendering: pixelated;
 }
 
 .hero {
@@ -181,7 +183,10 @@ onBeforeUnmount(() => clearInterval(timer))
 }
 
 .hero p {
+  display: inline-block;
   margin: 6px 0 0;
+  padding: 1px 6px;
+  background: rgb(255 255 255 / 0.75);
 }
 
 .street {
@@ -253,7 +258,8 @@ onBeforeUnmount(() => clearInterval(timer))
 }
 
 .icon .glyph {
-  font-size: 32px;
+  width: 48px;
+  height: 48px;
   filter: drop-shadow(2px 2px 0 rgb(0 0 0 / 0.25));
 }
 
@@ -285,7 +291,10 @@ onBeforeUnmount(() => clearInterval(timer))
 .start {
   flex: none;
   min-width: 0;
-  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px 0 4px;
 }
 
 .tasks {
@@ -299,6 +308,9 @@ onBeforeUnmount(() => clearInterval(timer))
 
 .task {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   max-width: 140px;
   white-space: nowrap;
   overflow: hidden;
@@ -316,8 +328,18 @@ onBeforeUnmount(() => clearInterval(timer))
 }
 
 @media (min-width: 720px) {
+  .desk {
+    display: flex;
+    flex-direction: column;
+  }
+
   .icons {
-    grid-template-columns: 84px;
+    flex: 1;
+    min-height: 0;
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    grid-template-rows: repeat(auto-fill, 84px);
+    grid-auto-columns: 84px;
     justify-content: start;
   }
 }
