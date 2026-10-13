@@ -23,3 +23,19 @@ export const pastelOf = (text) => {
   for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) >>> 0
   return PASTEL[h % PASTEL.length]
 }
+
+// 거리 가게 → 데이터의 업종 소분류 이름
+export const STREET_CAT = {
+  flower: '꽃집',
+  bread: '빵/도넛',
+  cafe: '카페',
+  pharm: '약국',
+  ricecake: '떡/한과',
+  laundry: '세탁소',
+  karaoke: '노래방',
+  hair: '미용실',
+  chicken: '치킨',
+  book: '서점',
+  hardware: '철물/공구 소매업',
+  snack: '김밥/만두/분식',
+}
