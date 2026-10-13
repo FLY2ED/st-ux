@@ -68,13 +68,15 @@ BRANDS = {
     # 편의점·소매
     "CU": ["씨유"], "세븐일레븐": [], "GS25": ["지에스25"], "이마트24": [], "미니스톱": [], "올리브영": ["씨제이올리브영"],
     "다이소": [], "정관장": [], "아모레카운셀러": [], "신앙촌상회": [], "이니스프리": [], "아리따움": [],
-    "더페이스샵": [], "파크랜드": [], "삼천리자전거": [], "교보문고": [], "영풍문고": [], "알라딘": [],
+    "더페이스샵": [], "파크랜드": [], "삼천리자전거": [], "교보문고": [], "영풍문고": [], "알라딘": ["알라딘중고서점"],
     "아이북랜드": [], "온누리약국": [],
     # 정비
     "현대자동차": ["블루핸즈"], "기아오토큐": [], "애니카랜드": [], "스피드메이트": [],
 }
 # 다른 말로 이어질 수 있어 이름이 똑같을 때만 브랜드로 보는 짧은 표기
-EXACT = {"씨유", "CU", "BBQ", "BHC", "KFC", "공차", "빚은", "배떡", "두끼", "본죽", "한솥", "설빙", "락휴", "차홍", "알라딘"}
+EXACT = {"BBQ", "BHC", "KFC", "빚은", "락휴", "차홍", "알라딘"}
+# 브랜드 이름으로 시작하지만 다른 가게인 이름
+NOT_BRAND = re.compile(r"^(씨유펫|씨유통(?!영)|CU통|한솥밥|한솥식당)")
 BRAND_OF = {v: k for k, vs in BRANDS.items() for v in [k, *vs]}
 PREFIX_LENS = sorted({len(v) for v in BRAND_OF}, reverse=True)
 
@@ -136,7 +138,7 @@ def chain_of(name):
         return chain_cache[name]
     key = re.sub(r"\s+", "", name)
     brand = BRAND_OF.get(key)
-    if brand is None and not GENERIC.search(key):
+    if brand is None and not GENERIC.search(key) and not NOT_BRAND.match(key):
         for n in PREFIX_LENS:
             v = key[:n]
             if len(key) > n and v in BRAND_OF and v not in EXACT:
