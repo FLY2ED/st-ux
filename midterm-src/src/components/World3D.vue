@@ -3,13 +3,17 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import * as THREE from 'three'
 import { load, signsAround } from '../data.js'
 import { sfx } from '../sound.js'
-import { B, meshWorld, plantTrees, rasterize } from '../world/build.js'
+import { B, meshWorld, plantStreetTrees, plantTrees, rasterize } from '../world/build.js'
 import { buildLandmarks, describeSpot } from '../world/landmarks.js'
+import { busArrivals, buildingsAround, cityData, toLocal, vworldBuildings, weatherNow } from '../world/live.js'
 import { compact, fetchOSM } from '../world/osm.js'
+import { guessCrowd, makePeople } from '../world/people.js'
 import { PRESETS, RADIUS } from '../world/presets.js'
 import { placeSigns, meshSigns } from '../world/signs.js'
 import { fixedTime, skyOf, sunPosition } from '../world/sun.js'
-import { GROUND_ID, blockMaterials, leafMaterials, makeMaterials } from '../world/textures.js'
+import { GROUND_ID, blockMaterials, leafColor, leafMaterials, makeMaterials } from '../world/textures.js'
+import { LEVEL_COLOR, flowsFromCity, guessLevel, makeTraffic } from '../world/traffic.js'
+import { WEATHERS, makeWeather } from '../world/weather.js'
 
 const emit = defineEmits(['close'])
 
@@ -44,6 +48,16 @@ const slot = ref(0)
 const hover = shallowRef(null)
 const toast = shallowRef(null)
 const dex = ref(readDex())
+// 실시간: 날씨·도로 소통·혼잡도·가까운 역/정류장 도착 정보·길 찾기 미션
+const weatherMode = ref('live')
+const weather = shallowRef(null)
+const city = shallowRef(null)
+const roadText = ref('')
+const crowdText = ref('')
+const board = shallowRef(null)
+const mission = shallowRef(null)
+const missionText = ref('')
+const missionArrow = ref(0)
 const touch = matchMedia('(pointer: coarse)').matches
 const blocks = blockMaterials()
 
@@ -78,6 +92,17 @@ let raf = 0
 let last = 0
 let skyTimer = 0
 let target = null
+let traffic = null
+let people = null
+let weatherFx = null
+let trafficGroup = null
+let peopleGroup = null
+let liveSeq = 0
+let cityTimer = 0
+let weatherTimer = 0
+let boardTimer = 0
+let cityAt = 0
+let lastBurst = 0
 const voxels = new Map()
 const voxelMeshes = []
 const keys = new Set()
@@ -162,7 +187,9 @@ function setupScene() {
   scene.add(outline)
 
   mats = makeMaterials()
-  leafMats = leafMaterials()
+  leafMats = leafMaterials(leafColor(new Date().getMonth() + 1))
+  weatherFx = makeWeather()
+  scene.add(weatherFx.group)
   const cube = new THREE.BoxGeometry(B, B, B)
   for (const m of [...blocks.map((b) => b.mat), leafMats.trunk, leafMats.leaf]) {
     const inst = new THREE.InstancedMesh(cube, m, 1)
@@ -220,12 +247,16 @@ function disposeGroup(g) {
 }
 
 // --- 세계 만들기 --------------------------------------------------------------
-async function enter(next, label) {
+async function enter(next, label, area = '') {
   status.value = '간판을 세우는 중…'
   disposeGroup(worldGroup)
   disposeGroup(signGroup)
   disposeGroup(landGroup)
+  disposeGroup(trafficGroup)
+  disposeGroup(peopleGroup)
   voxels.clear()
+  mission.value = null
+  board.value = null
   world = next
   lng = world.lng
   lat = world.lat
@@ -238,7 +269,16 @@ async function enter(next, label) {
   const trees = plantTrees(grid, rand)
   for (const [i, y, k] of trees.trunk) voxels.set(vkey(i, y, k), TRUNK)
   for (const [i, y, k] of trees.leaf) if (!voxels.has(vkey(i, y, k))) voxels.set(vkey(i, y, k), LEAF)
+  const street = plantStreetTrees(grid, world, (i, k) => voxels.has(vkey(i, 0, k)))
+  for (const [i, y, k] of street.trunk) voxels.set(vkey(i, y, k), TRUNK)
+  for (const [i, y, k] of street.leaf) if (!voxels.has(vkey(i, y, k))) voxels.set(vkey(i, y, k), LEAF)
   redrawVoxels()
+  traffic = makeTraffic(world, grid, rand)
+  trafficGroup = traffic.group
+  scene.add(trafficGroup)
+  people = makePeople(grid, rand)
+  peopleGroup = people.group
+  scene.add(peopleGroup)
 
   const found = await signsAround(lng, lat, world.r).catch(() => ({ dense: false, rows: [] }))
   await document.fonts.load('20px Galmuri11').catch(() => {})
@@ -249,19 +289,92 @@ async function enter(next, label) {
   signMeshes = made.meshes
   scene.add(signGroup)
   signCount.value = signPlaced.length
-  const land = buildLandmarks(world, grid)
-  landGroup = land.group
-  landMeshes = land.meshes
-  landInfos = land.infos
-  scene.add(landGroup)
+  world.bk = []
+  world.wk = []
+  buildLand()
   lineBadges.value = world.ln || []
-  mapImage = drawMap()
+  applyCity(null)
 
   spawn()
   where.value = label
   status.value = ''
   updateSky()
+  loadLive(area)
 }
+
+function buildLand() {
+  disposeGroup(landGroup)
+  const land = buildLandmarks(world, grid)
+  landGroup = land.group
+  landMeshes = land.meshes
+  landInfos = land.infos
+  scene.add(landGroup)
+}
+
+// --- 실시간 자료 -------------------------------------------------------------
+async function loadLive(area) {
+  const seq = ++liveSeq
+  clearInterval(cityTimer)
+  clearInterval(weatherTimer)
+  city.value = null
+  refreshWeather(seq)
+  weatherTimer = setInterval(() => refreshWeather(seq), 15 * 60 * 1000)
+  if (!area) return
+  const pull = async () => {
+    const data = await cityData(area)
+    if (seq !== liveSeq || !data) return
+    city.value = data
+    applyCity(data)
+  }
+  await pull()
+  cityTimer = setInterval(pull, 5 * 60 * 1000)
+}
+
+async function refreshWeather(seq) {
+  const w = await weatherNow(lng, lat).catch(() => null)
+  if (seq !== liveSeq) return
+  weather.value = w
+  applyWeather()
+}
+
+// 도로 소통·혼잡도·따릉이·공사를 세계에 반영한다. 자료가 없으면 시간대로 어림한다
+function applyCity(data) {
+  const now = timeNow()
+  const guess = guessLevel(now)
+  const level = ['원활', '서행', '정체'].includes(data?.road.level) ? data.road.level : guess
+  traffic.setFlow(data ? flowsFromCity(data) : new Map(), level)
+  roadText.value = data ? `${level}${data.road.speed ? ` ${data.road.speed}km/h` : ''}` : `${guess} (추정)`
+  const crowd = data?.people.level || guessCrowd(now)
+  people.setCrowd(crowd)
+  crowdText.value = data ? crowd : `${crowd} (추정)`
+  const near = (x, y) => Math.abs(x) < world.r && Math.abs(y) < world.r
+  const had = world.bk.length + world.wk.length
+  world.bk = (data?.bike || []).map(([name, x, y, count, rack]) => [name, ...toLocal(world, x, y), count, rack]).filter(([, x, y]) => near(x, y))
+  world.wk = (data?.works || []).map(([type, dtype, info, x, y]) => [dtype || type, info, ...toLocal(world, x, y)]).filter(([, , x, y]) => near(x, y))
+  if (had || world.bk.length || world.wk.length) buildLand()
+  cityAt = Date.now()
+  mapImage = drawMap()
+}
+
+const weatherKind = () => (weatherMode.value === 'live' ? weather.value?.kind || 'clear' : weatherMode.value)
+
+function applyWeather() {
+  weatherFx.set(weatherKind())
+  if (grid) updateSky()
+}
+
+function setWeather(id) {
+  weatherMode.value = id
+  sfx.click()
+  applyWeather()
+}
+
+const WEATHER_ICON = { clear: '☀️', cloud: '☁️', rain: '🌧️', snow: '❄️' }
+const weatherLabel = computed(() => {
+  const kind = weatherKind()
+  const temp = weatherMode.value === 'live' && weather.value ? ` ${weather.value.temp}°` : ''
+  return `${WEATHER_ICON[kind]}${temp}${weatherMode.value === 'live' ? '' : ' (고정)'}`
+})
 
 // 가운데에서 가장 가까운 빈 바닥에 선다
 function spawn() {
@@ -320,20 +433,26 @@ async function startHere() {
   hereState.value = 'loading'
   notice.value = '내 위치 지도는 뒤에서 받는 중이에요. 준비되면 메뉴에 📍 버튼이 생겨요'
   await goPreset(closest, true)
-  fetchOSM(me.lng, me.lat, RADIUS, { timeout: 40000 })
-    .then((osm) => {
-      const world = compact(osm, me.lng, me.lat, RADIUS)
-      if (!world.b.length && !world.w.length) throw new Error('empty')
-      if (seq !== hereSeq) return
-      hereWorld.value = world
-      hereState.value = 'ready'
-      notice.value = ''
-    })
-    .catch(() => {
-      if (seq !== hereSeq) return
-      hereState.value = 'failed'
-      notice.value = 'OpenStreetMap 서버가 응답하지 않아서 내 위치 지도를 못 받았어요. 잠시 뒤 📍 내 위치를 다시 눌러 보세요'
-    })
+  // 길은 OpenStreetMap, 건물은 국토부 GIS건물통합정보(브이월드)에서 함께 받는다. OSM 이 죽어도 건물은 세운다
+  const [osm, gis] = await Promise.all([
+    fetchOSM(me.lng, me.lat, RADIUS, { timeout: 40000 }).catch(() => null),
+    buildingsAround(me.lng, me.lat, RADIUS).catch(() => null),
+  ])
+  if (seq !== hereSeq) return
+  const world = osm ? compact(osm, me.lng, me.lat, RADIUS) : { lng: me.lng, lat: me.lat, r: RADIUS, b: [], w: [], a: [], st: [], ex: [], bus: [], ln: [] }
+  if (gis?.b?.length > 3) {
+    const named = world.b.filter((b) => b[1])
+    world.b = vworldBuildings(gis.b, me.lng, me.lat).map((b) => (b[1] ? b : [b[0], nameInside(b[2], named), ...b.slice(2)]))
+    world.bsrc = 'gis'
+  }
+  if (!world.b.length && !world.w.length) {
+    hereState.value = 'failed'
+    notice.value = '지도 서버가 응답하지 않아서 내 위치 지도를 못 받았어요. 잠시 뒤 📍 내 위치를 다시 눌러 보세요'
+    return
+  }
+  hereWorld.value = world
+  hereState.value = 'ready'
+  notice.value = osm ? '' : 'OpenStreetMap 서버가 응답하지 않아서 내 위치는 길 없이 건물만 세워요'
 }
 
 async function goHere() {
@@ -346,11 +465,31 @@ async function goHere() {
   await enter(world, '내 위치')
 }
 
+// GIS 건물에 이름이 없으면 그 안에 든 OSM 건물 이름을 빌린다
+function nameInside(flat, named) {
+  for (const [, name, f] of named) {
+    let cx = 0
+    let cy = 0
+    for (let n = 0; n < f.length; n += 2) {
+      cx += f[n]
+      cy += f[n + 1]
+    }
+    cx /= f.length / 2
+    cy /= f.length / 2
+    let inside = false
+    for (let i = 0, j = flat.length - 2; i < flat.length; j = i, i += 2) {
+      if (flat[i + 1] > cy !== flat[j + 1] > cy && cx < ((flat[j] - flat[i]) * (cy - flat[i + 1])) / (flat[j + 1] - flat[i + 1]) + flat[i]) inside = !inside
+    }
+    if (inside) return name
+  }
+  return ''
+}
+
 async function goPreset(p, keepNotice = false) {
   if (!keepNotice) notice.value = ''
   status.value = `${p.label} 지도를 펼치는 중…`
   try {
-    await enter(await load(`world/${p.id}.json`), p.label)
+    await enter(await load(`world/${p.id}.json`), p.label, p.area)
   } catch {
     status.value = ''
     notice.value = '지도를 못 불러왔어요. 잠시 뒤 다시 눌러 보세요'
@@ -371,12 +510,20 @@ function updateSky() {
   const { alt, az } = sunPosition(date, lat, lng)
   const { day, rgb } = skyOf(alt)
   const color = new THREE.Color().setRGB(rgb[0], rgb[1], rgb[2], THREE.SRGBColorSpace)
+  // 흐리거나 비·눈이 오면 하늘이 잿빛이 되고 멀리가 뿌옇다
+  const wk = weatherKind()
+  if (wk !== 'clear') {
+    const grey = (color.r + color.g + color.b) / 3
+    color.lerp(new THREE.Color(grey, grey, grey), 0.7).multiplyScalar(wk === 'rain' ? 0.7 : wk === 'snow' ? 1.08 : 0.92)
+  }
+  scene.fog.near = { rain: 18, snow: 22, cloud: 50 }[wk] || 60
+  scene.fog.far = { rain: 170, snow: 150, cloud: 280 }[wk] || 330
   scene.background = color
   scene.fog.color.copy(color)
   const dir = new THREE.Vector3(Math.cos(alt) * Math.sin(az), Math.sin(alt), -Math.cos(alt) * Math.cos(az))
   // 해가 지면 반대편 달빛
   sun.position.copy(day > 0.05 ? dir : dir.clone().negate()).multiplyScalar(100)
-  sun.intensity = 0.2 + day * 1.2
+  sun.intensity = (0.2 + day * 1.2) * (wk === 'clear' ? 1 : 0.55)
   sun.color.setRGB(1, 0.92 + day * 0.08, 0.8 + day * 0.2)
   ambient.intensity = 0.22 + day * 0.45
   ambient.color.setRGB(0.55 + day * 0.45, 0.6 + day * 0.4, 0.85 + day * 0.15)
@@ -415,6 +562,20 @@ function drawMap() {
     ctx.fillStyle = color
     ctx.fillRect(Math.round(x / B + grid.half - size / 2), Math.round(-y / B + grid.half - size / 2), size, size)
   }
+  // 찻길 소통: 초록 원활 · 주황 서행 · 빨강 정체
+  if (traffic) {
+    ctx.globalAlpha = 0.75
+    ctx.lineWidth = 1.5
+    for (const lane of traffic.lanes) {
+      ctx.strokeStyle = LEVEL_COLOR[traffic.levelOf(lane)]
+      ctx.beginPath()
+      lane.pts.forEach(([x, y], n) => ctx[n ? 'lineTo' : 'moveTo'](x / B + grid.half, -y / B + grid.half))
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 1
+  }
+  for (const [, x, y] of world.bk || []) dot(x, y, '#2fa84f', 3)
+  for (const [, , x, y] of world.wk || []) dot(x, y, '#ff6a13', 4)
   for (const [, x, y] of world.bus || []) dot(x, y, '#2fd0d0', 3)
   for (const [, x, y] of world.ex || []) dot(x, y, '#ffd200', 4)
   for (const [, x, y] of world.st || []) dot(x, y, world.ln?.[0]?.[1] || '#ffffff', 7)
@@ -433,6 +594,18 @@ function drawMini() {
   ctx.fillStyle = '#c9c4b6'
   ctx.fillRect(0, 0, S, S)
   ctx.drawImage(mapImage, pi - span / 2, pk - span / 2, span, span, 0, 0, S, S)
+  // 미션 목표: 지도 밖이면 가장자리에 붙여 깜빡인다
+  if (mission.value) {
+    const m = mission.value
+    const mx = Math.max(6, Math.min(S - 6, ((m.x / B + grid.half - pi) / span) * S + S / 2))
+    const my = Math.max(6, Math.min(S - 6, ((-m.y / B + grid.half - pk) / span) * S + S / 2))
+    if (Math.floor(performance.now() / 300) % 2) {
+      ctx.fillStyle = '#ff2fa0'
+      ctx.fillRect(mx - 5, my - 5, 10, 10)
+      ctx.strokeStyle = '#fff'
+      ctx.strokeRect(mx - 5, my - 5, 10, 10)
+    }
+  }
   // 나: 보는 쪽을 가리키는 세모
   ctx.save()
   ctx.translate(S / 2, S / 2)
@@ -521,7 +694,14 @@ function aim(at = center) {
   const id = seen ? hit.object.userData.owner[hit.faceIndex] : -1
   const sign = seen && signMeshes.includes(hit.object) ? signPlaced[id] : null
   const land = seen && !sign ? landInfos[id] : null
-  return { sign, land, block: block && block.dist <= REACH ? block : null }
+  // 바라보는 건물 벽이면 그 건물 번호
+  let bldg = 0
+  if (!seen && block) {
+    const [i, y, k] = block.cell
+    const c = k * grid.N + i
+    if (i >= 0 && k >= 0 && i < grid.N && k < grid.N && y < grid.height[c]) bldg = grid.owner[c]
+  }
+  return { sign, land, bldg, block: block && block.dist <= REACH ? block : null }
 }
 
 function act(button, at) {
@@ -575,6 +755,16 @@ function showLand(info) {
 
 const floorText = (f) => (f > 0 ? `${f}층` : f < 0 ? `지하 ${-f}층` : '층 정보 없음')
 
+// 건물 정보: GIS 프리셋은 용도·층수·사용승인 연도까지 안다
+function bldgInfo(o) {
+  const b = world.b[o - 1]
+  if (!b) return null
+  const [h, name, , , floors, use, year] = b
+  const parts = [use, floors ? `지상 ${floors}층` : `높이 ${h}m`, year ? `${year}년` : ''].filter(Boolean)
+  if (!name && !use) return null
+  return { title: name || use, sub: parts.join(' · ') }
+}
+
 function frame(now) {
   raf = requestAnimationFrame(frame)
   const dt = Math.min(0.05, (now - last) / 1000 || 0)
@@ -589,9 +779,19 @@ function frame(now) {
     skyTimer = 1
     updateSky()
   }
-  const { sign, land, block } = aim()
-  const seen = sign ? { sign: sign.sign } : land ? { land } : null
-  if (hover.value?.sign !== seen?.sign || hover.value?.land !== seen?.land) hover.value = seen
+  const t = now / 1000
+  if (traffic.update(dt, player.pos) && (!paused.value || touch)) sfx.horn()
+  people.update(dt, player.pos, t)
+  weatherFx.update(dt, camera.position)
+  boardTimer -= dt
+  if (boardTimer <= 0) {
+    boardTimer = 0.5
+    updateBoard()
+    updateMission()
+  }
+  const { sign, land, bldg, block } = aim()
+  const seen = sign ? { sign: sign.sign } : land ? { land } : bldg ? { bldg } : null
+  if (hover.value?.sign !== seen?.sign || hover.value?.land !== seen?.land || hover.value?.bldg !== seen?.bldg) hover.value = seen ? { ...seen, info: bldg ? bldgInfo(bldg) : null } : null
   target = block
   outline.visible = !!block && block.cell[1] >= 0
   if (outline.visible) outline.position.set((block.cell[0] - grid.half + 0.5) * B, (block.cell[1] + 0.5) * B, (block.cell[2] - grid.half + 0.5) * B)
@@ -610,6 +810,107 @@ function frame(now) {
     drawMini()
   }
   renderer.render(scene, camera)
+}
+
+// --- 가까운 역·정류장 도착 정보 ----------------------------------------------
+const secText = (sec) => (sec <= 0 ? '곧 도착' : sec < 60 ? `${sec}초 후` : `${Math.floor(sec / 60)}분 ${sec % 60 ? `${sec % 60}초 ` : ''}후`)
+let busBusy = false
+let busFor = ''
+
+function updateBoard() {
+  const x = player.pos.x
+  const y = -player.pos.z
+  // 역 이름판·출구 가까이: 실시간 열차 도착
+  const subway = city.value?.subway || []
+  const stationNear = subway.length && [...(world.st || []), ...(world.ex || []).map((e) => [e[3], e[1], e[2]])].some((s) => Math.hypot(s[1] - x, s[2] - y) < 45)
+  if (stationNear) {
+    const gone = Math.floor((Date.now() - cityAt) / 1000)
+    const rows = []
+    for (const [name, , , list] of subway) {
+      for (const [line, route, sec, msg, info] of list.slice(0, 8)) {
+        const left = sec ? sec - gone : null
+        rows.push([line, route, left === null ? info || msg : secText(Math.max(0, left)), name])
+        // 열차가 막 들어오면 가까운 출구에서 사람들이 쏟아져 나온다
+        if (left !== null && left <= 0 && left > -30 && Date.now() - lastBurst > 20000) burstAtExit()
+      }
+    }
+    board.value = { kind: 'subway', title: `🚇 ${subway.map((s) => s[0]).join(' · ')}역 도착 정보`, rows: rows.slice(0, 8), note: '서울 실시간 도시데이터' }
+    return
+  }
+  // 버스 정류장 가까이: 정류소 도착 예정 버스
+  const stop = (world.bus || []).map(([name, sx, sy]) => ({ name, sx, sy, d: Math.hypot(sx - x, sy - y) })).sort((a, b) => a.d - b.d)[0]
+  if (stop && stop.d < 18) {
+    const key = stop.name
+    if (busFor !== key && !busBusy) {
+      busBusy = true
+      busFor = key
+      const lngV = world.lng + stop.sx / (111320 * Math.cos((world.lat * Math.PI) / 180))
+      const latV = world.lat + stop.sy / 110540
+      board.value = { kind: 'bus', title: `🚌 ${stop.name}`, rows: [], note: '도착 정보를 받는 중…' }
+      busArrivals(lngV, latV)
+        .then((data) => {
+          if (busFor !== key) return
+          const rows = (data.buses || []).slice(0, 8).map(([no, a1, , dir]) => [no, dir ? `${dir} 방면` : '', a1, ''])
+          board.value = { kind: 'bus', title: `🚌 ${data.stop?.name || stop.name}`, rows, note: rows.length ? '서울시 버스도착정보' : '지금 도착 예정 버스가 없어요' }
+        })
+        .catch(() => {
+          if (busFor === key) board.value = { kind: 'bus', title: `🚌 ${stop.name}`, rows: [], note: '도착 정보를 못 받았어요' }
+        })
+        .finally(() => (busBusy = false))
+    }
+    return
+  }
+  busFor = ''
+  if (board.value) board.value = null
+}
+
+function burstAtExit() {
+  lastBurst = Date.now()
+  const x = player.pos.x
+  const y = -player.pos.z
+  const exit = (world.ex || []).map((e) => ({ e, d: Math.hypot(e[1] - x, e[2] - y) })).sort((a, b) => a.d - b.d)[0]
+  if (exit && exit.d < 150) people.burst(exit.e[1], exit.e[2], 12)
+}
+
+// --- 길 찾기 미션 ---------------------------------------------------------------
+function startMission() {
+  const x = player.pos.x
+  const y = -player.pos.z
+  const goals = [
+    ...(world.ex || []).map(([ref, gx, gy, desc]) => [`${(desc || world.st?.[0]?.[0] || '지하철').replace(/역$/, '')}역 ${ref ? `${ref}번 ` : ''}출구`, gx, gy]),
+    ...(world.bus || []).map(([name, gx, gy]) => [`${name} 버스 정류장`, gx, gy]),
+    ...(world.bk || []).map(([name, gx, gy]) => [`따릉이 ${name}`, gx, gy]),
+  ].filter(([, gx, gy]) => Math.hypot(gx - x, gy - y) > 50)
+  sfx.click()
+  if (!goals.length) {
+    notice.value = '여기에는 찾아갈 출구·정류장이 없어요'
+    return
+  }
+  const [title, gx, gy] = goals[(Math.random() * goals.length) | 0]
+  mission.value = { title, x: gx, y: gy, start: performance.now() }
+  notice.value = ''
+  updateMission()
+  lock()
+}
+
+function updateMission() {
+  const m = mission.value
+  if (!m) return
+  const dx = m.x - player.pos.x
+  const dy = m.y + player.pos.z
+  const d = Math.hypot(dx, dy)
+  // 화면 기준 방향: 앞이 0도
+  const ang = Math.atan2(dx, dy) + player.yaw
+  missionArrow.value = Math.round((ang * 180) / Math.PI)
+  missionText.value = `${m.title} · ${Math.round(d)}m`
+  if (d < 6) {
+    const sec = Math.round((performance.now() - m.start) / 1000)
+    mission.value = null
+    sfx.right()
+    toast.value = { mission: { title: m.title, time: sec >= 60 ? `${Math.floor(sec / 60)}분 ${sec % 60}초` : `${sec}초` } }
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => (toast.value = null), 4500)
+  }
 }
 
 function lock() {
@@ -774,13 +1075,16 @@ onMounted(() => {
   window.addEventListener('keyup', onKeyUp)
   window.addEventListener('wheel', onWheel, { passive: true })
   raf = requestAnimationFrame(frame)
-  if (import.meta.env.DEV) window.__world3d = { player, flying, signs: () => signPlaced }
+  if (import.meta.env.DEV) window.__world3d = { player, flying, signs: () => signPlaced, traffic: () => traffic, people: () => people, city, board, mission, setWeather, startMission }
   startHere()
 })
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(raf)
   clearTimeout(toastTimer)
+  clearInterval(cityTimer)
+  clearInterval(weatherTimer)
+  liveSeq++
   observer?.disconnect()
   if (document.pointerLockElement) document.exitPointerLock()
   document.removeEventListener('pointerlockchange', onLockChange)
@@ -791,6 +1095,9 @@ onBeforeUnmount(() => {
   disposeGroup(worldGroup)
   disposeGroup(signGroup)
   disposeGroup(landGroup)
+  disposeGroup(trafficGroup)
+  disposeGroup(peopleGroup)
+  weatherFx.dispose()
   renderer.dispose()
   renderer.forceContextLoss()
 })
@@ -811,8 +1118,15 @@ onBeforeUnmount(() => {
         <span>🕒 {{ clock }}{{ timeMode === 'now' ? '' : ` (${timeMode === 'day' ? '낮' : '밤'} 고정)` }}</span>
         <span>🪧 간판 {{ signCount.toLocaleString() }}곳{{ dense ? '' : ' (표본)' }}</span>
         <span>📒 도감 {{ dex.length.toLocaleString() }}</span>
+        <span>{{ weatherLabel }}</span>
+        <span>🚗 {{ roadText }}</span>
+        <span>👥 {{ crowdText }}</span>
         <span v-if="flying">🕊️ 나는 중</span>
         <span v-if="hereState === 'ready'">📍 내 위치 준비됨 · {{ touch ? '메뉴' : 'Esc' }}에서 이동</span>
+      </div>
+      <div v-if="ready && mission" class="goal">
+        <span class="arrow" :style="{ transform: `rotate(${missionArrow}deg)` }">⬆</span>
+        🎯 {{ missionText }}
       </div>
 
       <div v-if="ready && (!paused || touch)" class="cross" aria-hidden="true"></div>
@@ -823,6 +1137,23 @@ onBeforeUnmount(() => {
       <p v-else-if="ready && hover?.land && (!paused || touch)" class="aim">
         <b>{{ hover.land.title }}</b> · {{ hover.land.sub }}
       </p>
+      <p v-else-if="ready && hover?.info && (!paused || touch)" class="aim">
+        🏢 <b>{{ hover.info.title }}</b> · {{ hover.info.sub }}
+      </p>
+
+      <div v-if="ready && board" class="board window">
+        <div class="title-bar"><div class="title-bar-text">{{ board.title }}</div></div>
+        <div class="window-body">
+          <table v-if="board.rows.length">
+            <tr v-for="(r, n) in board.rows" :key="n">
+              <td class="line">{{ r[0] }}</td>
+              <td>{{ r[1] }}</td>
+              <td class="when">{{ r[2] }}</td>
+            </tr>
+          </table>
+          <p class="note">{{ board.note }}</p>
+        </div>
+      </div>
 
       <div v-if="ready" class="mini" aria-hidden="true">
         <canvas ref="mini" width="150" height="150"></canvas>
@@ -831,8 +1162,15 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div v-if="toast?.land" class="toast window">
-        <div class="title-bar"><div class="title-bar-text">{{ { exit: '🚇 지하철 출구', station: '🚉 지하철역', bus: '🚌 버스 정류장', road: '🪧 도로명', building: '🏢 건물' }[toast.land.kind] }}</div></div>
+      <div v-if="toast?.mission" class="toast window">
+        <div class="title-bar"><div class="title-bar-text">🎯 미션 성공!</div></div>
+        <div class="window-body">
+          <b>{{ toast.mission.title }}</b>
+          <p>{{ toast.mission.time }} 만에 찾았어요</p>
+        </div>
+      </div>
+      <div v-else-if="toast?.land" class="toast window">
+        <div class="title-bar"><div class="title-bar-text">{{ { exit: '🚇 지하철 출구', station: '🚉 지하철역', bus: '🚌 버스 정류장', road: '🪧 도로명', building: '🏢 건물', bike: '🚲 따릉이', work: '🚧 공사·통제' }[toast.land.kind] }}</div></div>
         <div class="window-body">
           <b>{{ toast.land.title }}</b>
           <p>{{ toast.land.sub }}</p>
@@ -895,6 +1233,19 @@ onBeforeUnmount(() => {
                 <button v-for="t in TIMES" :key="t.id" :class="{ on: timeMode === t.id }" @click="setTime(t.id)">{{ t.label }}</button>
               </div>
             </fieldset>
+            <fieldset>
+              <legend>날씨</legend>
+              <div class="chips">
+                <button v-for="w in WEATHERS" :key="w.id" :class="{ on: weatherMode === w.id }" @click="setWeather(w.id)">{{ w.label }}</button>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>미션</legend>
+              <div class="chips">
+                <button :disabled="!ready" @click="startMission">🎯 길 찾기 미션</button>
+                <button v-if="mission" @click="mission = null">그만두기</button>
+              </div>
+            </fieldset>
             <ul v-if="!touch" class="keys">
               <li><kbd>WASD</kbd> 걷기 · <kbd>Shift</kbd> 달리기 · <kbd>Space</kbd> 점프</li>
               <li><kbd>Space</kbd> 두 번 또는 <kbd>F</kbd> 날기 (<kbd>Space</kbd> 위 · <kbd>C</kbd> 아래 · <kbd>Shift</kbd> 빠르게) · <kbd>T</kbd> 시간 바꾸기</li>
@@ -902,7 +1253,7 @@ onBeforeUnmount(() => {
               <li><kbd>1</kbd>~<kbd>5</kbd>·휠: 블록 고르기 · <kbd>Esc</kbd> 메뉴</li>
               <li v-if="dragLook">마우스 잠금이 안 되는 브라우저라서 <b>끌어서</b> 둘러봐요</li>
             </ul>
-            <p class="src">길 © OpenStreetMap 기여자 · 프리셋 건물 © 국토교통부 GIS건물통합정보 · 간판 소상공인시장진흥공단 상가정보</p>
+            <p class="src">길 © OpenStreetMap 기여자 · 건물 © 국토교통부 GIS건물통합정보(브이월드) · 간판 소상공인시장진흥공단 상가정보 · 교통·혼잡도 서울 실시간 도시데이터 · 버스 서울시 버스도착정보 · 날씨 Open-Meteo</p>
           </div>
         </div>
       </div>
@@ -1017,6 +1368,61 @@ onBeforeUnmount(() => {
   font-size: 11px;
   color: #fff;
   text-shadow: 1px 1px 0 rgb(0 0 0 / 0.5);
+}
+
+.goal {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  font-size: 14px;
+  font-weight: bold;
+  color: #fff;
+  background: rgb(160 20 100 / 0.75);
+  text-shadow: 1px 1px 0 #000;
+  pointer-events: none;
+}
+
+.goal .arrow {
+  display: inline-block;
+  margin-right: 4px;
+}
+
+.board {
+  position: absolute;
+  left: 10px;
+  bottom: 70px;
+  width: min(330px, calc(100% - 20px));
+  pointer-events: none;
+}
+
+.board table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.board td {
+  padding: 2px 4px;
+  border-bottom: 1px dotted #999;
+}
+
+.board .line {
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.board .when {
+  text-align: right;
+  white-space: nowrap;
+  color: #a01818;
+}
+
+.board .note {
+  margin: 4px 0 0;
+  font-size: 10px;
+  color: #555;
 }
 
 .toast {
