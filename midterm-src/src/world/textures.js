@@ -114,13 +114,13 @@ export const WALLS = [
   ['#c9d9c2', '#a9bba2', '#4a5d48'],
 ]
 export const GLASS = WALLS.length
-// 벽 번호: 0~5 일반, 6 파란 유리, 7 어두운 유리, 8·9 아파트, 10 학교 벽돌, 11 교회 벽돌
-const EXTRA = ['glass', 'dark', 'apt', 'apt', 'school', 'church']
-const EXTRA_COLOR = [['#5c7d99', '#4b6a85', '#2b3a4a'], ['#34404d', '#2a343f', '#1b232c'], ['#f1f0ea', '#d6d4cc', '#9aa3ad'], ['#eadfca', '#cfc2a8', '#8c8f8a'], ['#a8573b', '#8a4530', '#f2efe6'], ['#9a4a3a', '#7d3a2d', '#e6dccb']]
+// 벽 번호: 0~5 일반, 6 파란 유리, 7 어두운 유리, 8·9 아파트, 10 학교 벽돌, 11 교회 벽돌, 12 낡은 콘크리트, 13 낡은 벽돌
+const EXTRA = ['glass', 'dark', 'apt', 'apt', 'school', 'church', 'old', 'old']
+const EXTRA_COLOR = [['#5c7d99', '#4b6a85', '#2b3a4a'], ['#34404d', '#2a343f', '#1b232c'], ['#f1f0ea', '#d6d4cc', '#9aa3ad'], ['#eadfca', '#cfc2a8', '#8c8f8a'], ['#a8573b', '#8a4530', '#f2efe6'], ['#9a4a3a', '#7d3a2d', '#e6dccb'], ['#a9a59a', '#8e8a7f', '#4a4c50'], ['#8c4c3a', '#70392b', '#3a3230']]
 export const WALL_COUNT = WALLS.length + EXTRA.length
 
 // 건물 종류마다 고를 수 있는 벽
-export const LOOK_WALLS = { apt: [8, 9], house: [1, 2, 5], school: [10], office: [6, 7, 3], retail: [0, 3, 4, 5, 1], church: [11], villa: [1, 0, 3], brick: [2, 11, 2], other: [0, 1, 3, 4, 5] }
+export const LOOK_WALLS = { apt: [8, 9], house: [1, 2, 5], school: [10], office: [6, 7, 3], retail: [0, 3, 4, 5, 1], church: [11], villa: [1, 0, 3], brick: [2, 11, 2], old: [12, 13, 12], other: [0, 1, 3, 4, 5] }
 
 // 벽 무늬는 가로 4칸, 세로 두 층(4칸)을 한 장으로 그려 불 켜진 창이 덜 반복돼 보이게 한다
 function wallCanvases(i) {
@@ -175,6 +175,15 @@ function wallCanvases(i) {
       }
     }
   })
+  // 오래된 건물: 창 밑으로 흘러내린 얼룩과 에어컨 실외기
+  if (style === 'old') {
+    const ctx = map.getContext('2d')
+    for (let n = 0; n < 7; n++) {
+      ctx.fillStyle = `rgb(40 36 30 / ${0.12 + r() * 0.12})`
+      ctx.fillRect((r() * 62) | 0, (r() * 40) | 0, 1 + ((r() * 2) | 0), 8 + ((r() * 20) | 0))
+    }
+    for (const y of [24, 56]) if (r() < 0.7) rect(ctx, '#d8d8d2', 2 + ((r() * 3) | 0) * 16, y, 7, 5)
+  }
   const glow = canvasOf(64, 64, (ctx) => {
     rect(ctx, '#000', 0, 0, 64, 64)
     for (const [x, y, w, h, on] of lit) if (on) rect(ctx, glass ? '#ffe7a8' : '#ffd98a', x, y, w, h)
@@ -232,9 +241,14 @@ export function blockMaterials() {
   })
 }
 
-export function leafMaterials() {
+// 계절마다 잎 색: 4월 벚꽃, 10월 은행잎, 11월 단풍, 겨울 마른 잎
+export function leafColor(month) {
+  return { 3: '#8fbf5a', 4: '#f0b6c8', 10: '#e2c23a', 11: '#d27a34', 12: '#8a7f68', 1: '#8a7f68', 2: '#8a7f68' }[month] || '#3f8a3a'
+}
+
+export function leafMaterials(color = '#3f8a3a') {
   return {
     trunk: new THREE.MeshLambertMaterial({ map: texOf(canvasOf(16, 16, (ctx) => { noise(ctx, 16, 16, '#6b4a2f', 0.25, 601); for (const x of [3, 9, 13]) rect(ctx, '#553a24', x, 0, 1, 16) }), false) }),
-    leaf: new THREE.MeshLambertMaterial({ map: texOf(canvasOf(16, 16, (ctx) => { noise(ctx, 16, 16, '#3f8a3a', 0.45, 602) }), false) }),
+    leaf: new THREE.MeshLambertMaterial({ map: texOf(canvasOf(16, 16, (ctx) => { noise(ctx, 16, 16, color, 0.45, 602) }), false) }),
   }
 }

@@ -89,4 +89,5 @@ export const sfx = {
   wrong: () => { beep(220, 0.15, 'sawtooth'); beep(165, 0.25, 'sawtooth', 0.12) },
   tick: () => beep(1200, 0.02, 'triangle'),
   build: (i) => beep(330 + i * 60, 0.05, 'square'),
+  horn: () => { beep(392, 0.28, 'sawtooth'); beep(494, 0.28, 'sawtooth') },
 }

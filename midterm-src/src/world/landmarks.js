@@ -150,6 +150,46 @@ function drawBus(name) {
   }
 }
 
+// 따릉이 대여소 표지: 초록 바탕에 자전거 수
+function drawBike(name, count) {
+  return (ctx, w, h) => {
+    ctx.fillStyle = '#1f8a3c'
+    ctx.fillRect(0, 0, w, h)
+    ctx.fillStyle = '#fff'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'middle'
+    fit(ctx, '따릉이', 90, 24, 'bold')
+    ctx.fillText('따릉이', 10, h / 2 - 12)
+    fit(ctx, name, w - 20, 18)
+    ctx.fillText(name, 10, h / 2 + 14)
+    ctx.textAlign = 'right'
+    fit(ctx, `${count}대`, 80, 28, 'bold')
+    ctx.fillText(`${count}대`, w - 10, h / 2 - 12)
+  }
+}
+
+// 공사·사고 안내판: 주황 바탕 검은 글씨
+function drawWork(type) {
+  return (ctx, w, h) => {
+    ctx.fillStyle = '#f28c1c'
+    ctx.fillRect(0, 0, w, h)
+    for (let x = -h; x < w; x += 24) {
+      ctx.fillStyle = '#1d1d1d'
+      ctx.beginPath()
+      ctx.moveTo(x, h)
+      ctx.lineTo(x + 12, h)
+      ctx.lineTo(x + 12 + 10, h - 10)
+      ctx.lineTo(x + 10, h - 10)
+      ctx.fill()
+    }
+    ctx.fillStyle = '#1d1d1d'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    fit(ctx, `⚠ ${type}`, w - 16, 30, 'bold')
+    ctx.fillText(`⚠ ${type}`, w / 2, h / 2 - 5)
+  }
+}
+
 // 건물 이름은 벽에 바로 쓴 글자처럼 바탕 없이 테두리만
 function drawName(name, w, h, dark) {
   return (ctx) => {
@@ -293,6 +333,41 @@ export function buildLandmarks(world, grid) {
     panel(tex, x - ox * 0.7, 2.86, y - oy * 0.7, -ox, -oy, 3.2, 0.56, { kind: 'bus', title: name, sub: '버스 정류장' })
   }
 
+  // 따릉이 대여소: 거치대에 선 자전거 줄과 초록 표지
+  for (const [name, x0, y0, count, rack] of world.bk || []) {
+    const road = nearestRoad(x0, y0)
+    const [x, y, [ox, oy]] = curb(x0, y0, road, 1.4)
+    const [dx, dy] = road ? road.dir : [1, 0]
+    const n = Math.min(8, Math.max(2, rack || 5))
+    box('metal', x, 0.12, y, [dx, dy], n * 0.75 + 0.4, 0.24, 0.4)
+    for (let b = 0; b < Math.min(n, count); b++) {
+      const t = (b - (n - 1) / 2) * 0.75
+      const bx = x + dx * t
+      const by = y + dy * t
+      box('bike', bx, 0.55, by, [ox, oy], 1.6, 0.08, 0.08)
+      for (const s of [-0.6, 0.6]) box('tire', bx + ox * s, 0.36, by + oy * s, [ox, oy], 0.66, 0.66, 0.06)
+      box('bike', bx - ox * 0.3, 0.85, by - oy * 0.3, [ox, oy], 0.1, 0.5, 0.08)
+    }
+    box('metal', x + dx * (n * 0.4 + 0.5), 1.2, y + dy * (n * 0.4 + 0.5), [dx, dy], 0.1, 2.4, 0.1)
+    const tex = atlas.add(256, 80, drawBike(name, count))
+    panel(tex, x + dx * (n * 0.4 + 0.5), 2.2, y + dy * (n * 0.4 + 0.5), ox, oy, 1.8, 0.56, { kind: 'bike', title: `따릉이 ${name}`, sub: `자전거 ${count}대 · 거치대 ${rack}개` })
+  }
+
+  // 공사·사고 자리: 고깔과 가림막
+  for (const [type, info, x, y] of world.wk || []) {
+    const road = nearestRoad(x, y)
+    const [dx, dy] = road ? road.dir : [1, 0]
+    for (let c = -2; c <= 2; c++) {
+      const cxp = x + dx * c * 1.6
+      const cyp = y + dy * c * 1.6
+      box('cone', cxp, 0.35, cyp, [dx, dy], 0.4, 0.7, 0.4)
+      box('stripe', cxp, 0.42, cyp, [dx, dy], 0.42, 0.12, 0.42)
+    }
+    box('stripe', x - dy * 1.2, 0.9, y + dx * 1.2, [dx, dy], 5, 0.5, 0.08)
+    const tex = atlas.add(256, 72, drawWork(type))
+    panel(tex, x - dy * 1.2, 1.6, y + dx * 1.2, -dy, dx, 2.4, 0.68, { kind: 'work', title: type, sub: info })
+  }
+
   // 도로명판: 이름 있는 찻길을 따라 일정 간격으로, 걷는 방향에서 보이게 세운다
   const placedRoads = []
   for (const [, width, flat, name, en] of roads) {
@@ -412,6 +487,10 @@ export function buildLandmarks(world, grid) {
     dark: new THREE.MeshLambertMaterial({ color: 0x24262b }),
     glass: new THREE.MeshLambertMaterial({ color: 0xa9d2e8, transparent: true, opacity: 0.4 }),
     concrete: new THREE.MeshLambertMaterial({ color: 0xb7b2a6 }),
+    bike: new THREE.MeshLambertMaterial({ color: 0x2fa84f }),
+    tire: new THREE.MeshLambertMaterial({ color: 0x1a1a1a }),
+    cone: new THREE.MeshLambertMaterial({ color: 0xff6a13 }),
+    stripe: new THREE.MeshLambertMaterial({ color: 0xf4f4f4 }),
   }
   const unit = new THREE.BoxGeometry(1, 1, 1)
   for (const [key, list] of boxes) {

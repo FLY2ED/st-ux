@@ -81,17 +81,19 @@ export function rasterize(world) {
       ground[c] = id
     })
   }
-  world.b.forEach(([h, name, flat, kind = 'other'], idx) => {
+  world.b.forEach(([h, name, flat, look = 'other', , , year], idx) => {
+    // 1990년 전에 지은 상가·주택은 빛바랜 벽
+    const kind = year && year < 1990 && h < 45 && !['apt', 'school', 'church'].includes(look) ? 'old' : look
     const blocks = Math.min(MAX_H, Math.max(2, Math.round(h / B)))
     let hash = idx
     for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
     // 아주 높은 건물은 아파트가 아니면 유리 외벽
     const choice = LOOK_WALLS[kind === 'apt' || h < 45 ? kind : 'office'] || LOOK_WALLS.other
-    const look = choice[hash % choice.length]
+    const wallId = choice[hash % choice.length]
     fillPoly(flat, (c) => {
       if (blocks >= height[c]) {
         height[c] = blocks
-        wall[c] = look
+        wall[c] = wallId
         owner[c] = idx + 1
       }
     })
@@ -213,6 +215,10 @@ export function plantTrees(grid, rand) {
       if (clear && !trees.some(([ti, tk]) => Math.abs(ti - i) < 4 && Math.abs(tk - k) < 4)) trees.push([i, k])
     }
   }
+  return grow(trees)
+}
+
+function grow(trees) {
   const trunk = []
   const leaf = []
   for (const [i, k] of trees) {
@@ -222,4 +228,39 @@ export function plantTrees(grid, rand) {
     for (const [di, dk] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) leaf.push([i + di, tall + 1, k + dk])
   }
   return { trunk, leaf }
+}
+
+// 넓은 찻길 양쪽 보도에 가로수를 줄지어 심는다
+export function plantStreetTrees(grid, world, voxels) {
+  const { N, half, height, ground } = grid
+  const trees = []
+  const taken = (i, k) => trees.some(([ti, tk]) => Math.abs(ti - i) < 4 && Math.abs(tk - k) < 4)
+  const ok = (i, k) => {
+    if (i < 2 || k < 2 || i >= N - 2 || k >= N - 2) return false
+    const g = ground[k * N + i]
+    if (g !== GROUND_ID.pave && g !== GROUND_ID.path) return false
+    // 잎은 찻길 위로 드리워도 되지만 건물에 박히면 안 된다
+    for (let dk = -1; dk <= 1; dk++) for (let di = -1; di <= 1; di++) if (height[(k + dk) * N + i + di] || voxels(i + di, k + dk)) return false
+    return true
+  }
+  for (const [kind, width, flat] of world.w) {
+    if (kind !== 'road' || width < 10) continue
+    for (let p = 0; p + 3 < flat.length; p += 2) {
+      const ax = flat[p]
+      const ay = flat[p + 1]
+      const len = Math.hypot(flat[p + 2] - ax, flat[p + 3] - ay)
+      if (!len) continue
+      const dx = (flat[p + 2] - ax) / len
+      const dy = (flat[p + 3] - ay) / len
+      for (let t = 4; t < len; t += 9) {
+        for (const side of [-1, 1]) {
+          const off = width / 2 + 1.8
+          const i = Math.floor((ax + dx * t + dy * off * side) / B + half)
+          const k = Math.floor(-(ay + dy * t - dx * off * side) / B + half)
+          if (ok(i, k) && !taken(i, k)) trees.push([i, k])
+        }
+      }
+    }
+  }
+  return grow(trees)
 }

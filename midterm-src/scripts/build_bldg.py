@@ -3,7 +3,7 @@
 사용법: python3 -I scripts/build_bldg.py <AL_D010_11_*.shp 경로(확장자 없이)> ../midterm/data
 필요한 패키지: pyshp, pyproj
 build_world.mjs로 OSM 지도를 구운 뒤에 돌린다. 건물 이름이 GIS에 없으면 같은 자리의 OSM 이름을 쓴다.
-한 줄: [높이 m, 이름, 외곽선 동·북 미터, 겉모습, 지상 층수, 주용도]
+한 줄: [높이 m, 이름, 외곽선 동·북 미터, 겉모습, 지상 층수, 주용도, 사용승인 연도]
 """
 import glob
 import json
@@ -15,8 +15,8 @@ import shapefile
 from pyproj import Transformer
 
 SRC, OUT = sys.argv[1], sys.argv[2]
-# 컬럼: A9 주용도, A11 구조, A16 높이, A24 건물명, A25 동명, A26 지상층수
-USE, STRUCT, HEIGHT, NAME, DONG, FLOORS = 9, 11, 16, 24, 25, 26
+# 컬럼: A9 주용도, A11 구조, A13 사용승인일, A16 높이, A24 건물명, A25 동명, A26 지상층수
+USE, STRUCT, BUILT, HEIGHT, NAME, DONG, FLOORS = 9, 11, 13, 16, 24, 25, 26
 
 to_lnglat = Transformer.from_crs("EPSG:5186", "EPSG:4326", always_xy=True)
 to_tm = Transformer.from_crs("EPSG:4326", "EPSG:5186", always_xy=True)
@@ -93,7 +93,9 @@ for path in sorted(glob.glob(os.path.join(OUT, "world", "*.json"))):
         if not name:
             name = next((nm for ox, oy, nm in osm_names if inside(ox, oy, flat)), "")
         use = str(rec[USE]).strip()
-        out.append([round(height), name, flat, look_of(use, str(rec[STRUCT]), floors), floors, use])
+        built = str(rec[BUILT])[:4]
+        year = int(built) if built.isdigit() else 0
+        out.append([round(height), name, flat, look_of(use, str(rec[STRUCT]), floors), floors, use, year])
     world["b"] = out
     world["bsrc"] = "gis"
     with open(path, "w", encoding="utf-8") as fh:

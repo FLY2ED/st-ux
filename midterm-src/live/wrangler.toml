@@ -1,0 +1,8 @@
+# 실시간 데이터 중계 Worker. 키는 `wrangler secret put` 으로만 넣는다
+name = "st-live"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+routes = [{ pattern = "st-live.naldadev.com", custom_domain = true }]
+
+[vars]
+VWORLD_DOMAIN = "https://st.naldadev.com"
