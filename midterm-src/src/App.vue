@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, shallowRef } from 'vue'
 import WinFrame from './components/WinFrame.vue'
 import PixelShop from './components/PixelShop.vue'
 import StreetWindow from './components/StreetWindow.vue'
@@ -11,6 +11,10 @@ import MapWindow from './components/MapWindow.vue'
 import OpenShopWindow from './components/OpenShopWindow.vue'
 import KkeutWindow from './components/KkeutWindow.vue'
 import NearbyWindow from './components/NearbyWindow.vue'
+import BootScreen from './components/BootScreen.vue'
+
+// three.js가 커서 3D 거리를 열 때만 받는다
+const World3D = defineAsyncComponent(() => import('./components/World3D.vue'))
 import { load } from './data.js'
 import { setMuted, sfx, sound } from './sound.js'
 
@@ -27,6 +31,7 @@ const APPS = [
   { id: 'open', img: art('open'), title: '내 가게 차리기', icon: '🏗️', comp: OpenShopWindow, width: 380 },
   { id: 'kkeut', img: art('kkeut'), title: '간판 끝말잇기', icon: '🔗', comp: KkeutWindow, width: 360 },
   { id: 'near', img: art('map'), title: '우리 동네 간판', icon: '📍', comp: NearbyWindow, width: 380 },
+  { id: 'world', img: art('building'), title: '3D 간판 거리', icon: '🧱', full: true },
 ]
 const MY_KEY = 'gp-my-shops'
 
@@ -39,6 +44,8 @@ const menuOpen = ref(false)
 const muted = ref(sound.muted)
 const QUICK = ['map', 'highlow', 'open']
 const myShops = ref(readShops())
+const booting = ref(true)
+const world = ref(false)
 
 function readShops() {
   try {
@@ -64,6 +71,10 @@ load('meta.json').then((v) => (meta.value = v))
 function open(id, props = {}) {
   menuOpen.value = false
   sfx.open()
+  if (id === 'world') {
+    world.value = true
+    return
+  }
   const found = windows.value.find((w) => w.id === id)
   if (found) {
     found.props = props
@@ -115,6 +126,9 @@ onBeforeUnmount(() => clearInterval(timer))
 </script>
 
 <template>
+  <BootScreen v-if="booting" :meta="meta" @done="booting = false" />
+  <World3D v-if="world" @close="world = false" />
+
   <main class="desk">
     <header class="hero">
       <h1>간판 도감</h1>
@@ -218,7 +232,7 @@ onBeforeUnmount(() => clearInterval(timer))
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #3f97f2 url('./assets/wallpaper.webp') 30% 100% / cover no-repeat;
+  background: #008080;
   image-rendering: pixelated;
 }
 

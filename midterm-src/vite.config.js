@@ -40,6 +40,9 @@ export default defineConfig({
   base: './',
   publicDir: false,
   plugins: [fix98, siteData, cleanAssets, vue()],
+  server: {
+    allowedHosts: ['nalda-gram'],
+  },
   build: {
     outDir: SITE,
     emptyOutDir: false,

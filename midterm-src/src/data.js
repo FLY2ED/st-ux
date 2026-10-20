@@ -88,3 +88,32 @@ export async function nearby(lng, lat, radius = 800) {
   )
   return out.sort((a, b) => a.dist - b.dist)
 }
+
+// 3D 거리용 촘촘한 간판(서울만 있다). 칸 파일이 없으면 전국 표본 nearby 로 대신한다
+export async function signsAround(lng, lat, radius) {
+  const kx = 111320 * Math.cos((lat * Math.PI) / 180)
+  const ky = 110540
+  const keys = new Set()
+  for (const x of [lng - radius / kx, lng + radius / kx]) for (const y of [lat - radius / ky, lat + radius / ky]) keys.add(`${Math.floor(x * 100)}_${Math.floor(y * 100)}`)
+  const cats = await load('cats.json')
+  const out = []
+  let dense = false
+  await Promise.all(
+    [...keys].map(async (key) => {
+      const [tx, ty] = key.split('_').map(Number)
+      const rows = await load(`signs/${key}.json`).catch(() => null)
+      if (!rows) return
+      dense = true
+      for (const [name, cat, floor, ox, oy] of rows) {
+        const x = (((tx * 1000 + ox) / 100000) - lng) * kx
+        const y = (((ty * 1000 + oy) / 100000) - lat) * ky
+        const dist = Math.hypot(x, y)
+        if (dist <= radius) out.push({ name, cat: cats[cat], floor, x, y, dist })
+      }
+    }),
+  )
+  if (!dense) {
+    for (const s of await nearby(lng, lat, radius)) out.push({ name: s.name, cat: s.cat, floor: 0, x: s.dx, y: s.dy, dist: s.dist })
+  }
+  return { dense, rows: out.sort((a, b) => a.dist - b.dist) }
+}
