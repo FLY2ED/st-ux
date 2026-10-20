@@ -306,13 +306,26 @@ async function startHere() {
   const me = { lng: coords.longitude, lat: coords.latitude }
   const preset = PRESETS.find((p) => near(p, me) < 150)
   if (preset) return goPreset(preset)
-  status.value = 'OpenStreetMap에서 건물과 길을 받는 중…'
+  // 공개 OSM 서버가 느릴 때 멈춘 것처럼 보이지 않게 기다린 시간을 보여 준다
+  const started = Date.now()
+  const wait = () => (status.value = `OpenStreetMap에서 건물과 길을 받는 중… ${Math.round((Date.now() - started) / 1000)}초`)
+  wait()
+  const ticker = setInterval(wait, 1000)
+  let osm
   try {
-    const world = compact(await fetchOSM(me.lng, me.lat, RADIUS), me.lng, me.lat, RADIUS)
+    osm = await fetchOSM(me.lng, me.lat, RADIUS, { timeout: 25000 })
+  } catch {
+    osm = null
+  } finally {
+    clearInterval(ticker)
+  }
+  try {
+    if (!osm) throw new Error('osm')
+    const world = compact(osm, me.lng, me.lat, RADIUS)
     if (!world.b.length && !world.w.length) throw new Error('empty')
     await enter(world, '내 위치')
   } catch {
-    notice.value = '내 위치의 건물 정보를 못 받아서 서울과학기술대학교에서 시작해요'
+    notice.value = osm ? '내 위치의 건물 정보를 못 받아서 서울과학기술대학교에서 시작해요' : 'OpenStreetMap 서버가 응답하지 않아서 서울과학기술대학교에서 시작해요. 잠시 뒤 다시 눌러 보세요'
     await goPreset(PRESETS[0], true)
   }
 }

@@ -5,6 +5,7 @@ export const MIRRORS = [
   'https://overpass-api.de/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
 ]
 
 function query(lng, lat, r) {
@@ -23,21 +24,27 @@ node["highway"="bus_stop"]${at};
 );out geom tags;`
 }
 
+// 미러를 한꺼번에 불러 가장 먼저 온 응답을 쓴다. 미러가 모두 죽어 있어도 timeout 안에 끝난다
 export async function fetchOSM(lng, lat, r, { timeout = 30000 } = {}) {
   const body = new URLSearchParams({ data: query(lng, lat, r) })
-  let last
-  for (const url of MIRRORS) {
-    try {
-      const res = await fetch(url, { method: 'POST', body, signal: AbortSignal.timeout(timeout) })
-      if (!res.ok) throw new Error(`${url} ${res.status}`)
-      const json = await res.json()
-      if (!json.elements?.length) throw new Error(`${url} empty`)
-      return json
-    } catch (e) {
-      last = e
-    }
+  const stop = new AbortController()
+  const timer = setTimeout(() => stop.abort(), timeout)
+  try {
+    return await Promise.any(
+      MIRRORS.map(async (url) => {
+        const res = await fetch(url, { method: 'POST', body, signal: stop.signal })
+        if (!res.ok) throw new Error(`${url} ${res.status}`)
+        const json = await res.json()
+        if (!json.elements?.length) throw new Error(`${url} empty`)
+        return json
+      }),
+    )
+  } catch (e) {
+    throw e.errors?.[0] || e
+  } finally {
+    clearTimeout(timer)
+    stop.abort()
   }
-  throw last
 }
 
 // 층수를 모를 때 건물 종류로 어림한다. 한국 아파트는 높다
