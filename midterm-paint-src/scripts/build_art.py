@@ -125,3 +125,5 @@ if have('booth-frame.png'):
     flat('booth-frame.png', 'booth-frame', 700)
 if have('stage.png'):
     flat('stage.png', 'stage', 1600)
+if have('prologue-1.png'):
+    flat('prologue-1.png', 'prologue', 1086)
