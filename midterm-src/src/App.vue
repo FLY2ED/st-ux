@@ -2,14 +2,13 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, shallowRef } from 'vue'
 import WinFrame from './components/WinFrame.vue'
 import PixelShop from './components/PixelShop.vue'
-import StreetWindow from './components/StreetWindow.vue'
-import HighLowWindow from './components/HighLowWindow.vue'
-import TwinsWindow from './components/TwinsWindow.vue'
-import FameWindow from './components/FameWindow.vue'
+import RainWindow from './components/RainWindow.vue'
+import DodgeWindow from './components/DodgeWindow.vue'
+import ScratchWindow from './components/ScratchWindow.vue'
+import SongWindow from './components/SongWindow.vue'
+import BoothWindow from './components/BoothWindow.vue'
 import BuildingWindow from './components/BuildingWindow.vue'
-import MapWindow from './components/MapWindow.vue'
 import OpenShopWindow from './components/OpenShopWindow.vue'
-import KkeutWindow from './components/KkeutWindow.vue'
 import NearbyWindow from './components/NearbyWindow.vue'
 import BootScreen from './components/BootScreen.vue'
 
@@ -22,14 +21,13 @@ const art = (name) => new URL(`./assets/icon-${name}.webp`, import.meta.url).hre
 const START_IMG = art('start')
 
 const APPS = [
-  { id: 'street', img: art('street'), title: '업종별 인기 간판', icon: '🏪', comp: StreetWindow, width: 400 },
-  { id: 'highlow', img: art('highlow'), title: '어느 간판이 더 많을까?', icon: '🎲', comp: HighLowWindow, width: 380 },
-  { id: 'twins', img: art('twins'), title: '똑같은 이름 가게', icon: '👯', comp: TwinsWindow, width: 420 },
-  { id: 'fame', img: art('fame'), title: '간판 순위', icon: '🏆', comp: FameWindow, width: 400 },
-  { id: 'map', img: art('map'), title: '간판 지도', icon: '🗺️', comp: MapWindow, width: 420 },
+  { id: 'rain', img: art('rain'), title: '간판 산성비', icon: '🌧️', comp: RainWindow, width: 560 },
+  { id: 'dodge', img: art('dodge'), title: '점심 간판 피하기', icon: '🍚', comp: DodgeWindow, width: 560 },
+  { id: 'scratch', img: art('scratch'), title: '간판 복권', icon: '🎫', comp: ScratchWindow, width: 520 },
+  { id: 'song', img: art('song'), title: '간판 노래방', icon: '🎤', comp: SongWindow, width: 600 },
+  { id: 'booth', img: art('booth'), title: '간판 네컷', icon: '📷', comp: BoothWindow, width: 540 },
   { id: 'building', img: art('building'), title: '내 이름 간판 찾기', icon: '🏢', comp: BuildingWindow, width: 620 },
   { id: 'open', img: art('open'), title: '내 가게 차리기', icon: '🏗️', comp: OpenShopWindow, width: 380 },
-  { id: 'kkeut', img: art('kkeut'), title: '간판 끝말잇기', icon: '🔗', comp: KkeutWindow, width: 360 },
   { id: 'near', img: art('map'), title: '우리 동네 간판', icon: '📍', comp: NearbyWindow, width: 380 },
   { id: 'world', img: art('building'), title: '3D 간판 거리', icon: '🧱', full: true },
 ]
@@ -42,7 +40,10 @@ const clock = ref('')
 const today = ref('')
 const menuOpen = ref(false)
 const muted = ref(sound.muted)
-const QUICK = ['map', 'highlow', 'open']
+const QUICK = ['rain', 'scratch', 'song']
+// 거리의 가게를 누르면 뜨는 말풍선
+const tip = ref(null)
+let tipTimer
 const myShops = ref(readShops())
 const booting = ref(true)
 const world = ref(false)
@@ -92,6 +93,23 @@ function open(id, props = {}) {
   })
 }
 
+// 누를 때마다 그 업종 인기 간판을 하나씩 돌려 가며 보여 준다
+function poke(e, s, mine) {
+  sfx.tick()
+  const r = e.currentTarget.getBoundingClientRect()
+  // 말풍선 왼쪽 끝을 가게 가운데 조금 왼쪽에 두되 화면 밖으로 나가지 않게
+  const left = Math.max(8, Math.min(r.left + r.width / 2 - 24, window.innerWidth - 328))
+  if (mine) {
+    tip.value = { key: s.label, left, text: `내가 차린 '${s.label}'! 장사 잘 되나?` }
+  } else {
+    const k = tip.value?.key === s.key ? (tip.value.k + 1) % s.top.length : 0
+    const [name, count] = s.top[k]
+    tip.value = { key: s.key, k, left, text: `${s.label} 전국 ${s.total.toLocaleString()}곳 · ${k + 1}위 '${name}' ${count}곳` }
+  }
+  clearTimeout(tipTimer)
+  tipTimer = setTimeout(() => (tip.value = null), 3500)
+}
+
 function close(id) {
   sfx.click()
   windows.value = windows.value.filter((w) => w.id !== id)
@@ -122,7 +140,10 @@ function tick() {
 }
 tick()
 const timer = setInterval(tick, 10000)
-onBeforeUnmount(() => clearInterval(timer))
+onBeforeUnmount(() => {
+  clearInterval(timer)
+  clearTimeout(tipTimer)
+})
 </script>
 
 <template>
@@ -143,15 +164,16 @@ onBeforeUnmount(() => clearInterval(timer))
 
     <section class="street" aria-label="업종별 가게 거리">
       <div class="shops">
-        <button v-for="s in street" :key="s.key" class="shop-btn" @click="open('street', { start: s.key })">
+        <button v-for="s in street" :key="s.key" class="shop-btn" :title="s.label" @click="poke($event, s)">
           <PixelShop :shop="s" small />
         </button>
-        <button v-for="s in myShops" :key="`my-${s.label}`" class="shop-btn mine" @click="open('open')">
+        <button v-for="s in myShops" :key="`my-${s.label}`" class="shop-btn mine" @click="poke($event, s, true)">
           <PixelShop :shop="s" small />
           <span class="new">MY</span>
         </button>
       </div>
       <div class="sidewalk"></div>
+      <p v-if="tip" :key="tip.text" class="tip" :style="{ left: `${tip.left}px` }" aria-live="polite">{{ tip.text }}</p>
     </section>
 
     <WinFrame
@@ -331,6 +353,30 @@ onBeforeUnmount(() => clearInterval(timer))
   background: var(--red);
   border: 2px solid var(--ink);
   box-shadow: 2px 2px 0 var(--ink);
+}
+
+/* 98 풍선 도움말처럼 노란 말풍선 */
+.tip {
+  position: fixed;
+  bottom: calc(var(--taskbar-h) + 122px);
+  z-index: 9000;
+  max-width: min(320px, calc(100vw - 16px));
+  margin: 0;
+  padding: 4px 8px;
+  background: #ffffe1;
+  border: 1px solid var(--ink);
+  box-shadow: 2px 2px 0 rgb(0 0 0 / 0.3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  animation: tip-in 0.15s steps(2);
+}
+
+@keyframes tip-in {
+  from {
+    opacity: 0;
+  }
 }
 
 /* 가게들이 서는 보도블록. 바로 아래가 작업 표시줄이다 */

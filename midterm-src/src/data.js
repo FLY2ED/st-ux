@@ -117,3 +117,35 @@ export async function signsAround(lng, lat, radius) {
   }
   return { dense, rows: out.sort((a, b) => a.dist - b.dist) }
 }
+
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)]
+
+// 이름 색인 조각 몇 개를 받아 실제 간판 이름과 전국 개수를 돌려준다 (두 곳 이상인 이름만)
+export async function randomNames(shards = 6) {
+  const ids = Array.from({ length: shards }, () => Math.floor(Math.random() * 1024))
+  const parts = await Promise.all(ids.map((i) => load(`names/${i}.json`)))
+  return parts.flatMap((p) => Object.entries(p)).map(([name, count]) => ({ name, count }))
+}
+
+// 상호 대신 들어간 자리표시 글자
+const JUNK = /없음|미상|업소명|상호명|^[-.0-9 ]*$/
+
+// 검색 색인 한 조각에 든 실제 간판들 → [{name, cat, region}]
+export async function signPool() {
+  const [cats, regions] = await Promise.all([load('cats.json'), load('regions.json')])
+  const shard = await load(`search/${Math.floor(Math.random() * 1024)}.json`)
+  return Object.values(shard)
+    .flatMap((e) => e.r)
+    .filter(([name]) => !JUNK.test(name))
+    .map(([name, c, region]) => ({ name, cat: cats[c], region: regions[region][0] }))
+}
+
+// 실제 간판 한 줄을 고른다. 업종을 주면 그 업종만
+export async function randomSign(cat) {
+  for (let tries = 0; tries < 6; tries++) {
+    const rows = await signPool()
+    const pool = cat ? rows.filter((r) => r.cat === cat) : rows
+    if (pool.length) return pick(pool)
+  }
+  return null
+}

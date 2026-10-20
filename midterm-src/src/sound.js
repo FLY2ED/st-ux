@@ -38,6 +38,33 @@ function beep(freq, dur = 0.08, type = 'square', when = 0) {
   }
 }
 
+// 복권 은박을 긁는 소리. 띠를 좁힌 잡음을 짧게 여러 번 낸다
+function scratch(strokes = 1, when = 0, len = 0.07, freq = 3200) {
+  if (sound.muted) return
+  try {
+    ctx ||= new (window.AudioContext || window.webkitAudioContext)()
+    const n = Math.floor(ctx.sampleRate * len)
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate)
+    const d = buf.getChannelData(0)
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.sin((Math.PI * i) / n)
+    for (let k = 0; k < strokes; k++) {
+      const t = ctx.currentTime + when + k * (len + 0.03)
+      const src = ctx.createBufferSource()
+      const bp = ctx.createBiquadFilter()
+      const g = ctx.createGain()
+      src.buffer = buf
+      bp.type = 'bandpass'
+      bp.frequency.value = freq * (0.85 + Math.random() * 0.3)
+      bp.Q.value = 1.4
+      g.gain.value = 0.12
+      src.connect(bp).connect(g).connect(ctx.destination)
+      src.start(t)
+    }
+  } catch {
+    // 소리를 못 내는 환경이면 조용히 넘어간다
+  }
+}
+
 // 바탕화면이 뜰 때 나는 시작음. 천천히 부풀어 오르는 화음 위로 종소리가 올라간다
 function startup() {
   if (sound.muted) return
@@ -82,6 +109,7 @@ function startup() {
 
 export const sfx = {
   startup,
+  scratch,
   click: () => beep(880, 0.04),
   open: () => { beep(660, 0.05); beep(990, 0.07, 'square', 0.05) },
   bell: () => { beep(1568, 0.12, 'triangle'); beep(2093, 0.18, 'triangle', 0.09) },
