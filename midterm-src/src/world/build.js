@@ -15,6 +15,8 @@ export function rasterize(world) {
   const ground = new Uint8Array(N * N)
   // 칸마다 그 자리를 차지한 건물 번호 + 1
   const owner = new Int32Array(N * N)
+  // 건물 번호 + 1 → 사용승인 연도 (모르면 0)
+  const yearOf = new Uint16Array(world.b.length + 1)
   // 미터 좌표(동, 북) → 칸 좌표
   const cx = (x) => x / B + half
   const cz = (y) => -y / B + half
@@ -90,6 +92,7 @@ export function rasterize(world) {
     // 아주 높은 건물은 아파트가 아니면 유리 외벽
     const choice = LOOK_WALLS[kind === 'apt' || h < 45 ? kind : 'office'] || LOOK_WALLS.other
     const wallId = choice[hash % choice.length]
+    yearOf[idx + 1] = year || 0
     fillPoly(flat, (c) => {
       if (blocks >= height[c]) {
         height[c] = blocks
@@ -98,7 +101,7 @@ export function rasterize(world) {
       }
     })
   })
-  return { N, half, height, wall, ground, owner }
+  return { N, half, height, wall, ground, owner, year: yearOf }
 }
 
 // 면 묶음: 재질마다 꼭짓점을 모아 한 덩어리로 그린다
@@ -108,11 +111,14 @@ class Bucket {
     this.nor = []
     this.uv = []
     this.idx = []
+    // 서울 타임머신용 사용승인 연도
+    this.year = []
   }
-  quad(a, b, c, d, n, [u0, v0, u1, v1]) {
+  quad(a, b, c, d, n, [u0, v0, u1, v1], year = 0) {
     const base = this.pos.length / 3
     this.pos.push(...a, ...b, ...c, ...d)
     for (let i = 0; i < 4; i++) this.nor.push(...n)
+    this.year.push(year, year, year, year)
     this.uv.push(u0, v0, u1, v0, u1, v1, u0, v1)
     this.idx.push(base, base + 1, base + 2, base, base + 2, base + 3)
   }
@@ -121,6 +127,7 @@ class Bucket {
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3))
     g.setAttribute('normal', new THREE.Float32BufferAttribute(this.nor, 3))
     g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2))
+    g.setAttribute('aYear', new THREE.Float32BufferAttribute(this.year, 1))
     g.setIndex(this.idx)
     g.computeBoundingSphere()
     return new THREE.Mesh(g, material)
@@ -136,15 +143,16 @@ export const DIRS = [
 ]
 
 export function meshWorld(grid, mats) {
-  const { N, half, height, wall, ground } = grid
+  const { N, half, height, wall, ground, owner, year } = grid
   const X = (i) => (i - half) * B
+  const yearAt = (c) => year[owner[c]] || 0
   const groundB = mats.groundMats.map(() => new Bucket())
   const wallB = mats.wallMats.map(() => new Bucket())
   const shopB = new Bucket()
   const roofB = new Bucket()
   const h = (i, k) => (i < 0 || k < 0 || i >= N || k >= N ? 0 : height[k * N + i])
 
-  // 윗면은 같은 줄에서 같은 높이·같은 바닥끼리 이어 붙인다
+  // 윗면은 같은 줄에서 같은 높이·같은 바닥(건물이면 같은 건물)끼리 이어 붙인다
   for (let k = 0; k < N; k++) {
     let i = 0
     while (i < N) {
@@ -152,10 +160,10 @@ export function meshWorld(grid, mats) {
       const hh = height[c]
       const g = ground[c]
       let j = i + 1
-      while (j < N && height[k * N + j] === hh && (hh ? true : ground[k * N + j] === g)) j++
+      while (j < N && height[k * N + j] === hh && (hh ? owner[k * N + j] === owner[c] : ground[k * N + j] === g)) j++
       const y = hh * B
       const b = hh ? roofB : groundB[g]
-      b.quad([X(i), y, X(k + 1)], [X(j), y, X(k + 1)], [X(j), y, X(k)], [X(i), y, X(k)], [0, 1, 0], [i, -k - 1, j, -k])
+      b.quad([X(i), y, X(k + 1)], [X(j), y, X(k + 1)], [X(j), y, X(k)], [X(i), y, X(k)], [0, 1, 0], [i, -k - 1, j, -k], hh ? yearAt(c) : 0)
       i = j
     }
   }
@@ -175,7 +183,7 @@ export function meshWorld(grid, mats) {
         const qz = X(k + d.q[1])
         const along = d.dk ? i : k
         const face = (bucket, y0, y1, uv) =>
-          bucket.quad([px, y0 * B, pz], [qx, y0 * B, qz], [qx, y1 * B, qz], [px, y1 * B, pz], d.n, uv)
+          bucket.quad([px, y0 * B, pz], [qx, y0 * B, qz], [qx, y1 * B, qz], [px, y1 * B, pz], d.n, uv, yearAt(c))
         let from = nh
         if (nh < FLOOR && hh > FLOOR) {
           face(shopB, nh, FLOOR, [0, nh / FLOOR, 1, 1])

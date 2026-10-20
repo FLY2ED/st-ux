@@ -49,10 +49,25 @@ export function makePeople(grid, rand) {
 
   const people = []
   let want = 100
+  // 꺼진 간판의 도시: 불 켠 간판 둘레 [x, y, 반지름] 안에만 사람이 돌아온다
+  let zone = null
+  const inZone = (x, y) => !zone || zone.some(([zx, zy, r]) => (x - zx) ** 2 + (y - zy) ** 2 < r * r)
   const pick = (list) => list[(rand() * list.length) | 0]
 
   // 플레이어에서 from~to 미터 떨어진 걸을 수 있는 자리
   function spot(cx, cy, from, to) {
+    if (zone) {
+      if (!zone.length) return null
+      for (let t = 0; t < 30; t++) {
+        const [zx, zy, r] = zone[(rand() * zone.length) | 0]
+        const a = rand() * Math.PI * 2
+        const d = Math.sqrt(rand()) * r * 0.9
+        const x = zx + Math.cos(a) * d
+        const y = zy + Math.sin(a) * d
+        if (walkable(x, y) && Math.hypot(x - cx, y - cy) < FAR) return [x, y]
+      }
+      return null
+    }
     for (let t = 0; t < 30; t++) {
       const a = rand() * Math.PI * 2
       const r = from + rand() * (to - from)
@@ -76,6 +91,10 @@ export function makePeople(grid, rand) {
 
   function setCrowd(level) {
     want = Math.min(MAX, CROWD[level] || 100)
+  }
+
+  function setZone(list) {
+    zone = list
   }
 
   // 열차가 들어오면 출구에서 사람들이 한꺼번에 나온다
@@ -108,20 +127,23 @@ export function makePeople(grid, rand) {
   function update(dt, player, time) {
     const cx = player.x
     const cy = -player.z
-    while (people.length < want) {
+    // 불 켠 구역이 좁을 때는 넓이만큼만 사람이 돌아온다
+    const cap = zone ? Math.min(want, Math.round(zone.reduce((sum, [, , r]) => sum + r * r, 0) * 0.02)) : want
+    while (people.length < cap) {
       const at = spot(cx, cy, 4, NEAR)
       if (!at) break
       const p = { speed: 1 + rand() * 0.6, phase: rand() * 6, tall: 0.92 + rand() * 0.16, shirt: pick(SHIRTS), pants: pick(PANTS), hair: pick(HAIR), d: 0 }
       spawn(p, at)
       people.push(p)
     }
-    if (people.length > want) people.length = want
+    if (people.length > cap) people.length = cap
     const n = { shirt: 0, pants: 0, skin: 0, hair: 0 }
     for (const p of people) {
       p.d = Math.hypot(p.x - cx, p.y - cy)
-      if (p.d > FAR) {
+      if (p.d > FAR || !inZone(p.x, p.y)) {
         const at = spot(cx, cy, NEAR * 0.7, NEAR)
         if (at) spawn(p, at)
+        else continue
       }
       p.turn -= dt
       if (p.turn <= 0) {
@@ -131,7 +153,7 @@ export function makePeople(grid, rand) {
       const nx = p.x + Math.cos(p.dir) * p.speed * dt
       const ny = p.y + Math.sin(p.dir) * p.speed * dt
       // 건물이나 찻길에 닿으면 돌아선다
-      if (walkable(nx, ny)) {
+      if (walkable(nx, ny) && inZone(nx, ny)) {
         p.x = nx
         p.y = ny
       } else {
@@ -167,5 +189,5 @@ export function makePeople(grid, rand) {
     for (const x of Object.values(meshes)) x.dispose()
   }
 
-  return { group, update, setCrowd, burst, dispose, count: () => people.length }
+  return { group, update, setCrowd, setZone, burst, dispose, count: () => people.length }
 }

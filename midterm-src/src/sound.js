@@ -90,4 +90,13 @@ export const sfx = {
   tick: () => beep(1200, 0.02, 'triangle'),
   build: (i) => beep(330 + i * 60, 0.05, 'square'),
   horn: () => { beep(392, 0.28, 'sawtooth'); beep(494, 0.28, 'sawtooth') },
+  // 네온이 지직거리다 켜지는 소리. n 번째 간판일수록 음이 올라간다
+  neon: (n = 0) => {
+    for (const t of [0, 0.09, 0.2]) beep(110, 0.05, 'sawtooth', t)
+    const scale = [523.3, 587.3, 659.3, 784, 880, 1046.5, 1174.7, 1318.5]
+    const f = scale[n % scale.length] * (n >= scale.length ? 2 : 1)
+    beep(f, 0.18, 'triangle', 0.32)
+    beep(f * 1.5, 0.22, 'triangle', 0.4)
+  },
+  dawn: startup,
 }

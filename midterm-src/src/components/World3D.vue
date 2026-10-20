@@ -1,15 +1,22 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import * as THREE from 'three'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { load, signsAround } from '../data.js'
+import { pastelOf } from '../shops.js'
 import { sfx } from '../sound.js'
 import { B, meshWorld, plantStreetTrees, plantTrees, rasterize } from '../world/build.js'
+import { MAX_LIT, fx, neonOf, patch } from '../world/fx.js'
 import { buildLandmarks, describeSpot } from '../world/landmarks.js'
 import { busArrivals, buildingsAround, cityData, toLocal, vworldBuildings, weatherNow } from '../world/live.js'
 import { compact, fetchOSM } from '../world/osm.js'
 import { guessCrowd, makePeople } from '../world/people.js'
 import { PRESETS, RADIUS } from '../world/presets.js'
 import { placeSigns, meshSigns } from '../world/signs.js'
+import { CHAPTERS, ENDING, fill, readCleared, saveCleared } from '../world/story.js'
 import { fixedTime, skyOf, sunPosition } from '../world/sun.js'
 import { GROUND_ID, blockMaterials, leafColor, leafMaterials, makeMaterials } from '../world/textures.js'
 import { LEVEL_COLOR, flowsFromCity, guessLevel, makeTraffic } from '../world/traffic.js'
@@ -58,6 +65,16 @@ const board = shallowRef(null)
 const mission = shallowRef(null)
 const missionText = ref('')
 const missionArrow = ref(0)
+// 꺼진 간판의 도시(스토리)와 서울 타임머신
+const cleared = ref(readCleared())
+const story = shallowRef(null)
+const storyText = ref('')
+const storyArrow = ref(0)
+const dialog = shallowRef(null)
+const chat = shallowRef(null)
+const machine = shallowRef(null)
+// 장 끝 연출 중에는 메뉴를 띄우지 않는다
+const ending = ref(false)
 const touch = matchMedia('(pointer: coarse)').matches
 const blocks = blockMaterials()
 
@@ -73,7 +90,7 @@ const dexSet = computed(() => new Set(dex.value))
 const ready = computed(() => !status.value)
 
 // three.js 상태는 반응형으로 두지 않는다
-let renderer, scene, camera, sun, ambient, stars, sunDisc, moonDisc, outline
+let renderer, scene, camera, sun, ambient, stars, sunDisc, moonDisc, outline, composer, bloom
 let mats, leafMats
 let worldGroup = null
 let signGroup = null
@@ -103,6 +120,12 @@ let weatherTimer = 0
 let boardTimer = 0
 let cityAt = 0
 let lastBurst = 0
+// 불 켠 간판: { placed, x, y, z, R, t0, color, frame }
+let litList = []
+let neonGroup = null
+let wave = null
+let cine = null
+let machineList = []
 const voxels = new Map()
 const voxelMeshes = []
 const keys = new Set()
@@ -196,7 +219,16 @@ function setupScene() {
     inst.count = 0
     voxelMeshes.push(inst)
     scene.add(inst)
+    patch(m)
   }
+  for (const m of mats.groundMats) patch(m, 'wet')
+  for (const m of [...mats.wallMats, mats.shopMat, mats.roofMat]) patch(m, 'year')
+  // 밤 네온이 번져 보이게 블룸을 건다
+  composer = new EffectComposer(renderer)
+  composer.addPass(new RenderPass(scene, camera))
+  bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0, 0.4, 0.92)
+  composer.addPass(bloom)
+  composer.addPass(new OutputPass())
   resize()
 }
 
@@ -204,6 +236,7 @@ function resize() {
   if (!renderer) return
   const { clientWidth: w, clientHeight: h } = box.value
   renderer.setSize(w, h)
+  composer?.setSize(w, h)
   camera.aspect = w / h
   camera.updateProjectionMatrix()
 }
@@ -249,6 +282,7 @@ function disposeGroup(g) {
 // --- 세계 만들기 --------------------------------------------------------------
 async function enter(next, label, area = '') {
   status.value = '간판을 세우는 중…'
+  clearFx()
   disposeGroup(worldGroup)
   disposeGroup(signGroup)
   disposeGroup(landGroup)
@@ -292,6 +326,9 @@ async function enter(next, label, area = '') {
   world.bk = []
   world.wk = []
   buildLand()
+  for (const g of [worldGroup, trafficGroup, peopleGroup]) patchGroup(g)
+  for (const m of signMeshes) patch(m.material, 'sign')
+  patchGroup(signGroup)
   lineBadges.value = world.ln || []
   applyCity(null)
 
@@ -309,6 +346,14 @@ function buildLand() {
   landMeshes = land.meshes
   landInfos = land.infos
   scene.add(landGroup)
+  patchGroup(landGroup)
+  if (machine.value) landGroup.visible = false
+}
+
+function patchGroup(g) {
+  g?.traverse((o) => {
+    if (o.isMesh) for (const m of [o.material].flat()) patch(m)
+  })
 }
 
 // --- 실시간 자료 -------------------------------------------------------------
@@ -518,6 +563,11 @@ function updateSky() {
   }
   scene.fog.near = { rain: 18, snow: 22, cloud: 50 }[wk] || 60
   scene.fog.far = { rain: 170, snow: 150, cloud: 280 }[wk] || 330
+  // 하늘에서 내려다보는 연출 중에는 동네 전체가 보이게 안개를 걷는다
+  if (cine) {
+    scene.fog.near = 200
+    scene.fog.far = 900
+  }
   scene.background = color
   scene.fog.color.copy(color)
   const dir = new THREE.Vector3(Math.cos(alt) * Math.sin(az), Math.sin(alt), -Math.cos(alt) * Math.cos(az))
@@ -536,6 +586,9 @@ function updateSky() {
   moonDisc.visible = alt < 0.1
   // 간판은 밤에 불이 들어온 듯 더 밝다
   for (const m of [...signMeshes, ...landMeshes]) m.material.color.setScalar(0.78 + glow * 0.22)
+  fx.uNight.value = glow
+  bloom.strength = glow * (fx.uSpreadOn.value ? 0.8 : 0.55)
+  bloom.enabled = bloom.strength > 0.02
   spot.value = describeSpot(world, player.pos.x, -player.pos.z)
 }
 
@@ -706,7 +759,7 @@ function aim(at = center) {
 
 function act(button, at) {
   const { sign, land, block } = aim(at)
-  if (button === 0 && sign) return collect(sign.sign)
+  if (button === 0 && sign) return story.value && !story.value.done ? repair(sign) : collect(sign.sign)
   if (button === 0 && land) return showLand(land)
   if (!block) return
   const [i, y, k] = block.cell
@@ -729,7 +782,7 @@ function act(button, at) {
 }
 
 let toastTimer = 0
-function collect(s) {
+function collect(s, quiet = false) {
   const key = `${s.name}|${s.cat}`
   const fresh = !dexSet.value.has(key)
   if (fresh) {
@@ -740,6 +793,7 @@ function collect(s) {
       // 저장이 막히면 이번 방문 동안만 센다
     }
   }
+  if (quiet) return
   fresh ? sfx.right() : sfx.click()
   toast.value = { ...s, fresh }
   clearTimeout(toastTimer)
@@ -770,27 +824,31 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000 || 0)
   last = now
   if (!grid || status.value) {
-    renderer.render(scene, camera)
+    composer.render()
     return
   }
-  if (!paused.value || touch) update(dt)
+  const t = now / 1000
+  if (cine) runCine(t)
+  else if (!paused.value || touch) update(dt)
   skyTimer -= dt
   if (skyTimer <= 0) {
     skyTimer = 1
     updateSky()
   }
-  const t = now / 1000
-  if (traffic.update(dt, player.pos) && (!paused.value || touch)) sfx.horn()
-  people.update(dt, player.pos, t)
+  if (traffic.update(dt, player.pos) && (!paused.value || touch) && !fx.uSpreadOn.value) sfx.horn()
+  people.update(dt, camera.position, t)
   weatherFx.update(dt, camera.position)
+  if (fx.uSpreadOn.value) updateSpread(t)
+  if (machine.value) updateMachine(dt)
   boardTimer -= dt
   if (boardTimer <= 0) {
     boardTimer = 0.5
     updateBoard()
     updateMission()
+    updateStory()
   }
   const { sign, land, bldg, block } = aim()
-  const seen = sign ? { sign: sign.sign } : land ? { land } : bldg ? { bldg } : null
+  const seen = sign ? { sign: sign.sign, lit: litList.some((l) => l.placed === sign) } : land ? { land } : bldg ? { bldg } : null
   if (hover.value?.sign !== seen?.sign || hover.value?.land !== seen?.land || hover.value?.bldg !== seen?.bldg) hover.value = seen ? { ...seen, info: bldg ? bldgInfo(bldg) : null } : null
   target = block
   outline.visible = !!block && block.cell[1] >= 0
@@ -809,7 +867,336 @@ function frame(now) {
     miniTimer = 0.1
     drawMini()
   }
-  renderer.render(scene, camera)
+  composer.render()
+}
+
+// --- 꺼진 간판의 도시 -------------------------------------------------------------
+const unlocked = (n) => n === 0 || cleared.value.includes(CHAPTERS[n - 1].id)
+
+// 효과를 모두 걷어 낸다. 새 지도로 들어가거나 스토리·타임머신을 끝낼 때
+function clearFx() {
+  litList = []
+  wave = null
+  cine = null
+  ending.value = false
+  fx.uSpreadOn.value = 0
+  fx.uSpreadN.value = 0
+  fx.uWave.value.set(0, 0, 0)
+  fx.uYear.value = 9999
+  disposeGroup(neonGroup)
+  neonGroup = null
+  traffic?.setZone(null)
+  people?.setZone(null)
+  for (const g of [signGroup, landGroup, trafficGroup, peopleGroup]) if (g) g.visible = true
+  story.value = null
+  machine.value = null
+  dialog.value = null
+  chat.value = null
+}
+
+async function startStory(n) {
+  const ch = CHAPTERS[n]
+  const preset = PRESETS.find((p) => p.id === ch.id)
+  await goPreset(preset)
+  if (!grid || where.value !== preset.label) return
+  timeMode.value = 'night'
+  weatherMode.value = ch.weather
+  applyWeather()
+  fx.uSpreadOn.value = 1
+  neonGroup = new THREE.Group()
+  scene.add(neonGroup)
+  traffic.setZone([])
+  people.setZone([])
+  // 부탁받은 가게: 출발점에서 25~120m 사이의 그 업종 간판, 없으면 가까운 아무 간판
+  const px = player.pos.x
+  const pz = player.pos.z
+  const cand = signPlaced.map((p) => ({ p, d: Math.hypot(signAt(p).x - px, signAt(p).z - pz) }))
+  const far = cand.filter((c) => c.d > 25 && c.d < 120).sort((a, b) => a.d - b.d)
+  const pick = far.find((c) => ch.want.test(c.p.sign.cat)) || far[0] || cand[0]
+  const goal = Math.min(ch.goal, signPlaced.length)
+  story.value = { n, ch, goal, lit: 0, shop: pick?.p || null, shopLit: false, half: false, done: false }
+  updateStory()
+  say(ch.npc, ch.intro.map((l) => fill(l, { goal, shop: pick?.p.sign.name || '' })))
+}
+
+function exitStory() {
+  clearFx()
+  timeMode.value = 'now'
+  weatherMode.value = 'live'
+  applyWeather()
+  sfx.click()
+}
+
+// 간판 면 가운데 (장면 좌표)
+function signAt(p) {
+  const [px, pz, qx, qz] = p.faces[0]
+  return { x: (px + qx) / 2, y: p.y, z: (pz + qz) / 2 }
+}
+
+// 대화창: 다 읽으면 then 을 부르거나 다시 걷는다. choices 가 있으면 마지막 줄에서 고른다
+function say(npc, lines, opts = {}) {
+  if (document.pointerLockElement) document.exitPointerLock()
+  dragLook.value = false
+  paused.value = true
+  keys.clear()
+  dialog.value = { who: npc.name, face: npc.face, lines, i: 0, ...opts }
+}
+
+function nextLine(choice) {
+  const d = dialog.value
+  if (!d) return
+  if (d.i + 1 < d.lines.length) {
+    sfx.tick()
+    dialog.value = { ...d, i: d.i + 1 }
+    return
+  }
+  if (d.choices && !choice) choice = d.choices[0]
+  dialog.value = null
+  if (choice) return choice.fn()
+  if (d.then) return d.then()
+  lock()
+}
+
+// 걷는 동안 잠깐 뜨는 말풍선
+let chatTimer = 0
+function speak(npc, text) {
+  chat.value = { who: npc.name, face: npc.face, text }
+  clearTimeout(chatTimer)
+  chatTimer = setTimeout(() => (chat.value = null), 4500)
+}
+
+// 간판 고치기: 네온이 지직거리다 켜지고 둘레로 색이 번진다
+function repair(placed) {
+  const st = story.value
+  if (litList.some((l) => l.placed === placed) || litList.length >= MAX_LIT) return collect(placed.sign)
+  const { x, y, z } = signAt(placed)
+  const isShop = placed === st.shop
+  const color = neonOf(pastelOf(placed.sign.cat))
+  const frame = neonFrame(placed, color)
+  litList.push({ placed, x, y, z, R: isShop ? 34 : 20, t0: performance.now() / 1000, color, frame })
+  sfx.neon(litList.length - 1)
+  collect(placed.sign, true)
+  hover.value = hover.value?.sign === placed.sign ? { ...hover.value, lit: true } : hover.value
+  toast.value = { neon: placed.sign, n: litList.length, goal: st.goal }
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => (toast.value = null), 2600)
+  const next = { ...st, lit: litList.length }
+  if (isShop) {
+    next.shopLit = true
+    speak(st.ch.npc, st.ch.shop)
+  } else if (!st.half && next.lit >= Math.ceil(st.goal / 2) && next.lit < st.goal) {
+    next.half = true
+    speak(st.ch.npc, st.ch.half)
+  }
+  story.value = next
+  updateStory()
+  if (next.lit >= st.goal) finishChapter()
+}
+
+// 간판 둘레 네온관: 블룸이 잡도록 1보다 밝은 색
+function neonFrame(placed, color) {
+  const g = new THREE.Group()
+  const mat = new THREE.MeshBasicMaterial({ color: color.clone().multiplyScalar(1.5) })
+  const half = (B * 0.47 * placed.scale) / 2 + 0.05
+  for (const [px, pz, qx, qz] of placed.faces) {
+    const len = Math.hypot(qx - px, qz - pz)
+    const w = (len * 0.94 * placed.scale) / 2 + 0.05
+    const nx = -(qz - pz) / len
+    const nz = (qx - px) / len
+    const f = new THREE.Group()
+    const bar = (cx, cy, sx, sy) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, 0.05), mat)
+      m.position.set(cx, cy, 0)
+      f.add(m)
+    }
+    bar(0, half, w * 2 + 0.06, 0.06)
+    bar(0, -half, w * 2 + 0.06, 0.06)
+    bar(-w, 0, 0.06, half * 2)
+    bar(w, 0, 0.06, half * 2)
+    f.position.set((px + qx) / 2 + nx * 0.06, placed.y, (pz + qz) / 2 + nz * 0.06)
+    f.rotation.y = Math.atan2(qx - px, qz - pz) - Math.PI / 2
+    g.add(f)
+  }
+  neonGroup.add(g)
+  return g
+}
+
+const ease = (v) => 1 - (1 - v) ** 3
+
+// 매 프레임: 번지는 반지름·깜빡임·사람과 차가 돌아올 구역
+let zoneTimer = 0
+function updateSpread(t) {
+  const P = fx.uSpreadP.value
+  const C = fx.uSpreadC.value
+  litList.forEach((l, n) => {
+    const age = t - l.t0
+    // 처음 0.7초는 형광등처럼 지직거린다
+    const on = age > 0.7 || Math.sin(age * 47) * Math.sin(age * 13) > 0
+    l.frame.visible = on
+    l.r = l.R * ease(Math.min(1, age / 1.8))
+    P[n].set(l.x, l.y, l.z, on ? Math.max(0.3, l.r) : 0)
+    C[n].set(l.color.r, l.color.g, l.color.b)
+  })
+  fx.uSpreadN.value = litList.length
+  if (wave) {
+    wave.r = 700 * ease(Math.min(1, (t - wave.t0) / 4.5)) * Math.min(1, (t - wave.t0) / 0.6)
+    fx.uWave.value.set(wave.x, wave.z, wave.r)
+  }
+  zoneTimer -= 1 / 60
+  if (zoneTimer > 0) return
+  zoneTimer = 0.4
+  const zone = wave && wave.r > 400 ? null : litList.map((l) => [l.x, -l.z, l.r * 0.9])
+  if (wave && zone) zone.push([wave.x, -wave.z, wave.r])
+  traffic.setZone(zone)
+  people.setZone(zone)
+}
+
+function updateStory() {
+  const st = story.value
+  if (!st) return
+  if (st.done || st.shopLit || !st.shop) {
+    storyText.value = ''
+    return
+  }
+  const { x, z } = signAt(st.shop)
+  const dx = x - player.pos.x
+  const dy = -(z - player.pos.z)
+  storyArrow.value = Math.round(((Math.atan2(dx, dy) + player.yaw) * 180) / Math.PI)
+  storyText.value = `${st.ch.npc.face} 「${st.shop.sign.name}」 간판 · ${Math.round(Math.hypot(dx, dy))}m`
+}
+
+// 장 끝: 동네 전체로 색이 번지고 카메라가 하늘로 올라간다
+function finishChapter() {
+  const st = story.value
+  story.value = { ...st, done: true }
+  if (!cleared.value.includes(st.ch.id)) {
+    cleared.value = [...cleared.value, st.ch.id]
+    saveCleared(cleared.value)
+  }
+  const t = performance.now() / 1000
+  wave = { x: player.pos.x, z: player.pos.z, t0: t }
+  const cx = litList.reduce((a, l) => a + l.x, 0) / litList.length
+  const cz = litList.reduce((a, l) => a + l.z, 0) / litList.length
+  if (document.pointerLockElement) document.exitPointerLock()
+  dragLook.value = false
+  paused.value = true
+  keys.clear()
+  cine = { t0: t, from: camera.position.clone(), yaw: player.yaw, pitch: player.pitch, cx, cz }
+  ending.value = true
+  setTimeout(() => sfx.dawn(), 600)
+  setTimeout(() => {
+    if (story.value?.ch !== st.ch) return
+    const last = st.n + 1 >= CHAPTERS.length
+    const stay = {
+      label: '이 동네 더 둘러보기',
+      fn: () => {
+        cine = null
+        ending.value = false
+        lock()
+      },
+    }
+    const next = last
+      ? { label: '🕰️ 서울 타임머신', fn: () => say({ name: '서울 타임머신', face: '🕰️' }, ENDING, { then: startMachine }) }
+      : { label: `▶ ${CHAPTERS[st.n + 1].title}`, fn: () => startStory(st.n + 1) }
+    say(st.ch.npc, st.ch.done, { choices: [next, stay] })
+  }, 5200)
+}
+
+// 장 끝 연출과 타임머신: 하늘에서 동네를 내려다보며 천천히 돈다
+function runCine(t) {
+  const age = t - cine.t0
+  const k = ease(Math.min(1, age / 4))
+  const ang = age * 0.06
+  const dist = cine.orbit || 120
+  const tx = cine.cx + Math.sin(ang) * dist * 0.7
+  const tz = cine.cz + Math.cos(ang) * dist * 0.7
+  const ty = cine.height || 95
+  const pos = new THREE.Vector3(tx, ty, tz)
+  if (cine.from) pos.lerp(cine.from, 1 - k)
+  camera.position.copy(pos)
+  const dx = cine.cx - pos.x
+  const dz = cine.cz - pos.z
+  const dy = 4 - pos.y
+  const yaw = Math.atan2(-dx, -dz)
+  const pitch = Math.atan2(dy, Math.hypot(dx, dz))
+  if (cine.from) {
+    let dyaw = yaw - cine.yaw
+    dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw))
+    camera.rotation.set(cine.pitch + (pitch - cine.pitch) * k, cine.yaw + dyaw * k, 0)
+  } else camera.rotation.set(pitch, yaw, 0)
+}
+
+// --- 서울 타임머신 -----------------------------------------------------------------
+function startMachine() {
+  if (!grid) return
+  const known = world.b.map(([h, name, , , floors, use, year]) => ({ h, name, floors, use, year })).filter((b) => b.year)
+  if (!known.length) {
+    notice.value = '이 지도에는 건물 사용승인 연도 자료가 없어요'
+    paused.value = true
+    return
+  }
+  clearFx()
+  machineList = known.sort((a, b) => a.year - b.year)
+  const min = Math.max(1900, machineList[0].year - 2)
+  if (document.pointerLockElement) document.exitPointerLock()
+  dragLook.value = false
+  paused.value = true
+  keys.clear()
+  timeMode.value = 'day'
+  weatherMode.value = 'clear'
+  applyWeather()
+  for (const g of [signGroup, landGroup, trafficGroup, peopleGroup]) g.visible = false
+  cine = { t0: performance.now() / 1000, cx: 0, cz: 0, orbit: world.r * 0.5, height: world.r * 0.3 }
+  machine.value = { min, max: 2026, year: min, playing: true, count: 0, total: world.b.length, unknown: world.b.length - machineList.length, recent: [] }
+  fx.uYear.value = min
+  machineYear = min
+  lastTick = min
+  sfx.click()
+}
+
+let machineYear = 0
+let lastTick = 0
+function updateMachine(dt) {
+  const m = machine.value
+  if (m.playing) {
+    // 처음부터 끝까지 20초 남짓
+    machineYear = Math.min(m.max + 0.99, machineYear + ((m.max - m.min) / 22) * dt)
+    if (machineYear >= m.max + 0.99) setMachine({ playing: false })
+  }
+  fx.uYear.value = machineYear
+  const y = Math.floor(machineYear)
+  if (y === m.year && m.count) return
+  const built = machineList.filter((b) => b.year <= y)
+  const fresh = built.filter((b) => b.year > y - 3 && (b.name || b.use)).sort((a, b) => b.h - a.h)
+  if (y > lastTick && built.some((b) => b.year === y)) sfx.build(y % 5)
+  lastTick = y
+  machine.value = { ...m, year: y, count: built.length, recent: fresh.slice(0, 3) }
+}
+
+function setMachine(patch) {
+  machine.value = { ...machine.value, ...patch }
+}
+
+function scrubMachine(e) {
+  machineYear = Number(e.target.value)
+  setMachine({ playing: false, count: 0 })
+}
+
+function playMachine() {
+  const m = machine.value
+  if (m.playing) return setMachine({ playing: false })
+  if (machineYear >= m.max) machineYear = m.min
+  setMachine({ playing: true })
+  sfx.click()
+}
+
+function endMachine() {
+  clearFx()
+  timeMode.value = 'now'
+  weatherMode.value = 'live'
+  applyWeather()
+  paused.value = true
+  sfx.click()
 }
 
 // --- 가까운 역·정류장 도착 정보 ----------------------------------------------
@@ -963,6 +1350,12 @@ function onMouseDown(e) {
 }
 
 function onKeyDown(e) {
+  if (dialog.value && (e.code === 'Enter' || e.code === 'Space')) {
+    e.preventDefault()
+    if (!e.repeat) nextLine()
+    return
+  }
+  if (machine.value && e.code === 'Escape') return endMachine()
   if (paused.value) return
   if (e.code === 'Escape' && dragLook.value) return pause()
   keys.add(e.code)
@@ -1075,13 +1468,14 @@ onMounted(() => {
   window.addEventListener('keyup', onKeyUp)
   window.addEventListener('wheel', onWheel, { passive: true })
   raf = requestAnimationFrame(frame)
-  if (import.meta.env.DEV) window.__world3d = { player, flying, signs: () => signPlaced, traffic: () => traffic, people: () => people, city, board, mission, setWeather, startMission }
+  if (import.meta.env.DEV) window.__world3d = { player, flying, signs: () => signPlaced, traffic: () => traffic, people: () => people, city, board, mission, setWeather, startMission, story, dialog, machine, startStory, startMachine, repair, nextLine, fx }
   startHere()
 })
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(raf)
   clearTimeout(toastTimer)
+  clearTimeout(chatTimer)
   clearInterval(cityTimer)
   clearInterval(weatherTimer)
   liveSeq++
@@ -1097,6 +1491,10 @@ onBeforeUnmount(() => {
   disposeGroup(landGroup)
   disposeGroup(trafficGroup)
   disposeGroup(peopleGroup)
+  disposeGroup(neonGroup)
+  fx.uSpreadOn.value = 0
+  fx.uYear.value = 9999
+  composer.dispose()
   weatherFx.dispose()
   renderer.dispose()
   renderer.forceContextLoss()
@@ -1128,11 +1526,21 @@ onBeforeUnmount(() => {
         <span class="arrow" :style="{ transform: `rotate(${missionArrow}deg)` }">⬆</span>
         🎯 {{ missionText }}
       </div>
+      <div v-if="ready && story" class="story-bar">
+        <b>🌃 {{ story.ch.title }}</b>
+        <span class="bulbs">💡 {{ story.lit }} / {{ story.goal }}</span>
+        <span class="meter"><i :style="{ width: `${(story.lit / story.goal) * 100}%` }"></i></span>
+      </div>
+      <div v-if="ready && story && storyText" class="goal story-goal">
+        <span class="arrow" :style="{ transform: `rotate(${storyArrow}deg)` }">⬆</span>
+        {{ storyText }}
+      </div>
 
-      <div v-if="ready && (!paused || touch)" class="cross" aria-hidden="true"></div>
+      <div v-if="ready && !machine && (!paused || touch)" class="cross" aria-hidden="true"></div>
       <p v-if="ready && hover?.sign && (!paused || touch)" class="aim">
         <b>{{ hover.sign.name }}</b> · {{ hover.sign.cat }} · {{ floorText(hover.sign.floor) }}
-        <small>{{ dexSet.has(`${hover.sign.name}|${hover.sign.cat}`) ? '담은 간판' : touch ? '눌러서 담기' : '클릭해서 담기' }}</small>
+        <small v-if="story && !story.done">{{ hover.lit ? '💡 불 켠 간판' : touch ? '🔧 눌러서 불 켜기' : '🔧 클릭해서 불 켜기' }}</small>
+        <small v-else>{{ dexSet.has(`${hover.sign.name}|${hover.sign.cat}`) ? '담은 간판' : touch ? '눌러서 담기' : '클릭해서 담기' }}</small>
       </p>
       <p v-else-if="ready && hover?.land && (!paused || touch)" class="aim">
         <b>{{ hover.land.title }}</b> · {{ hover.land.sub }}
@@ -1162,7 +1570,14 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div v-if="toast?.mission" class="toast window">
+      <div v-if="toast?.neon" class="toast window neon">
+        <div class="title-bar"><div class="title-bar-text">💡 불이 들어왔어요 · {{ toast.n }} / {{ toast.goal }}</div></div>
+        <div class="window-body">
+          <b>{{ toast.neon.name }}</b>
+          <p>{{ toast.neon.cat }}</p>
+        </div>
+      </div>
+      <div v-else-if="toast?.mission" class="toast window">
         <div class="title-bar"><div class="title-bar-text">🎯 미션 성공!</div></div>
         <div class="window-body">
           <b>{{ toast.mission.title }}</b>
@@ -1184,14 +1599,52 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div v-if="ready" class="hotbar">
+      <div v-if="chat" class="chat window">
+        <div class="window-body"><span class="face">{{ chat.face }}</span><p><b>{{ chat.who }}</b>{{ chat.text }}</p></div>
+      </div>
+
+      <div v-if="dialog" class="dialog window" @click="nextLine()">
+        <div class="title-bar"><div class="title-bar-text">{{ dialog.face }} {{ dialog.who }}</div></div>
+        <div class="window-body">
+          <div class="talk">
+            <span class="face">{{ dialog.face }}</span>
+            <p>{{ dialog.lines[dialog.i] }}</p>
+          </div>
+          <div class="actions">
+            <template v-if="dialog.choices && dialog.i === dialog.lines.length - 1">
+              <button v-for="c in dialog.choices" :key="c.label" @click.stop="nextLine(c)">{{ c.label }}</button>
+            </template>
+            <button v-else @click.stop="nextLine()">{{ dialog.i + 1 < dialog.lines.length ? '다음 ▶' : '좋아요!' }} <small>({{ touch ? '누르기' : 'Enter' }})</small></button>
+          </div>
+        </div>
+      </div>
+
+      <template v-if="ready && machine">
+        <div class="year" aria-live="polite">
+          <b>{{ machine.year }}</b>년
+          <small v-if="machine.recent.length">{{ machine.recent.map((b) => `${b.name || b.use} (${b.year})`).join(' · ') }}</small>
+        </div>
+        <div class="machine window">
+          <div class="title-bar"><div class="title-bar-text">🕰️ 서울 타임머신 — {{ where }}</div></div>
+          <div class="window-body">
+            <div class="row">
+              <button @click="playMachine">{{ machine.playing ? '⏸' : '▶' }}</button>
+              <input type="range" :min="machine.min" :max="machine.max" step="1" :value="machine.year" @input="scrubMachine" />
+              <button @click="endMachine">나가기</button>
+            </div>
+            <p>건물 {{ machine.count.toLocaleString() }}채가 섰어요 · 사용승인 연도 순서 <span v-if="machine.unknown">· 연도를 모르는 {{ machine.unknown }}채는 그물로 보여요</span></p>
+          </div>
+        </div>
+      </template>
+
+      <div v-if="ready && !machine" class="hotbar">
         <button v-for="(b, i) in blocks" :key="b.id" :class="{ on: slot === i }" :title="b.label" @click="slot = i">
           <img :src="b.icon" alt="" width="32" height="32" />
           <span>{{ i + 1 }}</span>
         </button>
       </div>
 
-      <template v-if="ready && touch && !paused">
+      <template v-if="ready && touch && !paused && !machine && !dialog">
         <div class="pad">
           <button class="up" @pointerdown="hold('touch-up', true)" @pointerup="hold('touch-up', false)" @pointerleave="hold('touch-up', false)">▲</button>
           <button class="left" @pointerdown="hold('touch-left', true)" @pointerup="hold('touch-left', false)" @pointerleave="hold('touch-left', false)">◀</button>
@@ -1205,7 +1658,7 @@ onBeforeUnmount(() => {
         </div>
       </template>
 
-      <div v-if="!ready || paused" class="scrim">
+      <div v-if="(!ready || paused) && !dialog && !machine && !ending" class="scrim">
         <div class="window menu">
           <div class="title-bar"><div class="title-bar-text">3D 간판 거리</div></div>
           <div class="window-body">
@@ -1214,11 +1667,23 @@ onBeforeUnmount(() => {
               <div class="progress-indicator segmented"><span class="progress-indicator-bar" style="width: 60%"></span></div>
             </template>
             <template v-else>
-              <p class="lead">실제 지도의 건물과 길, 그 자리의 <b>진짜 간판</b>이 서 있는 블록 거리예요. 간판을 눌러 도감에 담아 보세요.</p>
+              <p v-if="story" class="lead">🌃 <b>{{ story.ch.title }}</b> — 꺼진 간판을 눌러 불을 켜면 그 둘레로 색과 사람이 돌아와요. 💡 {{ story.lit }} / {{ story.goal }}</p>
+              <p v-else class="lead">실제 지도의 건물과 길, 그 자리의 <b>진짜 간판</b>이 서 있는 블록 거리예요. 간판을 눌러 도감에 담아 보세요.</p>
               <button class="go" @click="lock">▶ {{ touch ? '시작하기' : '클릭해서 시작하기' }}</button>
             </template>
             <p v-if="notice" class="notice">⚠️ {{ notice }}</p>
 
+            <fieldset class="tales">
+              <legend>🌃 스토리 · 꺼진 간판의 도시</legend>
+              <p>어느 밤 서울 간판이 한꺼번에 꺼졌어요. 간판 수리공이 되어 동네마다 불을 다시 켜 주세요.</p>
+              <div class="chips">
+                <button v-for="(c, n) in CHAPTERS" :key="c.id" :class="{ on: story?.ch === c }" :disabled="!ready || !unlocked(n)" @click="startStory(n)">
+                  {{ cleared.includes(c.id) ? '✅' : unlocked(n) ? c.npc.face : '🔒' }} {{ c.title }}
+                </button>
+                <button :disabled="!ready" @click="startMachine">🕰️ 서울 타임머신</button>
+                <button v-if="story" @click="exitStory">스토리 그만두기</button>
+              </div>
+            </fieldset>
             <fieldset>
               <legend>장소</legend>
               <div class="chips">
@@ -1523,6 +1988,163 @@ onBeforeUnmount(() => {
 .acts button {
   width: 64px;
   height: 40px;
+}
+
+.story-bar {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  font-size: 13px;
+  color: #fff;
+  background: rgb(20 10 40 / 0.75);
+  border: 1px solid #ff4fd8;
+  box-shadow: 0 0 10px #ff4fd8;
+  text-shadow: 0 0 6px #ff4fd8;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.story-bar .meter {
+  width: 90px;
+  height: 8px;
+  background: rgb(255 255 255 / 0.15);
+}
+
+.story-bar .meter i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #ff4fd8, #ffe14d);
+  transition: width 0.4s;
+}
+
+.story-goal {
+  top: 74px;
+  background: rgb(30 20 80 / 0.8);
+}
+
+.toast.neon .title-bar {
+  background: linear-gradient(90deg, #a0148c, #ff4fd8);
+}
+
+.chat {
+  position: absolute;
+  top: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, calc(100% - 20px));
+  pointer-events: none;
+}
+
+.chat .window-body,
+.dialog .talk {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chat p,
+.dialog p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.chat b {
+  margin-right: 6px;
+}
+
+.face {
+  font-size: 30px;
+}
+
+.dialog {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  width: min(560px, calc(100% - 20px));
+  cursor: pointer;
+}
+
+.dialog .face {
+  font-size: 44px;
+}
+
+.dialog p {
+  font-size: 15px;
+  min-height: 48px;
+}
+
+.dialog .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.year {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  font-size: 22px;
+  color: #fff;
+  text-shadow: 3px 3px 0 #1d1d2b;
+  pointer-events: none;
+}
+
+.year b {
+  font-size: 64px;
+  line-height: 1;
+}
+
+.year small {
+  max-width: 80vw;
+  margin-top: 4px;
+  padding: 2px 8px;
+  font-size: 13px;
+  text-align: center;
+  background: rgb(0 0 0 / 0.45);
+  text-shadow: 1px 1px 0 #000;
+}
+
+.machine {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  width: min(560px, calc(100% - 20px));
+}
+
+.machine .row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.machine input {
+  flex: 1;
+}
+
+.machine button {
+  min-width: 44px;
+}
+
+.machine p {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+.tales p {
+  margin: 0 0 6px;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .scrim {
