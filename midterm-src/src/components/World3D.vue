@@ -38,6 +38,8 @@ const paused = ref(true)
 const timeMode = ref('now')
 const clock = ref('')
 const flying = ref(false)
+// 포인터 잠금이 막힌 브라우저에서는 마우스를 끌어서 둘러본다
+const dragLook = ref(false)
 const slot = ref(0)
 const hover = shallowRef(null)
 const toast = shallowRef(null)
@@ -603,27 +605,51 @@ function lock() {
     paused.value = false
     return
   }
-  renderer.domElement.requestPointerLock?.()
+  const el = renderer.domElement
+  const fallback = () => {
+    if (document.pointerLockElement === el) return
+    dragLook.value = true
+    paused.value = false
+  }
+  try {
+    const req = el.requestPointerLock?.()
+    if (!el.requestPointerLock) return fallback()
+    req?.catch?.(fallback)
+  } catch {
+    return fallback()
+  }
+  // 잠금 요청이 조용히 무시되는 브라우저도 있다
+  setTimeout(fallback, 600)
 }
 
 function onLockChange() {
-  paused.value = document.pointerLockElement !== renderer.domElement
+  const locked = document.pointerLockElement === renderer.domElement
+  if (locked) dragLook.value = false
+  if (dragLook.value) return
+  paused.value = !locked
   if (paused.value) keys.clear()
 }
 
+function pause() {
+  dragLook.value = false
+  paused.value = true
+  keys.clear()
+}
+
 function onMouseMove(e) {
-  if (paused.value || touch) return
+  if (paused.value || touch || dragLook.value) return
   player.yaw -= e.movementX * 0.0022
   player.pitch = Math.max(-1.55, Math.min(1.55, player.pitch - e.movementY * 0.0022))
 }
 
 function onMouseDown(e) {
-  if (paused.value || touch) return
+  if (paused.value || touch || dragLook.value) return
   act(e.button === 2 ? 2 : 0)
 }
 
 function onKeyDown(e) {
   if (paused.value) return
+  if (e.code === 'Escape' && dragLook.value) return pause()
   keys.add(e.code)
   if (e.code === 'Space') {
     e.preventDefault()
@@ -675,8 +701,10 @@ function setTime(id) {
 // 터치: 화면을 끌면 둘러보고, 짧게 누르면 간판 담기·블록 부수기
 let drag = null
 function onPointerDown(e) {
-  if (!touch || e.pointerType === 'mouse') return
-  drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now() }
+  const mouse = e.pointerType === 'mouse'
+  if (mouse ? !dragLook.value || paused.value : !touch) return
+  drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), button: e.button }
+  if (mouse) renderer.domElement.setPointerCapture?.(e.pointerId)
 }
 
 function onPointerMove(e) {
@@ -691,8 +719,12 @@ function onPointerUp(e) {
   if (!drag) return
   const moved = Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy)
   if (moved < 8 && performance.now() - drag.t < 350) {
-    const rect = renderer.domElement.getBoundingClientRect()
-    act(0, new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1))
+    // 끌어서 둘러보는 마우스는 잠금 때처럼 화면 가운데를 겨눈다
+    if (e.pointerType === 'mouse') act(drag.button === 2 ? 2 : 0)
+    else {
+      const rect = renderer.domElement.getBoundingClientRect()
+      act(0, new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1))
+    }
   }
   drag = null
 }
@@ -852,6 +884,7 @@ onBeforeUnmount(() => {
               <li><kbd>Space</kbd> 두 번 또는 <kbd>F</kbd> 날기 (<kbd>Space</kbd> 위 · <kbd>C</kbd> 아래 · <kbd>Shift</kbd> 빠르게) · <kbd>T</kbd> 시간 바꾸기</li>
               <li>왼쪽 클릭: 간판 담기·블록 부수기 · 오른쪽 클릭: 블록 놓기</li>
               <li><kbd>1</kbd>~<kbd>5</kbd>·휠: 블록 고르기 · <kbd>Esc</kbd> 메뉴</li>
+              <li v-if="dragLook">마우스 잠금이 안 되는 브라우저라서 <b>끌어서</b> 둘러봐요</li>
             </ul>
             <p class="src">길 © OpenStreetMap 기여자 · 프리셋 건물 © 국토교통부 GIS건물통합정보 · 간판 소상공인시장진흥공단 상가정보</p>
           </div>
