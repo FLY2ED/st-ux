@@ -294,6 +294,11 @@ function locate() {
 
 const near = (a, b) => Math.hypot((a.lng - b.lng) * 88000, (a.lat - b.lat) * 110540)
 
+// 내 위치 지도는 뒤에서 받는다: '' | loading | ready | failed
+const hereWorld = shallowRef(null)
+const hereState = ref('')
+let hereSeq = 0
+
 async function startHere() {
   notice.value = ''
   status.value = '위치를 확인하는 중…'
@@ -308,28 +313,37 @@ async function startHere() {
   const me = { lng: coords.longitude, lat: coords.latitude }
   const preset = PRESETS.find((p) => near(p, me) < 150)
   if (preset) return goPreset(preset)
-  // 공개 OSM 서버가 느릴 때 멈춘 것처럼 보이지 않게 기다린 시간을 보여 준다
-  const started = Date.now()
-  const wait = () => (status.value = `OpenStreetMap에서 건물과 길을 받는 중… ${Math.round((Date.now() - started) / 1000)}초`)
-  wait()
-  const ticker = setInterval(wait, 1000)
-  let osm
-  try {
-    osm = await fetchOSM(me.lng, me.lat, RADIUS, { timeout: 25000 })
-  } catch {
-    osm = null
-  } finally {
-    clearInterval(ticker)
-  }
-  try {
-    if (!osm) throw new Error('osm')
-    const world = compact(osm, me.lng, me.lat, RADIUS)
-    if (!world.b.length && !world.w.length) throw new Error('empty')
-    await enter(world, '내 위치')
-  } catch {
-    notice.value = osm ? '내 위치의 건물 정보를 못 받아서 서울과학기술대학교에서 시작해요' : 'OpenStreetMap 서버가 응답하지 않아서 서울과학기술대학교에서 시작해요. 잠시 뒤 다시 눌러 보세요'
-    await goPreset(PRESETS[0], true)
-  }
+  // 공개 OSM 서버를 기다리지 않는다: 가장 가까운 프리셋으로 바로 들어가고 내 위치 지도는 뒤에서 받는다
+  const closest = [...PRESETS].sort((a, b) => near(a, me) - near(b, me))[0]
+  const seq = ++hereSeq
+  hereWorld.value = null
+  hereState.value = 'loading'
+  notice.value = '내 위치 지도는 뒤에서 받는 중이에요. 준비되면 메뉴에 📍 버튼이 생겨요'
+  await goPreset(closest, true)
+  fetchOSM(me.lng, me.lat, RADIUS, { timeout: 40000 })
+    .then((osm) => {
+      const world = compact(osm, me.lng, me.lat, RADIUS)
+      if (!world.b.length && !world.w.length) throw new Error('empty')
+      if (seq !== hereSeq) return
+      hereWorld.value = world
+      hereState.value = 'ready'
+      notice.value = ''
+    })
+    .catch(() => {
+      if (seq !== hereSeq) return
+      hereState.value = 'failed'
+      notice.value = 'OpenStreetMap 서버가 응답하지 않아서 내 위치 지도를 못 받았어요. 잠시 뒤 📍 내 위치를 다시 눌러 보세요'
+    })
+}
+
+async function goHere() {
+  const world = hereWorld.value
+  if (!world) return
+  hereWorld.value = null
+  hereState.value = ''
+  notice.value = ''
+  status.value = '내 위치 지도를 펼치는 중…'
+  await enter(world, '내 위치')
 }
 
 async function goPreset(p, keepNotice = false) {
@@ -798,6 +812,7 @@ onBeforeUnmount(() => {
         <span>🪧 간판 {{ signCount.toLocaleString() }}곳{{ dense ? '' : ' (표본)' }}</span>
         <span>📒 도감 {{ dex.length.toLocaleString() }}</span>
         <span v-if="flying">🕊️ 나는 중</span>
+        <span v-if="hereState === 'ready'">📍 내 위치 준비됨 · {{ touch ? '메뉴' : 'Esc' }}에서 이동</span>
       </div>
 
       <div v-if="ready && (!paused || touch)" class="cross" aria-hidden="true"></div>
@@ -869,7 +884,8 @@ onBeforeUnmount(() => {
             <fieldset>
               <legend>장소</legend>
               <div class="chips">
-                <button :disabled="!ready" @click="startHere">📍 내 위치</button>
+                <button v-if="hereState === 'ready'" class="on" :disabled="!ready" @click="goHere">📍 내 위치 준비됐어요 · 이동</button>
+                <button v-else :disabled="!ready || hereState === 'loading'" @click="startHere">{{ hereState === 'loading' ? '📍 내 위치 받는 중…' : '📍 내 위치' }}</button>
                 <button v-for="p in PRESETS" :key="p.id" :disabled="!ready" @click="goPreset(p)">{{ p.label }}</button>
               </div>
             </fieldset>
