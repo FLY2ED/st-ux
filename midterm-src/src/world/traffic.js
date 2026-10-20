@@ -130,6 +130,8 @@ export function makeTraffic(world, grid, rand) {
     group.add(meshes[key])
   }
 
+  // 꺼진 간판의 도시: 불 켠 간판 둘레 [x, y, 반지름] 안에서만 차가 보인다
+  let zone = null
   let flows = new Map()
   let base = '서행'
   const levelOf = (lane) => flows.get(lane.name) || base
@@ -164,6 +166,10 @@ export function makeTraffic(world, grid, rand) {
     populate()
   }
 
+  function setZone(list) {
+    zone = list
+  }
+
   const mCar = new THREE.Matrix4()
   const mPart = new THREE.Matrix4()
   const q = new THREE.Quaternion()
@@ -182,6 +188,7 @@ export function makeTraffic(world, grid, rand) {
       const p = pointAt(car.lane, car.s, car.hint)
       car.hint = p.n
       car.at = p
+      if (zone && !zone.some(([zx, zy, r]) => (p.x - zx) ** 2 + (p.y - zy) ** 2 < r * r)) continue
       const k = KINDS[car.kind]
       mCar.compose(pos.set(p.x, 0, -p.y), q.setFromAxisAngle(up, Math.atan2(p.dy, p.dx)), scl.set(1, 1, 1))
       const [bx, by, bz, bl, bh, bw] = k.body
@@ -251,7 +258,7 @@ export function makeTraffic(world, grid, rand) {
     for (const m of Object.values(meshes)) m.dispose()
   }
 
-  return { group, lanes, update, setFlow, levelOf, dispose, count: () => cars.length }
+  return { group, lanes, update, setFlow, setZone, levelOf, dispose, count: () => cars.length }
 }
 
 // 실시간 도로 목록을 도로 이름 → 등급 지도로 줄인다
