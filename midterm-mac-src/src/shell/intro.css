@@ -1,0 +1,320 @@
+/* 게임 인트로: 바탕화면 위에 덮는 판. 검은 판 → 제목 → 캔버스(수리공·블록) 순으로 쌓는다 */
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.intro-black {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+}
+
+.intro-cv {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ── 제목 카드 ─────────────────────────────────── */
+.intro-title {
+  --fs: min(13.5vw, 24vh);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--fs) * 0.42);
+  color: #fff;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.s-title .intro-title {
+  opacity: 1;
+  visibility: visible;
+}
+
+.s-out .intro-title {
+  visibility: visible;
+  opacity: 0;
+  transform: scale(1.04);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.it-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  font-size: var(--fs);
+  line-height: 1;
+}
+
+.it-word {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 1em;
+}
+
+.it-word.sans b {
+  font-family: 'Pretendard Variable', Pretendard, var(--font);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  display: inline-block;
+}
+
+.s-title .it-word.sans b {
+  animation: it-rise 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  animation-delay: calc(var(--i) * 0.08s);
+}
+
+.it-word.px {
+  gap: calc(var(--fs) * 0.02);
+  margin-left: calc(var(--fs) * 0.12);
+}
+
+.it-word.px canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+
+.it-word small {
+  position: absolute;
+  top: calc(100% + var(--fs) * 0.12);
+  left: 0.04em;
+  font: 400 calc(var(--fs) * 0.13) / 1 'Pretendard Variable', Pretendard, sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.it-word.px small {
+  left: auto;
+  right: 0;
+}
+
+.s-title .it-word small {
+  animation: it-fade 0.5s 0.5s both;
+}
+
+.it-hat {
+  position: relative;
+  z-index: 2;
+  width: calc(var(--fs) * 1.2);
+  margin: 0 calc(var(--fs) * -0.42) 0 calc(var(--fs) * -0.24);
+  filter: drop-shadow(0 calc(var(--fs) * 0.06) calc(var(--fs) * 0.12) rgba(255, 190, 20, 0.28));
+}
+
+.s-title .it-hat {
+  animation:
+    it-pop 0.7s 0.18s cubic-bezier(0.2, 1.6, 0.4, 1) both,
+    it-bob 3.2s 0.9s ease-in-out infinite;
+}
+
+.it-badge {
+  display: grid;
+  place-items: center;
+  width: calc(var(--fs) * 0.42);
+  height: calc(var(--fs) * 0.78);
+  margin-left: calc(var(--fs) * 0.12);
+  border-radius: 50%;
+  background: #fff;
+  color: #000;
+  font: 900 calc(var(--fs) * 0.15) / 1 'Pretendard Variable', Pretendard, sans-serif;
+  letter-spacing: -0.02em;
+  writing-mode: vertical-rl;
+  transform: rotate(-12deg);
+}
+
+.s-title .it-badge {
+  animation: it-spin 0.6s 0.65s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+.it-cap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: calc(var(--fs) * 0.1);
+}
+
+.it-cap p {
+  margin: 0;
+  font: 500 14px / 1.45 'Pretendard Variable', Pretendard, sans-serif;
+  color: #e9e9ee;
+}
+
+.it-mark {
+  width: 36px;
+  image-rendering: pixelated;
+}
+
+.s-title .it-cap {
+  animation: it-fade 0.5s 0.8s both;
+}
+
+.it-press {
+  position: absolute;
+  bottom: 5vh;
+  margin: 0;
+  font: 700 13px 'Galmuri11 Game', Galmuri11, sans-serif;
+  letter-spacing: 0.08em;
+  color: #6c6c7c;
+}
+
+.s-title .it-press {
+  animation: it-fade 0.4s 1.4s both;
+}
+
+/* 시작 메뉴: 픽셀 글꼴, 고른 줄만 노란색에 ▶ */
+.it-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: calc(var(--fs) * -0.12);
+}
+
+.it-menu button {
+  position: relative;
+  padding: 9px 4px;
+  border: 0;
+  background: none;
+  color: #8e8ea0;
+  font: 700 clamp(17px, 2.4vh, 24px) / 1 'Galmuri11 Game', Galmuri11, sans-serif;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  outline: none;
+}
+
+.it-menu button.on {
+  color: #ffcf3a;
+  text-shadow: 3px 3px 0 #1b1622;
+}
+
+.it-menu button.on::before {
+  content: '▶';
+  position: absolute;
+  left: -1.5em;
+  animation: it-nudge 0.6s steps(2) infinite;
+}
+
+.s-title .it-menu {
+  pointer-events: auto;
+}
+
+.s-title .it-menu button {
+  animation: it-fade 0.4s both;
+  animation-delay: calc(1s + var(--i) * 0.08s);
+}
+
+@keyframes it-nudge {
+  50% {
+    transform: translateX(5px);
+  }
+}
+
+/* 고른 뒤: 제목이 걷히고 판은 게임 창(6500) 아래로 내려가 무너진 바탕으로 남는다 */
+.s-leave .intro-title {
+  visibility: visible;
+  opacity: 0;
+  transform: scale(1.06);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.s-leave .it-menu button.on {
+  color: #fff;
+}
+
+.intro.s-held {
+  z-index: 6000;
+  pointer-events: none;
+  cursor: default;
+}
+
+@keyframes it-rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.4em) scale(0.9);
+  }
+}
+
+@keyframes it-fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes it-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.2) rotate(-40deg);
+  }
+}
+
+@keyframes it-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-4%) rotate(-4deg);
+  }
+}
+
+@keyframes it-spin {
+  from {
+    opacity: 0;
+    transform: rotate(-200deg) scale(0.3);
+  }
+}
+
+@keyframes it-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* 움직임 줄이기: 검은 판과 제목만 살짝 나타났다 사라진다 */
+.intro.reduce .intro-black {
+  opacity: 1;
+  animation: it-fade-only 0.3s both;
+}
+
+.intro.reduce .intro-title,
+.intro.reduce .intro-title * {
+  animation: none !important;
+}
+
+.intro.reduce.s-title .intro-title {
+  animation: it-fade-only 0.3s both !important;
+}
+
+.intro.reduce.s-out {
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+
+@keyframes it-fade-only {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (max-width: 700px) {
+  .intro-title {
+    --fs: 15vw;
+  }
+
+  .it-badge {
+    display: none;
+  }
+}

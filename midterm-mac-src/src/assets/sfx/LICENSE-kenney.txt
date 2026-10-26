@@ -1,0 +1,11 @@
+이 폴더의 .ogg 효과음은 Kenney(www.kenney.nl)의 무료 음원이다.
+License: Creative Commons Zero (CC0) — http://creativecommons.org/publicdomain/zero/1.0/
+출처 표기는 의무가 아니지만 남겨 둔다.
+
+Interface Sounds 1.0 (https://kenney.nl/assets/interface-sounds)
+  click_003.ogg click_005.ogg scratch_001.ogg scratch_002.ogg drop_002.ogg drop_003.ogg glass_002.ogg
+Impact Sounds (https://kenney.nl/assets/impact-sounds)
+  impactPlank_medium_000.ogg impactPlank_medium_001.ogg impactMetal_light_001.ogg
+  impactPunch_medium_000.ogg impactPunch_medium_001.ogg
+Casino Audio (https://kenney.nl/assets/casino-audio)
+  chips-collide-2.ogg chip-lay-1.ogg card-slide-1.ogg

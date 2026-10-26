@@ -1,0 +1,13 @@
+배경음 (모두 CC0, 표기 의무 없음)
+
+rain, dodge, guess, more, booth
+  MatiasVME, "Chiptune Loops" (Invasion, TuNiNuNiNiNu, Sometimes, Something, Utopia)
+  https://opengameart.org/node/88716
+street
+  iamoneabe, "Midsummer"
+  https://opengameart.org/node/140425
+scratch
+  "Chiploop"
+  https://opengameart.org/content/chiploop
+
+모두 음량을 -18 LUFS 로 맞춰 mp3 로 다시 담았다.

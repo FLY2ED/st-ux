@@ -1,0 +1,4 @@
+/* 대사·제목은 손글씨(개구), 본문은 둥근 고딕(고운돋움). 한글은 쓰는 글자 조각만 받는다 */
+@import '@fontsource/gaegu/400.css';
+@import '@fontsource/gaegu/700.css';
+@import '@fontsource/gowun-dodum/400.css';

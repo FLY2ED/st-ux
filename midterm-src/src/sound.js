@@ -38,7 +38,78 @@ function beep(freq, dur = 0.08, type = 'square', when = 0) {
   }
 }
 
+// 복권 은박을 긁는 소리. 띠를 좁힌 잡음을 짧게 여러 번 낸다
+function scratch(strokes = 1, when = 0, len = 0.07, freq = 3200) {
+  if (sound.muted) return
+  try {
+    ctx ||= new (window.AudioContext || window.webkitAudioContext)()
+    const n = Math.floor(ctx.sampleRate * len)
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate)
+    const d = buf.getChannelData(0)
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.sin((Math.PI * i) / n)
+    for (let k = 0; k < strokes; k++) {
+      const t = ctx.currentTime + when + k * (len + 0.03)
+      const src = ctx.createBufferSource()
+      const bp = ctx.createBiquadFilter()
+      const g = ctx.createGain()
+      src.buffer = buf
+      bp.type = 'bandpass'
+      bp.frequency.value = freq * (0.85 + Math.random() * 0.3)
+      bp.Q.value = 1.4
+      g.gain.value = 0.12
+      src.connect(bp).connect(g).connect(ctx.destination)
+      src.start(t)
+    }
+  } catch {
+    // 소리를 못 내는 환경이면 조용히 넘어간다
+  }
+}
+
+// 바탕화면이 뜰 때 나는 시작음. 천천히 부풀어 오르는 화음 위로 종소리가 올라간다
+function startup() {
+  if (sound.muted) return
+  try {
+    ctx ||= new (window.AudioContext || window.webkitAudioContext)()
+    const t0 = ctx.currentTime + 0.05
+    const out = ctx.createGain()
+    out.gain.value = 0.5
+    const echo = ctx.createDelay()
+    const fb = ctx.createGain()
+    echo.delayTime.value = 0.28
+    fb.gain.value = 0.35
+    out.connect(ctx.destination)
+    out.connect(echo).connect(fb).connect(echo)
+    echo.connect(ctx.destination)
+
+    const tone = (freq, at, dur, type, peak, attack) => {
+      const osc = ctx.createOscillator()
+      const g = ctx.createGain()
+      osc.type = type
+      osc.frequency.value = freq
+      g.gain.setValueAtTime(0.0001, t0 + at)
+      g.gain.exponentialRampToValueAtTime(peak, t0 + at + attack)
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + dur)
+      osc.connect(g).connect(out)
+      osc.start(t0 + at)
+      osc.stop(t0 + at + dur + 0.05)
+    }
+    // 바닥 화음: E♭ 메이저 9
+    for (const f of [155.6, 233.1, 311.1, 392, 466.2, 587.3]) tone(f, 0, 4.2, 'sine', 0.05, 1.2)
+    for (const f of [155.6, 311.1]) tone(f * 1.003, 0, 4.2, 'triangle', 0.02, 1.4)
+    // 위로 올라가는 종소리
+    const bells = [622.3, 784, 932.3, 1174.7, 1244.5, 1568]
+    bells.forEach((f, i) => {
+      tone(f, 0.35 + i * 0.22, 2.2, 'sine', 0.06, 0.01)
+      tone(f * 2, 0.35 + i * 0.22, 0.9, 'sine', 0.015, 0.01)
+    })
+  } catch {
+    // 소리를 못 내는 환경이면 조용히 넘어간다
+  }
+}
+
 export const sfx = {
+  startup,
+  scratch,
   click: () => beep(880, 0.04),
   open: () => { beep(660, 0.05); beep(990, 0.07, 'square', 0.05) },
   bell: () => { beep(1568, 0.12, 'triangle'); beep(2093, 0.18, 'triangle', 0.09) },
@@ -46,4 +117,14 @@ export const sfx = {
   wrong: () => { beep(220, 0.15, 'sawtooth'); beep(165, 0.25, 'sawtooth', 0.12) },
   tick: () => beep(1200, 0.02, 'triangle'),
   build: (i) => beep(330 + i * 60, 0.05, 'square'),
+  horn: () => { beep(392, 0.28, 'sawtooth'); beep(494, 0.28, 'sawtooth') },
+  // 네온이 지직거리다 켜지는 소리. n 번째 간판일수록 음이 올라간다
+  neon: (n = 0) => {
+    for (const t of [0, 0.09, 0.2]) beep(110, 0.05, 'sawtooth', t)
+    const scale = [523.3, 587.3, 659.3, 784, 880, 1046.5, 1174.7, 1318.5]
+    const f = scale[n % scale.length] * (n >= scale.length ? 2 : 1)
+    beep(f, 0.18, 'triangle', 0.32)
+    beep(f * 1.5, 0.22, 'triangle', 0.4)
+  },
+  dawn: startup,
 }

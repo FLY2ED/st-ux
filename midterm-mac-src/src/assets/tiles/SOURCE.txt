@@ -1,0 +1,7 @@
+tinytown-nature.png
+  Kenney "Tiny Town" 1.1 의 Tilemap/tilemap_packed.png 위쪽 4줄(192x64, 16x16 타일)을 잘라 씀
+  출처: https://kenney.nl/assets/tiny-town
+  라이선스: Creative Commons Zero (CC0) http://creativecommons.org/publicdomain/zero/1.0/
+  (Kenney 표기는 의무가 아님. 감사의 뜻으로 남겨 둠: Kenney, www.kenney.nl)
+
+물·돌·그루터기·벤치는 같은 팔레트로 src/world/tileset.js 안에서 직접 그린다.

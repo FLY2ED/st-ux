@@ -1,0 +1,361 @@
+/* 간판 일기: 흰 종이 + 검은 펜 + 노란 형광펜 한 색 */
+:root {
+  --paper: #fffdf6;
+  --desk: #efe9dc;
+  --rule: #e8e1cf;
+  --ink: #1b1b1b;
+  --ink-soft: #55524a;
+  --hl: #ffcb45;
+  --hl-soft: #ffe9a6;
+  --hl-pale: #fff4cf;
+  /* 기존 화면들이 쓰던 색 이름은 형광펜 톤으로 다시 묶는다 */
+  --pink: #ffe0d2;
+  --blue: #e6ecf3;
+  --yellow: var(--hl);
+  --green: #eef0dc;
+  --violet: #ece6ef;
+  --red: #e2553f;
+  /* 손으로 그은 듯한 모서리 두 가지 */
+  --wob: 255px 18px 225px 16px / 16px 225px 18px 255px;
+  --wob2: 18px 220px 16px 240px / 230px 16px 240px 18px;
+  --hand: 'Gaegu', 'Gowun Dodum', sans-serif;
+  --body: 'Gowun Dodum', 'Gaegu', sans-serif;
+  --taskbar-h: 0px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--desk);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--body);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#app {
+  height: 100%;
+}
+
+h1,
+h2,
+h3,
+legend,
+.big-num,
+.title-bar-text,
+.hand {
+  font-family: var(--hand);
+  font-weight: 700;
+}
+
+.muted {
+  color: var(--ink-soft);
+}
+
+.big-num {
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.pixel {
+  image-rendering: auto;
+}
+
+/* 버튼: 펜으로 그린 네모 + 살짝 밀리는 그림자 */
+button {
+  font: 700 17px/1.1 var(--hand);
+  color: var(--ink);
+  min-height: 34px;
+  padding: 4px 14px;
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: var(--wob);
+  box-shadow: 2px 3px 0 var(--ink);
+  cursor: pointer;
+  transition: transform 0.08s, box-shadow 0.08s, background 0.15s;
+}
+
+button:hover {
+  background: var(--hl-pale);
+}
+
+button:active,
+button.on,
+button[aria-pressed='true'] {
+  transform: translate(2px, 3px);
+  box-shadow: 0 0 0 var(--ink);
+}
+
+button.on,
+button[aria-pressed='true'] {
+  background: var(--hl);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+  box-shadow: 2px 3px 0 var(--ink);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px dashed var(--ink);
+  outline-offset: 3px;
+}
+
+a {
+  color: inherit;
+}
+
+/* 글자 칸: 공책 밑줄처럼 */
+input[type='text'],
+input[type='search'],
+input:not([type]),
+select {
+  font: 400 18px/1.2 var(--hand);
+  color: var(--ink);
+  height: 36px;
+  padding: 2px 10px;
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: var(--wob2);
+}
+
+input::placeholder {
+  color: #aaa59a;
+}
+
+input[type='range'] {
+  accent-color: var(--ink);
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--ink);
+}
+
+label {
+  font-family: var(--hand);
+  font-size: 16px;
+}
+
+/* 묶음: 연필 점선 상자 + 형광펜 제목 */
+fieldset {
+  margin: 0;
+  padding: 10px 12px 12px;
+  border: 2px dashed var(--ink);
+  border-radius: var(--wob2);
+}
+
+legend {
+  padding: 0 6px;
+  font-size: 19px;
+  background: linear-gradient(transparent 55%, var(--hl-soft) 55% 92%, transparent 92%);
+}
+
+.field-row,
+.field-row-stacked {
+  display: flex;
+  gap: 6px;
+}
+
+.field-row-stacked {
+  flex-direction: column;
+}
+
+/* 창 안의 판: 흰 종이 한 장 */
+.window {
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: var(--wob);
+}
+
+.window-body {
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px 2px 12px;
+}
+
+.title-bar-text {
+  font-size: 20px;
+}
+
+.title-bar-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.title-bar-controls button {
+  min-width: 0;
+  min-height: 0;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 18px;
+  border-radius: 50% 46% 52% 48%;
+  box-shadow: 1px 2px 0 var(--ink);
+}
+
+.title-bar-controls button[aria-label='Close']::before {
+  content: '✕';
+}
+
+.sunken-panel {
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: var(--wob2);
+  overflow: auto;
+}
+
+/* 탭: 공책 옆에 붙인 인덱스 스티커 */
+menu[role='tablist'] {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 -2px;
+  padding: 0 6px;
+  list-style: none;
+}
+
+menu[role='tablist'] li {
+  position: relative;
+}
+
+menu[role='tablist'] li a {
+  display: block;
+  padding: 5px 10px 4px;
+  font: 700 16px/1.1 var(--hand);
+  text-decoration: none;
+  white-space: nowrap;
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-bottom: 0;
+  border-radius: 12px 14px 0 0 / 10px 12px 0 0;
+}
+
+menu[role='tablist'] li[aria-selected='true'] a {
+  background: var(--hl);
+  padding-bottom: 6px;
+}
+
+.bars {
+  list-style: none;
+  margin: 0;
+  padding: 6px 8px;
+}
+
+.bars li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 56px;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+}
+
+.bars .rank {
+  text-align: right;
+  font-family: var(--hand);
+  font-size: 17px;
+  color: var(--ink-soft);
+}
+
+.bars .label {
+  position: relative;
+  height: 24px;
+}
+
+/* 막대는 형광펜으로 쭉 그은 자국 */
+.bars .fill {
+  position: absolute;
+  inset: 3px auto 3px 0;
+  background: var(--hl-soft) !important;
+  border-radius: 3px 8px 4px 9px;
+  transition: width 0.5s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.bars li:first-child .fill {
+  background: var(--hl) !important;
+}
+
+.bars .name {
+  position: relative;
+  line-height: 24px;
+  padding-left: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bars .count {
+  text-align: right;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d6cfbd;
+  border: 2px solid var(--paper);
+  border-radius: 8px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cfc7b3 transparent;
+}
+
+/* 선이 살짝 떨리는 손그림 효과 (App.vue 의 SVG 필터) */
+.boil {
+  animation: boil 0.36s steps(1) infinite;
+}
+
+@keyframes boil {
+  0% {
+    filter: url(#boil-a);
+  }
+  33% {
+    filter: url(#boil-b);
+  }
+  66% {
+    filter: url(#boil-c);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

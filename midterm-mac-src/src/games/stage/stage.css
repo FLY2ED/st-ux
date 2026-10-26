@@ -1,0 +1,453 @@
+/* 이야기 속 놀이판 공용: 거리 화면이 그대로 놀이판으로 바뀐 것처럼 남색 픽셀 무대에 그린다.
+   판·표시는 대화창과 같은 말씨(남색 #141b3a + 크림 3px 테두리, 주황 이름표, 노랑 강조) */
+.sg {
+  --sg-frame: 0 -3px 0 #fff1e8, 0 3px 0 #fff1e8, -3px 0 0 #fff1e8, 3px 0 0 #fff1e8;
+  position: relative;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 420px;
+  overflow: hidden;
+  color: #fff1e8;
+  background: linear-gradient(#141b3a, #0b1028);
+  font-family: var(--game-font, 'Galmuri11 Game', 'Galmuri11', sans-serif);
+  -webkit-font-smoothing: none;
+  user-select: none;
+  touch-action: manipulation;
+  container-type: inline-size;
+}
+
+.sg *,
+.sg *::before,
+.sg *::after {
+  box-sizing: border-box;
+}
+
+.sg img {
+  image-rendering: pixelated;
+}
+
+/* 위 줄: 목숨 · 보스 체력 · 점수 */
+.sg-hud {
+  position: absolute;
+  inset: 13px 15px auto;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  pointer-events: none;
+}
+
+.sg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: #141b3a;
+  box-shadow: var(--sg-frame), 0 6px 0 rgb(0 0 0 / 0.45);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.sg-chip small {
+  color: #ffa300;
+  font-size: 11px;
+}
+
+.sg-chip b {
+  color: #ffec27;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.sg-hearts {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.sg-hearts svg {
+  width: 21px;
+  height: 18px;
+  fill: #ff004d;
+  filter: drop-shadow(2px 2px 0 #0b1028);
+}
+
+.sg-hearts svg.off {
+  fill: #2b3a78;
+}
+
+.sg-hearts svg.lost {
+  animation: sg-heart-lost 0.5s steps(4);
+}
+
+@keyframes sg-heart-lost {
+  50% {
+    transform: scale(1.6);
+    fill: #fff;
+  }
+}
+
+/* 보스 체력 막대 */
+.sg-hp {
+  flex: 1;
+  max-width: 420px;
+  margin-left: auto;
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
+  color: #fff1e8;
+  text-align: right;
+  text-shadow: 2px 2px 0 #0b1028;
+}
+
+.sg-hp b {
+  position: relative;
+  display: block;
+  height: 14px;
+  background: #24091a;
+  box-shadow: var(--sg-frame);
+}
+
+.sg-hp i {
+  position: absolute;
+  inset: 2px auto 2px 2px;
+  max-width: calc(100% - 4px);
+  background: linear-gradient(#ff5a7a 0 50%, #ff004d 50%);
+  transition: width 0.3s steps(6);
+}
+
+/* 말풍선: 흰 픽셀 상자 + 아래 꼬리 */
+.sg-say {
+  position: relative;
+  max-width: 300px;
+  padding: 9px 12px;
+  background: #fff1e8;
+  color: #1d1d2b;
+  font-size: 14px;
+  line-height: 1.45;
+  box-shadow:
+    0 -3px 0 #141b3a,
+    0 3px 0 #141b3a,
+    -3px 0 0 #141b3a,
+    3px 0 0 #141b3a,
+    0 7px 0 rgb(0 0 0 / 0.3);
+  word-break: keep-all;
+}
+
+.sg-say::after {
+  content: '';
+  position: absolute;
+  bottom: -12px;
+  left: var(--tail, 26px);
+  width: 12px;
+  height: 9px;
+  background: #fff1e8;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  filter: drop-shadow(0 3px 0 #141b3a);
+}
+
+.sg-say.boss {
+  background: #24091a;
+  color: #ffd0d8;
+  box-shadow:
+    0 -3px 0 #ff004d,
+    0 3px 0 #ff004d,
+    -3px 0 0 #ff004d,
+    3px 0 0 #ff004d,
+    0 7px 0 rgb(0 0 0 / 0.3);
+}
+
+.sg-say.boss::after {
+  background: #ff004d;
+}
+
+.sg-say b {
+  color: #c2185b;
+  font-weight: 400;
+}
+
+.sg-say.boss b {
+  color: #ffec27;
+}
+
+/* 버튼: 시작 화면 메뉴와 같은 남색 판, 고르면 노란 테두리와 ▶ */
+.sg .sg-btn {
+  position: relative;
+  min-height: 44px;
+  padding: 8px 24px;
+  border: 0;
+  border-radius: 0;
+  background: #141b3a;
+  color: #fff1e8;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: var(--sg-frame), 0 6px 0 rgb(0 0 0 / 0.45);
+}
+
+.sg .sg-btn:hover:not(:disabled),
+.sg .sg-btn:focus-visible {
+  outline: none;
+  background: #29366f;
+  color: #ffec27;
+  box-shadow: 0 -3px 0 #ffec27, 0 3px 0 #ffec27, -3px 0 0 #ffec27, 3px 0 0 #ffec27, 0 6px 0 rgb(0 0 0 / 0.45);
+}
+
+.sg .sg-btn:hover:not(:disabled)::before,
+.sg .sg-btn:focus-visible::before {
+  content: '▶';
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  translate: 0 -50%;
+  font-size: 10px;
+  animation: sg-caret 0.5s steps(2) infinite;
+}
+
+@keyframes sg-caret {
+  50% {
+    translate: 3px -50%;
+  }
+}
+
+.sg .sg-btn:active:not(:disabled) {
+  translate: 0 3px;
+  box-shadow: 0 -3px 0 #ffec27, 0 3px 0 #ffec27, -3px 0 0 #ffec27, 3px 0 0 #ffec27;
+}
+
+.sg .sg-btn:disabled {
+  color: #5f6aa8;
+  cursor: default;
+  box-shadow: 0 -3px 0 #5f6aa8, 0 3px 0 #5f6aa8, -3px 0 0 #5f6aa8, 3px 0 0 #5f6aa8;
+}
+
+/* 주황 판: 지금 눌러야 할 버튼 하나 */
+.sg .sg-btn.go {
+  background: #ffa300;
+  color: #1d1d1f;
+}
+
+.sg .sg-btn.go:hover:not(:disabled),
+.sg .sg-btn.go:focus-visible {
+  background: #ffec27;
+  color: #1d1d1f;
+}
+
+.sg .sg-btn.ghost {
+  background: #0b1028;
+}
+
+/* 판 위에 걸친 주황 이름표(대화창 이름표와 같은 모양). 부모는 position: relative */
+.sg-tab {
+  position: absolute;
+  bottom: 100%;
+  left: 14px;
+  z-index: 2;
+  margin-bottom: 3px;
+  padding: 5px 12px 4px;
+  color: #1d1d1f;
+  background: #ffa300;
+  font-size: 14px;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 -3px 0 #fff1e8, -3px 0 0 #fff1e8, 3px 0 0 #fff1e8;
+}
+
+/* 자판 모양 표시 */
+.sg-key {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  background: #fff1e8;
+  color: #141b3a;
+  font-size: 12px;
+  box-shadow: inset 0 -3px 0 #c2c3c7, 0 0 0 2px #141b3a;
+}
+
+/* 보스 그림: 맞으면 하얗게 번쩍, 이기면 흩어진다, 웃을 땐 들썩 */
+.sg-boss {
+  image-rendering: pixelated;
+  pointer-events: none;
+  filter: drop-shadow(0 0 18px rgb(255 60 120 / 0.35));
+}
+
+.sg-boss.hit {
+  animation: sg-boss-hit 0.36s steps(3);
+}
+
+.sg-boss.laugh {
+  animation: sg-boss-laugh 0.5s steps(2) 2;
+}
+
+.sg-boss.gone {
+  animation: sg-boss-gone 1.4s steps(10) forwards;
+}
+
+@keyframes sg-boss-hit {
+  0%,
+  100% {
+    filter: none;
+    translate: 0 0;
+  }
+  40% {
+    filter: brightness(2.6) saturate(0);
+    translate: 10px 0;
+  }
+  70% {
+    translate: -6px 0;
+  }
+}
+
+@keyframes sg-boss-laugh {
+  50% {
+    translate: 0 -8px;
+    scale: 1.04;
+  }
+}
+
+@keyframes sg-boss-gone {
+  to {
+    opacity: 0;
+    translate: 0 -40px;
+    scale: 1.3;
+    filter: brightness(2) blur(3px);
+  }
+}
+
+/* 떠오르는 짧은 글씨 */
+.sg-float {
+  position: absolute;
+  z-index: 9;
+  color: #ffec27;
+  font-size: 18px;
+  white-space: nowrap;
+  pointer-events: none;
+  translate: -50% 0;
+  animation: sg-float 1s steps(8) forwards;
+  text-shadow:
+    2px 0 0 #000, -2px 0 0 #000, 0 2px 0 #000, 0 -2px 0 #000,
+    2px 2px 0 #000, -2px 2px 0 #000, 2px -2px 0 #000, -2px -2px 0 #000;
+}
+
+.sg-float.bad {
+  color: #ff5a7a;
+}
+
+@keyframes sg-float {
+  to {
+    translate: -50% -46px;
+    opacity: 0;
+  }
+}
+
+/* 간판판: 업종 색 바탕에 진한 글씨, 픽셀 테두리 */
+.sg-sign {
+  display: inline-block;
+  padding: 8px 14px;
+  background: var(--plate, #ffd84d);
+  color: #1d1d2b;
+  font-size: 20px;
+  line-height: 1.25;
+  text-align: center;
+  word-break: keep-all;
+  box-shadow:
+    inset 0 0 0 3px rgb(255 255 255 / 0.35),
+    0 -3px 0 #141b3a,
+    0 3px 0 #141b3a,
+    -3px 0 0 #141b3a,
+    3px 0 0 #141b3a,
+    0 8px 0 rgb(0 0 0 / 0.35);
+}
+
+/* 끝났을 때: 판을 어둡게 덮고 가운데 대화창 같은 상자 하나 */
+.sg-end {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 20;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: calc(100% - 40px);
+  padding: 22px 34px 24px;
+  translate: -50% -50%;
+  text-align: center;
+  background: #141b3a;
+  box-shadow: var(--sg-frame), 0 9px 0 rgb(0 0 0 / 0.45), 0 0 0 100vmax rgb(11 16 40 / 0.62);
+}
+
+.sg-end h1 {
+  margin: 0;
+  color: #ffec27;
+  font-size: clamp(28px, 4.4cqi, 44px);
+  font-weight: 400;
+  text-shadow: 4px 4px 0 #000;
+}
+
+.sg-end.lost {
+  box-shadow: 0 -3px 0 #ff004d, 0 3px 0 #ff004d, -3px 0 0 #ff004d, 3px 0 0 #ff004d, 0 9px 0 rgb(0 0 0 / 0.45), 0 0 0 100vmax rgb(11 16 40 / 0.62);
+}
+
+.sg-end.lost h1 {
+  color: #ff5a7a;
+}
+
+.sg-end p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.sg-end p b {
+  color: #ffec27;
+  font-weight: 400;
+}
+
+/* 판 시작 알림 */
+.sg-banner {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  z-index: 15;
+  padding: 10px 18px;
+  translate: -50% -50%;
+  background: #141b3a;
+  box-shadow: var(--sg-frame), 0 6px 0 rgb(0 0 0 / 0.45);
+  color: #ffec27;
+  font-size: clamp(16px, 2.2cqi, 22px);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.sg-banner.boss {
+  background: #24091a;
+  box-shadow: 0 -3px 0 #ff004d, 0 3px 0 #ff004d, -3px 0 0 #ff004d, 3px 0 0 #ff004d, 0 6px 0 rgb(0 0 0 / 0.45);
+  color: #ffd0d8;
+}
+
+/* 밤하늘 별 */
+.sg-stars {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 18%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 33% 8%, #ffec27 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 58% 22%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 76% 12%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 90% 30%, #29adff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 22% 36%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 47% 40%, #fff 50%, transparent 51%);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-boss.hit,
+  .sg-boss.laugh,
+  .sg-float {
+    animation-duration: 0.01s;
+  }
+}

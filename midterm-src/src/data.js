@@ -88,3 +88,64 @@ export async function nearby(lng, lat, radius = 800) {
   )
   return out.sort((a, b) => a.dist - b.dist)
 }
+
+// 3D 거리용 촘촘한 간판(서울만 있다). 칸 파일이 없으면 전국 표본 nearby 로 대신한다
+export async function signsAround(lng, lat, radius) {
+  const kx = 111320 * Math.cos((lat * Math.PI) / 180)
+  const ky = 110540
+  const keys = new Set()
+  for (const x of [lng - radius / kx, lng + radius / kx]) for (const y of [lat - radius / ky, lat + radius / ky]) keys.add(`${Math.floor(x * 100)}_${Math.floor(y * 100)}`)
+  const cats = await load('cats.json')
+  const out = []
+  let dense = false
+  await Promise.all(
+    [...keys].map(async (key) => {
+      const [tx, ty] = key.split('_').map(Number)
+      const rows = await load(`signs/${key}.json`).catch(() => null)
+      if (!rows) return
+      dense = true
+      for (const [name, cat, floor, ox, oy] of rows) {
+        const x = (((tx * 1000 + ox) / 100000) - lng) * kx
+        const y = (((ty * 1000 + oy) / 100000) - lat) * ky
+        const dist = Math.hypot(x, y)
+        if (dist <= radius) out.push({ name, cat: cats[cat], floor, x, y, dist })
+      }
+    }),
+  )
+  if (!dense) {
+    for (const s of await nearby(lng, lat, radius)) out.push({ name: s.name, cat: s.cat, floor: 0, x: s.dx, y: s.dy, dist: s.dist })
+  }
+  return { dense, rows: out.sort((a, b) => a.dist - b.dist) }
+}
+
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)]
+
+// 이름 색인 조각 몇 개를 받아 실제 간판 이름과 전국 개수를 돌려준다 (두 곳 이상인 이름만)
+export async function randomNames(shards = 6) {
+  const ids = Array.from({ length: shards }, () => Math.floor(Math.random() * 1024))
+  const parts = await Promise.all(ids.map((i) => load(`names/${i}.json`)))
+  return parts.flatMap((p) => Object.entries(p)).map(([name, count]) => ({ name, count }))
+}
+
+// 상호 대신 들어간 자리표시 글자
+const JUNK = /없음|미상|업소명|상호명|^[-.0-9 ]*$/
+
+// 검색 색인 한 조각에 든 실제 간판들 → [{name, cat, region}]
+export async function signPool() {
+  const [cats, regions] = await Promise.all([load('cats.json'), load('regions.json')])
+  const shard = await load(`search/${Math.floor(Math.random() * 1024)}.json`)
+  return Object.values(shard)
+    .flatMap((e) => e.r)
+    .filter(([name]) => !JUNK.test(name))
+    .map(([name, c, region]) => ({ name, cat: cats[c], region: regions[region][0] }))
+}
+
+// 실제 간판 한 줄을 고른다. 업종을 주면 그 업종만
+export async function randomSign(cat) {
+  for (let tries = 0; tries < 6; tries++) {
+    const rows = await signPool()
+    const pool = cat ? rows.filter((r) => r.cat === cat) : rows
+    if (pool.length) return pick(pool)
+  }
+  return null
+}

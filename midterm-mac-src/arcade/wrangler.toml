@@ -1,0 +1,23 @@
+# 간판 오락실 Worker: 닉네임, 리더보드, 복권, 내 가게. 자료는 D1(st-arcade)에 둔다
+name = "st-arcade"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+routes = [{ pattern = "st-arcade.naldadev.com", custom_domain = true }]
+
+[vars]
+DATA_BASE = "https://st.naldadev.com/midterm/data/"
+
+# `wrangler d1 create st-arcade` 로 만든 뒤 나온 database_id 를 넣는다
+[[d1_databases]]
+binding = "DB"
+database_name = "st-arcade"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+# 같은 동네 함께 걷기: 동네마다 방 하나(Durable Object, 웹소켓 Hibernation). 저장소는 쓰지 않는다
+[[durable_objects.bindings]]
+name = "TOWN"
+class_name = "Town"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Town"]
