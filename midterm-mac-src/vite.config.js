@@ -156,5 +156,6 @@ export default defineConfig(({ command }) => ({
   publicDir: false,
   plugins: [siteData, liveLocal, arcadeLocal, react({ include: /\.jsx$/ }), vue()],
   server: { allowedHosts: ['nalda-gram', 'nalda-gram.tail8e2308.ts.net'] },
-  build: { outDir: OUT, emptyOutDir: true },
+  // GitHub Pages(Jekyll)는 _로 시작하는 파일을 빼고 올린다. 조각 이름 앞의 _를 떼어 404를 막는다
+  build: { outDir: OUT, emptyOutDir: true, rollupOptions: { output: { sanitizeFileName: (n) => n.replace(/\0/g, '').replace(/[?*:|"<>]/g, '-').replace(/(^|\/)[_.~#-]+/g, '$1') } } },
 }))
