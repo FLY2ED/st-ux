@@ -1,0 +1,260 @@
+/* 검은 포스터 디자인(복권에서 시작): 검은 바탕, 아주 굵은 제목, 네온 초록·파랑 강조, 알약 버튼.
+   창에 ink 가 붙은 게임이 같이 쓴다. 색은 테마(라이트·다크)와 상관없이 늘 같다 */
+.mac-win.ink {
+  --neon: #3df07a;
+  --neon-ink: #04170b;
+  --blue: #5b9bff;
+  --orange: #ff8a3d;
+  --ink-1: #fff;
+  --ink-2: rgba(255, 255, 255, 0.62);
+  --ink-3: rgba(255, 255, 255, 0.4);
+  --ink-card: #1c1c1f;
+  --ink-raise: #2a2a2e;
+  --ink-line: rgba(255, 255, 255, 0.12);
+  /* 다크 모드용으로 만든 기존 토큰도 검은 창에 맞춘다 */
+  --label: #fff;
+  --label-2: rgba(255, 255, 255, 0.62);
+  --label-3: rgba(255, 255, 255, 0.4);
+  --sep: rgba(255, 255, 255, 0.12);
+  --window: #000;
+  --window-2: #1c1c1f;
+  --panel: #1c1c1f;
+  --field: #1c1c1f;
+  --control: #2a2a2e;
+  --fill: rgba(255, 255, 255, 0.1);
+  --accent: #3df07a;
+  color: #fff;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mac-win.ink,
+.mac-win.ink .titlebar,
+.mac-win.ink .app-body {
+  background: #000;
+}
+
+.mac-win.ink .titlebar h2 {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.mac-win.ink:not(.on) .titlebar h2 {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* 제목 묶음: 말풍선 → 두 줄 큰 제목 → 한 줄 설명 */
+.ink-hero {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.ink-bubble {
+  position: relative;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--neon-ink);
+  background: var(--neon);
+  font-variant-numeric: tabular-nums;
+}
+
+.ink-bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  background: inherit;
+  border-radius: 0 0 3px 0;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.ink-title {
+  margin: 0;
+  font-size: 46px;
+  font-weight: 900;
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+  color: #fff;
+}
+
+.ink-title.sm {
+  font-size: 34px;
+}
+
+.ink-title em,
+.ink-em {
+  font-style: normal;
+  color: var(--neon);
+}
+
+.ink-lead {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.ink-sub {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* 숫자 줄: 회색 글씨에 파란 숫자, 사이에 얇은 칸막이 */
+.ink-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.ink-stats b {
+  margin-left: 2px;
+  font-weight: 700;
+  color: var(--blue);
+  font-variant-numeric: tabular-nums;
+}
+
+.ink-stats i {
+  width: 1px;
+  height: 11px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* 어두운 둥근 카드 */
+.ink-card {
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: var(--ink-card);
+}
+
+.ink-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ink-chip.on {
+  color: var(--neon-ink);
+  background: var(--neon);
+}
+
+.ink-chip.blue {
+  color: #fff;
+  background: var(--blue);
+}
+
+/* 큰 알약 버튼 */
+.mac-win.ink .ink-pill {
+  height: 56px;
+  padding: 0 24px;
+  border: 0;
+  box-shadow: none;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: var(--neon-ink);
+  background: var(--neon);
+  cursor: pointer;
+  transition: transform 0.15s, filter 0.15s;
+}
+
+.mac-win.ink .ink-pill:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.mac-win.ink .ink-pill:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.mac-win.ink .ink-pill:disabled {
+  color: rgba(255, 255, 255, 0.4);
+  background: var(--ink-raise);
+  cursor: default;
+}
+
+.mac-win.ink .ink-pill.ghost {
+  color: #fff;
+  background: var(--ink-raise);
+}
+
+.mac-win.ink .ink-pill.sm {
+  height: 40px;
+  padding: 0 18px;
+  font-size: 14px;
+}
+
+.mac-win.ink .ink-pill b {
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 어두운 입력칸 */
+.mac-win.ink .ink-field {
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 14px;
+  font: inherit;
+  font-size: 14px;
+  color: #fff;
+  background: var(--ink-card);
+  outline: none;
+}
+
+.mac-win.ink .ink-field::placeholder {
+  color: var(--ink-3);
+}
+
+.mac-win.ink .ink-field:focus {
+  box-shadow: inset 0 0 0 1.5px var(--neon);
+}
+
+/* 흰 종이 판(더 많을까?): 같은 포스터 규칙에 색만 종이와 먹으로 뒤집는다 */
+.mac-win.ink.paper {
+  --ink-1: #111;
+  --ink-2: rgba(17, 17, 17, 0.62);
+  --ink-3: rgba(17, 17, 17, 0.38);
+  --ink-line: rgba(17, 17, 17, 0.14);
+  --label: #111;
+  --label-2: rgba(17, 17, 17, 0.62);
+  --label-3: rgba(17, 17, 17, 0.38);
+  --sep: rgba(17, 17, 17, 0.14);
+  --window: #faf9f5;
+  --window-2: #f1efe9;
+  --panel: #f1efe9;
+  --field: #fff;
+  --control: #ebe8e1;
+  --fill: rgba(17, 17, 17, 0.06);
+  --accent: #111;
+  color: #111;
+}
+
+.mac-win.ink.paper,
+.mac-win.ink.paper .titlebar,
+.mac-win.ink.paper .app-body {
+  background: #faf9f5;
+}
+
+.mac-win.ink.paper .titlebar h2 {
+  color: rgba(17, 17, 17, 0.8);
+}
+
+.mac-win.ink.paper:not(.on) .titlebar h2 {
+  color: rgba(17, 17, 17, 0.38);
+}

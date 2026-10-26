@@ -1,0 +1,1 @@
+var e=new URL(`booth-W_aDLv75.mp3`,import.meta.url).href;export{e as default};

@@ -1,0 +1,426 @@
+:root {
+  /* 애플 기기: 시스템 글꼴. 그 밖(윈도우·안드로이드): Pretendard. Mac 실제 렌더와 비교해 폭 오차 0.7% 로 가장 가까웠다 */
+  --font: -apple-system, BlinkMacSystemFont, 'Pretendard Variable', Pretendard, sans-serif;
+  --track: 0.005em;
+  --pixel: 'Galmuri11', 'Galmuri9', monospace;
+  --game-font: 'Galmuri11 Game', 'Galmuri11', 'Apple SD Gothic Neo', sans-serif;
+
+  --label: rgba(0, 0, 0, 0.85);
+  --label-2: rgba(0, 0, 0, 0.5);
+  --label-3: rgba(0, 0, 0, 0.26);
+  --sep: rgba(0, 0, 0, 0.1);
+  --accent: #0a84ff;
+  --accent-press: #0060df;
+  --window: #ffffff;
+  --window-2: #f5f5f7;
+  --glass: rgba(250, 250, 252, 0.52);
+  --glass-edge: rgba(255, 255, 255, 0.55);
+  --menu-h: 24px;
+  --shadow-win: 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 22px 70px 4px rgba(0, 0, 0, 0.28);
+  --shadow-win-off: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 12px 32px rgba(0, 0, 0, 0.16);
+  --spring: cubic-bezier(0.2, 0.9, 0.3, 1);
+
+  /* 창 안 컨트롤·바탕. 다크 모드는 아래 html.dark 가 덮어쓴다 */
+  --control: #ffffff;
+  --control-press: #e8e8ed;
+  --control-ring: rgba(0, 0, 0, 0.16);
+  --field: #ffffff;
+  --field-ring: rgba(0, 0, 0, 0.22);
+  --panel: #ffffff;
+  --fill: rgba(0, 0, 0, 0.06);
+  --fill-hover: #ebebef;
+  --seg-on: #ffffff;
+  --sheet: rgba(255, 255, 255, 0.66);
+  --tip: rgba(240, 240, 242, 0.9);
+  --widget: rgba(255, 255, 255, 0.58);
+  --widget-hover: rgba(255, 255, 255, 0.45);
+  --light-off: #d4d4d6;
+  --glyph-ink: rgba(0, 0, 0, 0.55);
+
+  /* 98판 게임들이 쓰던 색 이름 */
+  --ink: #1d1d1f;
+  --pink: #ff6fa3;
+  --blue: #0a84ff;
+  --yellow: #ffd60a;
+  --green: #30d158;
+  --violet: #bf5af2;
+  --red: #ff453a;
+}
+
+/* macOS 다크 모드 색: 창 #1e1e1e, 컨트롤 #3a3a3c, 글자 흰색 85% */
+html.dark {
+  color-scheme: dark;
+  --label: rgba(255, 255, 255, 0.86);
+  --label-2: rgba(255, 255, 255, 0.55);
+  --label-3: rgba(255, 255, 255, 0.25);
+  --sep: rgba(255, 255, 255, 0.1);
+  --accent-press: #3d9bff;
+  --window: #1e1e1e;
+  --window-2: #2a2a2c;
+  --glass: rgba(36, 36, 40, 0.5);
+  --glass-edge: rgba(255, 255, 255, 0.22);
+  --shadow-win: 0 0 0 0.5px rgba(255, 255, 255, 0.16), 0 0 0 1px rgba(0, 0, 0, 0.6), 0 22px 70px 4px rgba(0, 0, 0, 0.55);
+  --shadow-win-off: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.4);
+  --ink: #f5f5f7;
+
+  --control: #48484a;
+  --control-press: #5a5a5e;
+  --control-ring: rgba(255, 255, 255, 0.08);
+  --field: rgba(255, 255, 255, 0.06);
+  --field-ring: rgba(255, 255, 255, 0.14);
+  --panel: #262628;
+  --fill: rgba(255, 255, 255, 0.08);
+  --fill-hover: rgba(255, 255, 255, 0.14);
+  --seg-on: #636366;
+  --sheet: rgba(30, 30, 32, 0.72);
+  --tip: rgba(50, 50, 54, 0.88);
+  --widget: rgba(40, 40, 46, 0.5);
+  --widget-hover: rgba(255, 255, 255, 0.1);
+  --light-off: #4a4a4d;
+  --glyph-ink: rgba(0, 0, 0, 0.6);
+}
+
+html.apple {
+  --track: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: #000;
+  color: var(--label);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.38;
+  letter-spacing: var(--track);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  word-break: keep-all;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+
+img {
+  -webkit-user-drag: none;
+}
+
+.pixel {
+  image-rendering: pixelated;
+}
+
+.muted {
+  color: var(--label-2);
+}
+
+/* 게임 화면이 쓰던 공용 도우미. 98판의 픽셀 숫자 대신 고정폭 숫자로 바꾼다 */
+.big-num {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.field-row-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* macOS 26 리퀴드 글라스: 덜 흐리고 더 맑게, 위·왼쪽 테두리에 빛이 맺힌다. 메뉴, 위젯, 알림, Dock 이 같이 쓴다 */
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.04);
+  backdrop-filter: blur(14px) saturate(190%) brightness(1.04);
+  box-shadow:
+    inset 1.5px 1.5px 0 -0.5px rgba(255, 255, 255, 0.9),
+    inset -1px -1px 0 -0.5px rgba(255, 255, 255, 0.5),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.35),
+    inset 0 0 18px rgba(255, 255, 255, 0.22),
+    0 0 0 0.5px rgba(0, 0, 0, 0.08),
+    0 10px 30px rgba(0, 0, 0, 0.14);
+}
+
+html.dark .glass {
+  box-shadow:
+    inset 1.5px 1.5px 0 -0.5px rgba(255, 255, 255, 0.32),
+    inset -1px -1px 0 -0.5px rgba(255, 255, 255, 0.16),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.12),
+    inset 0 0 18px rgba(255, 255, 255, 0.04),
+    0 0 0 0.5px rgba(0, 0, 0, 0.5),
+    0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* 맑은 유리(Dock): 거의 투명하고, 가장자리 굴절은 refract.js 가 더한다 */
+.glass.lg {
+  position: relative;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.glass.lg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(120% 90% at 15% 0%, rgba(255, 255, 255, 0.35), transparent 45%),
+    linear-gradient(to top, rgba(255, 255, 255, 0.12), transparent 40%);
+  pointer-events: none;
+}
+
+/* ── 창 안: 98.css 대신 맥 기본 컨트롤 ───────────────────────── */
+.app-body {
+  font-size: 13px;
+  color: var(--label);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.app-body button {
+  min-height: 24px;
+  padding: 3px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--label);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  box-shadow: 0 0 0 0.5px var(--control-ring), 0 1px 1.5px rgba(0, 0, 0, 0.1);
+  cursor: default;
+  transition: background-color 0.1s;
+}
+
+.app-body button:active {
+  background: var(--control-press);
+}
+
+.app-body button:disabled {
+  color: var(--label-3);
+}
+
+.app-body button.go,
+.app-body button[type='submit'] {
+  background: linear-gradient(#2a91ff, #0a7cff);
+  color: #fff;
+  font-weight: 500;
+  box-shadow: 0 0 0 0.5px rgba(0, 72, 200, 0.5), 0 1px 1.5px rgba(0, 0, 0, 0.15);
+}
+
+.app-body button.go:active,
+.app-body button[type='submit']:active {
+  background: var(--accent-press);
+}
+
+.app-body input[type='text'],
+.app-body input[type='search'],
+.app-body input:not([type]) {
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--field);
+  font-size: 13px;
+  box-shadow: inset 0 0 0 0.5px var(--field-ring), inset 0 0.5px 1px rgba(0, 0, 0, 0.06);
+  outline: none;
+}
+
+.app-body input:focus {
+  box-shadow: inset 0 0 0 0.5px var(--field-ring), 0 0 0 3.5px rgba(10, 132, 255, 0.45);
+}
+
+.app-body .sunken-panel {
+  background: var(--panel);
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 0.5px var(--sep);
+  overflow: auto;
+}
+
+.app-body select {
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--control);
+  font-size: 13px;
+  box-shadow: 0 0 0 0.5px var(--control-ring), 0 1px 1.5px rgba(0, 0, 0, 0.1);
+}
+
+/* ── 게임 화면 공용: 시작 시트, 상태 막대, 칩, 세그먼트, 카드 ─────── */
+.m-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  background: var(--sheet);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(170%);
+}
+
+.m-sheet p {
+  margin: 0;
+}
+
+.m-icon {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 4px;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.18));
+}
+
+.m-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--label);
+}
+
+.m-desc {
+  max-width: 340px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--label-2);
+}
+
+.m-desc b {
+  color: var(--label);
+  font-weight: 600;
+}
+
+.app-body .m-cta {
+  margin-top: 8px;
+  min-width: 150px;
+  min-height: 32px;
+  padding: 6px 22px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.m-stats {
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  background: var(--window-2);
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 0.5px var(--sep);
+}
+
+.m-stat {
+  display: grid;
+  padding: 1px 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.m-stat + .m-stat {
+  border-left: 0.5px solid var(--sep);
+}
+
+.m-stat small {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--label-2);
+}
+
+.m-stat b {
+  font-size: 15px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-body .m-chip {
+  min-height: 26px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: var(--window-2);
+  box-shadow: inset 0 0 0 0.5px var(--sep);
+  font-size: 12px;
+}
+
+.app-body .m-chip:hover {
+  background: var(--fill-hover);
+}
+
+.m-seg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  background: var(--fill);
+  border-radius: 8px;
+}
+
+.app-body .m-seg button {
+  min-height: 22px;
+  padding: 2px 14px;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  font-size: 12px;
+}
+
+.app-body .m-seg button.on {
+  background: var(--seg-on);
+  font-weight: 600;
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.m-card {
+  background: var(--panel);
+  border-radius: 12px;
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.m-err {
+  margin: 0;
+  font-size: 12px;
+  color: var(--red);
+}
+
+.app-body :focus-visible {
+  outline: 3px solid rgba(10, 132, 255, 0.5);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

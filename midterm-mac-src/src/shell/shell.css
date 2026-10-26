@@ -1,0 +1,1762 @@
+.mac {
+  position: fixed;
+  inset: 0;
+  background: #1c2a5a;
+  overflow: hidden;
+}
+
+/* 바탕화면 그림(macOS 26 Tahoe 물결). 라이트·다크 모드가 바뀌면 그림이 천천히 바뀐다 */
+.wall-lights {
+  position: absolute;
+  inset: 0;
+  background: var(--wall) center / cover no-repeat;
+  pointer-events: none;
+  transition: background-image 0.6s ease;
+}
+
+/* 처음 온 사람의 캐릭터 꾸미기: 로그인 화면 바로 아래, 다른 모든 것 위 */
+.cm-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 8800;
+}
+
+.cm-layer > div {
+  position: absolute;
+  inset: 0;
+}
+
+/* ── 부팅 ─────────────────────────────────────────── */
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 64px;
+  background: #000;
+  color: #fff;
+  cursor: none;
+}
+
+.boot-logo {
+  color: #fff;
+}
+
+.boot-bar {
+  width: 200px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+}
+
+.boot-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: #fff;
+}
+
+/* ── 로그인: 배경을 흐리게, 위에 시각, 아래에 사용자 ───────── */
+.login {
+  position: fixed;
+  inset: 0;
+  z-index: 8900;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7vh 20px 5vh;
+  color: #fff;
+  background: var(--wall) center / cover;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.25);
+}
+
+.login::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  backdrop-filter: blur(28px) saturate(140%);
+  background: rgba(20, 24, 40, 0.18);
+}
+
+.login-time {
+  text-align: center;
+  line-height: 1;
+}
+
+.login-time p {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.login-time strong {
+  font-size: clamp(84px, 16vw, 150px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  opacity: 0.92;
+}
+
+.login-user {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.login-avatar {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  font-size: 38px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(180deg, #a3a8b4, #6d7380);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  text-shadow: none;
+}
+
+.login-name {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.login-field {
+  display: flex;
+  align-items: center;
+  width: 250px;
+  height: 32px;
+  padding: 0 4px 0 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.22);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.4);
+}
+
+/* 닉네임 칸처럼 화살표 버튼이 없는 칸 */
+.login-field:not(:has(button)) {
+  padding-right: 14px;
+}
+
+.login-field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+}
+
+.login-field input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.login-field button,
+.login-go {
+  display: grid;
+  place-items: center;
+  border: 0;
+  color: #fff;
+  cursor: pointer;
+}
+
+.login-field button {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.login-go {
+  grid-auto-flow: column;
+  gap: 6px;
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 16px;
+  font: inherit;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.22);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.4);
+}
+
+.login-go:hover,
+.login-field button:hover {
+  background: rgba(255, 255, 255, 0.36);
+}
+
+.login-hint {
+  min-height: 16px;
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.login-more {
+  display: flex;
+  gap: 28px;
+  margin-top: 28px;
+}
+
+.login-more button {
+  border: 0;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  opacity: 0.85;
+  cursor: pointer;
+}
+
+.login-more button:hover {
+  opacity: 1;
+}
+
+/* ── 메뉴바: 높이 24, 글자 13 ───────────────────────── */
+.menubar {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 5000;
+  height: var(--menu-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  color: #fff;
+  font-size: 13px;
+  /* macOS 26 처럼 막대 바탕 없이 글자만 떠 있다 */
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
+  background: none;
+}
+
+.mb-left,
+.mb-right {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.mb-slot {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.mb-item {
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.mb-item.app {
+  font-weight: 700;
+}
+
+.mb-item.logo {
+  padding: 0 11px 0 9px;
+}
+
+.mb-item.on,
+.mb-item.icon:active {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.mb-item.icon {
+  padding: 0 7px;
+}
+
+.mb-item.icon svg {
+  display: block;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.25));
+}
+
+.mb-item.runcat {
+  height: var(--menu-h);
+  padding: 0 4px;
+  cursor: pointer;
+}
+
+.runcat canvas {
+  width: 22px;
+  height: 24px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.3));
+}
+
+.mb-item.clock {
+  padding: 0 6px 0 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mb-menu {
+  position: absolute;
+  top: calc(var(--menu-h) - 1px);
+  left: 0;
+  min-width: 232px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border-radius: 14px;
+  color: var(--label);
+  text-shadow: none;
+  animation: menu-in 0.12s ease-out;
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.menu-row {
+  width: 100%;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font-size: 13px;
+  text-align: left;
+  cursor: default;
+}
+
+.menu-row:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+
+.menu-row:hover:not(:disabled) kbd {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.menu-row:disabled {
+  color: var(--label-3);
+}
+
+.menu-row kbd {
+  font: inherit;
+  color: var(--label-2);
+}
+
+.menu-sep {
+  height: 1px;
+  margin: 5px 10px;
+  background: var(--sep);
+}
+
+/* ── 데스크톱과 창 ─────────────────────────────────── */
+.desktop {
+  position: absolute;
+  inset: var(--menu-h) 0 0;
+}
+
+/* 바탕화면 파일: Finder 아이콘 배치. 고르면 아이콘 뒤 회색 판, 이름은 파란 알약 */
+.desk {
+  position: absolute;
+  inset: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.desk-item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 92px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: default;
+  touch-action: none;
+}
+
+.desk-icon {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 6px;
+}
+
+.desk-item.on .desk-icon {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.desk-icon svg,
+.desk-icon img {
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.3));
+}
+
+.desk-name {
+  max-width: 88px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.desk-item.on .desk-name {
+  background: var(--accent);
+  color: #fff;
+  text-shadow: none;
+}
+
+.desk-band {
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.16);
+  pointer-events: none;
+}
+
+.mac-win {
+  display: flex;
+  flex-direction: column;
+  border-radius: 22px;
+  background: var(--window);
+  box-shadow: var(--shadow-win-off);
+  overflow: hidden;
+}
+
+.mac-win.on {
+  box-shadow: var(--shadow-win);
+}
+
+.mac-win.max {
+  border-radius: 0;
+}
+
+/* 3D 거리 전체 화면: 둥근 모서리도, 그림자도, Dock 여백도 없다 */
+.mac-win.immersive {
+  box-shadow: none;
+  background: #000;
+}
+
+.mac-win.immersive .app-body {
+  padding-bottom: 0 !important;
+}
+
+/* 창을 꽉 채우는 앱(3D 거리): 안쪽 여백 없이 높이를 그대로 넘긴다 */
+.app-body.fill {
+  position: relative;
+  overflow: hidden;
+}
+
+.app-body.fill > div,
+.app-body.fill > div > * {
+  height: 100%;
+  padding: 0;
+}
+
+/* 꽉 채운 창도 Dock 은 위에 떠 있으니 그만큼 비워 둔다 */
+.mac-win.max .app-body {
+  padding-bottom: 72px;
+}
+
+.titlebar {
+  position: relative;
+  height: 40px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--window);
+  cursor: default;
+}
+
+.titlebar h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--label);
+}
+
+.mac-win:not(.on) .titlebar h2 {
+  color: var(--label-3);
+}
+
+.lights {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  display: flex;
+  gap: 8px;
+  transform: translateY(-50%);
+}
+
+.light {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.14);
+  display: grid;
+  place-items: center;
+  cursor: default;
+}
+
+.light svg {
+  width: 10px;
+  height: 10px;
+  opacity: 0;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.light svg.fill {
+  stroke: none;
+  fill: rgba(0, 0, 0, 0.55);
+}
+
+.lights:hover .light svg {
+  opacity: 1;
+}
+
+.light.close {
+  background: #ff5f57;
+}
+
+.light.min {
+  background: #febc2e;
+}
+
+.light.max {
+  background: #28c840;
+}
+
+.mac-win:not(.on) .lights:not(:hover) .light,
+.light:disabled {
+  background: var(--light-off);
+}
+
+.app-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--window);
+}
+
+/* 98판 게임은 창 안쪽 여백을 스스로 갖고 있지 않다 */
+.app-body > div > * {
+  padding: 12px;
+}
+
+/* ── 위젯: macOS 바탕화면 위젯처럼 반투명 유리 판, 둥근 모서리, 시스템 글꼴 ── */
+/* macOS 26 바탕화면 위젯처럼 검은 유리로 고정한다(라이트 모드에서도). 안쪽 글자·선은 다크 값을 쓴다 */
+.widgets {
+  --label: rgba(255, 255, 255, 0.92);
+  --label-2: rgba(255, 255, 255, 0.58);
+  --label-3: rgba(255, 255, 255, 0.24);
+  --sep: rgba(255, 255, 255, 0.12);
+  --fill: rgba(255, 255, 255, 0.08);
+  --w-ink: var(--label);
+  --w-dim: var(--label-2);
+  --w-acc: #0a84ff;
+  --w-warm: #ff9f0a;
+  --w-fill: rgba(255, 255, 255, 0.1);
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, 164px);
+  gap: 16px;
+  font-family: var(--font);
+}
+
+
+.widget {
+  position: relative;
+  height: 164px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 22px;
+  text-align: left;
+  font-family: inherit;
+  color: var(--w-ink);
+  cursor: default;
+}
+
+/* 리퀴드 글라스(위젯용 기본 유리): 뒤를 크게 흐려 검게 눌러 주고,
+   테두리는 빛을 받는 위·왼쪽과 맞은편 아래·오른쪽만 얇게 밝다 */
+.widget {
+  isolation: isolate;
+  background: rgba(10, 10, 12, 0.66);
+  -webkit-backdrop-filter: blur(44px) saturate(100%) brightness(0.75);
+  backdrop-filter: blur(44px) saturate(100%) brightness(0.75);
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.06),
+    inset 0 1px 12px rgba(255, 255, 255, 0.04),
+    0 0 0 0.5px rgba(0, 0, 0, 0.35),
+    0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+/* 가장자리 빛: 1px 띠만 남기고 가운데는 마스크로 뚫는다 */
+.widget::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.55),
+    rgba(255, 255, 255, 0.12) 22%,
+    rgba(255, 255, 255, 0.03) 50%,
+    rgba(255, 255, 255, 0.1) 78%,
+    rgba(255, 255, 255, 0.32)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+
+/* 위쪽에 아주 옅은 광택, 글자 밑에 깐다 */
+.widget::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), transparent 38%);
+  pointer-events: none;
+}
+
+button.widget:hover {
+  background: rgba(26, 26, 30, 0.6);
+}
+
+.widget.medium {
+  grid-column: span 2;
+}
+
+.widget.tall {
+  height: auto;
+  min-height: 0;
+}
+
+.w-cap {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--w-ink);
+}
+
+.w-cap em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--w-dim);
+}
+
+.w-tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--w-fill);
+  color: var(--w-dim);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* 전국 간판: 왼쪽 큰 숫자, 오른쪽 이름·업종 수, 아래 출처 */
+.widget.score {
+  height: auto;
+  gap: 0;
+}
+
+.s-date {
+  font-size: 11px;
+  color: var(--w-dim);
+}
+
+.s-body {
+  width: 100%;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+}
+
+.s-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.w-big {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--w-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.w-unit {
+  margin-left: 3px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--w-dim);
+}
+
+.s-exact {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--w-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.s-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 16px;
+  border-left: 1px solid var(--label-3);
+}
+
+.s-stats > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.s-stats i {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--w-dim);
+}
+
+.s-stats b {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--w-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.s-src {
+  margin-top: 10px;
+  font-size: 10px;
+  color: var(--w-dim);
+  opacity: 0.8;
+}
+
+.w-foot {
+  margin: 0;
+  grid-column: 2 / -1;
+}
+
+.w-foot {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--w-dim);
+  line-height: 1.35;
+}
+
+.w-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.w-link,
+.w-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--w-acc);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.w-btn {
+  color: var(--w-dim);
+}
+
+.w-btn:hover {
+  color: var(--w-ink);
+}
+
+/* 내 수리공: 유리 판 안에 가게 한 채와 나무 팻말을 세운다 */
+.widget.repairer {
+  --wood: #ab5236;
+  --wood-d: #7a3a24;
+  --wood-k: #2a140a;
+  --cream: #fff1e8;
+  display: block;
+  height: 230px;
+  padding: 0;
+  overflow: hidden;
+  font-family: 'Galmuri11 Game', var(--font);
+  cursor: pointer;
+}
+
+.widget.repairer:focus-visible {
+  outline: 2px solid var(--w-acc);
+  outline-offset: 2px;
+}
+
+.repairer > * {
+  position: absolute;
+  display: block;
+}
+
+.r-shop {
+  left: 12px;
+  bottom: 26px;
+  width: 175px;
+}
+
+.r-shop img {
+  display: block;
+  width: 175px;
+  image-rendering: pixelated;
+  filter: grayscale(0.85) brightness(0.42) contrast(1.1);
+}
+
+.all-lit .r-shop img {
+  filter: none;
+}
+
+.r-sign {
+  position: absolute;
+  left: 50%;
+  top: -32px;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateX(-50%);
+  padding: 4px 14px 3px;
+  background: #07060f;
+  border: 2px solid #2a2840;
+  font-size: 16px;
+  line-height: 20px;
+  color: #4b4864;
+  white-space: nowrap;
+}
+
+.r-sign.flick {
+  animation: r-flick 1.4s steps(1) infinite;
+}
+
+.all-lit .r-sign {
+  color: #ffcf3a;
+  text-shadow: 0 0 4px #ffcf3a, 0 0 10px #ffcf3a;
+}
+
+@keyframes r-flick {
+  0%, 18%, 30%, 34% {
+    color: #ffcf3a;
+    text-shadow: 0 0 4px #ffcf3a, 0 0 10px #ffcf3a;
+  }
+  15%, 28%, 32%, 40%, 100% {
+    color: #4b4864;
+    text-shadow: none;
+  }
+}
+
+.r-walk {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 26px;
+  background: rgba(29, 26, 56, 0.78);
+  box-shadow: inset 0 2px 0 #07060f;
+}
+
+.r-walk::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 8px;
+  height: 1px;
+  background: repeating-linear-gradient(90deg, #36315e 0 8px, transparent 8px 16px);
+}
+
+.r-ladder {
+  left: 158px;
+  bottom: 26px;
+  width: 26px;
+  height: 150px;
+  image-rendering: pixelated;
+}
+
+.r-me {
+  left: 154px;
+  top: 58px;
+  width: 32px;
+  height: 48px;
+  image-rendering: pixelated;
+}
+
+.r-spark {
+  width: 3px;
+  height: 3px;
+  background: #ffe680;
+  box-shadow: 0 0 4px #ffcf3a;
+  opacity: 0;
+  animation: r-spark 0.7s steps(4) infinite;
+}
+
+@keyframes r-spark {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy));
+  }
+}
+
+.r-post {
+  left: 260px;
+  bottom: 26px;
+  width: 8px;
+  height: 150px;
+  background: #6b3f20;
+  box-shadow: inset -2px 0 0 #4a2a14, inset 2px 0 0 #8a5530;
+}
+
+.r-board {
+  left: 204px;
+  top: 30px;
+  width: 122px;
+  padding: 7px 8px 6px;
+  color: var(--cream);
+  font-size: 11px;
+  line-height: 1.45;
+  background: var(--wood) repeating-linear-gradient(0deg, transparent 0 7px, rgba(0, 0, 0, 0.12) 7px 8px);
+  box-shadow:
+    inset 0 0 0 2px var(--wood-d),
+    inset 0 -4px 0 #8a4128,
+    0 0 0 2px var(--wood-k),
+    0 4px 0 2px rgba(0, 0, 0, 0.4);
+}
+
+.r-ch {
+  display: block;
+  font-size: 10px;
+  color: #ffd8b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.r-q {
+  display: block;
+  font-size: 13px;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+
+.r-bulbs {
+  display: flex;
+  gap: 3px;
+  margin-top: 5px;
+}
+
+.r-bulbs i {
+  width: 6px;
+  height: 6px;
+  background: #6e3420;
+  box-shadow: 0 0 0 1px var(--wood-k);
+}
+
+.r-bulbs i.on {
+  background: #ffd34d;
+  box-shadow: 0 0 0 1px var(--wood-k), 0 0 5px #ffcf3a;
+}
+
+.r-turf {
+  left: 248px;
+  bottom: 26px;
+  width: 74px;
+  height: 6px;
+  background: #00b543;
+  box-shadow: inset 0 2px 0 #6fdc5c, 0 2px 0 #008751;
+}
+
+.r-tuft {
+  left: 246px;
+  bottom: 32px;
+  width: 34px;
+  height: 6px;
+  image-rendering: pixelated;
+}
+
+.r-lab {
+  left: 266px;
+  bottom: 54px;
+  width: 70px;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.25;
+  color: var(--cream);
+  text-shadow: 0 1px 0 #000, 0 0 6px rgba(0, 0, 0, 0.9);
+}
+
+.r-lab b {
+  display: block;
+  color: #ffd34d;
+  font-weight: inherit;
+  animation: r-blink 1s steps(1) infinite;
+}
+
+@keyframes r-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.r-press {
+  left: 278px;
+  bottom: 26px;
+  width: 44px;
+}
+
+.r-cap {
+  position: relative;
+  top: 0;
+  display: block;
+  width: 30px;
+  height: 12px;
+  margin: 0 auto;
+  border-radius: 3px 3px 0 0;
+  background: #ff004d;
+  box-shadow: inset 0 3px 0 #ff77a8, inset 0 -3px 0 #a8002e, 0 0 0 2px #07060f;
+  animation: r-push 1.4s steps(1) infinite;
+}
+
+/* 마우스를 올리면 혼자 눌리던 버튼이 눌린 채로 멈춘다 */
+.repairer:hover .r-cap,
+.repairer:active .r-cap {
+  animation: none;
+  top: 4px;
+  box-shadow: inset 0 2px 0 #ff77a8, 0 0 0 2px #07060f;
+}
+
+@keyframes r-push {
+  0%, 70% {
+    top: 0;
+  }
+  71%, 85% {
+    top: 4px;
+    box-shadow: inset 0 2px 0 #ff77a8, 0 0 0 2px #07060f;
+  }
+}
+
+.r-base {
+  display: block;
+  height: 8px;
+  background: #5f574f;
+  box-shadow: inset 0 2px 0 #83769c, 0 0 0 2px #07060f;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .repairer *,
+  .repairer *::after {
+    animation: none !important;
+  }
+}
+
+/* 우리 동네 간판 */
+.w-mid {
+  margin-top: 6px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.w-bars {
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.w-bars li {
+  display: grid;
+  grid-template-columns: 96px 1fr 28px;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.w-bars span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.w-bars i {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--w-acc);
+}
+
+.w-bars b {
+  text-align: right;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.w-off {
+  width: 100%;
+  margin: 10px 0 2px;
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.w-off p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--w-dim);
+}
+
+.w-pin {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #ff3b30;
+}
+
+.w-pin svg {
+  width: 16px;
+  fill: #fff;
+}
+
+.w-pill {
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--w-acc);
+  color: #fff;
+  font: 600 11px var(--font);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* 오락실 순위 */
+.w-me {
+  font-size: 11px;
+  color: var(--w-dim);
+}
+
+.w-rank {
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0;
+}
+
+.w-rank li + li button {
+  border-top: 0.5px solid var(--sep);
+}
+
+.w-rank button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 100px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 4px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.w-rank button:hover {
+  border-radius: 6px;
+  background: var(--w-fill);
+}
+
+.w-game {
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.w-lead {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--w-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.w-lead b {
+  font-weight: 600;
+  color: var(--w-ink);
+}
+
+.w-mine {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--w-acc);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.arcade .w-foot {
+  margin-top: 6px;
+}
+
+/* ── 알림 ─────────────────────────────────────────── */
+.notice {
+  position: fixed;
+  top: calc(var(--menu-h) + 10px);
+  right: 12px;
+  z-index: 4000;
+  width: 344px;
+  display: grid;
+  grid-template-columns: 38px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 11px 13px;
+  border-radius: 18px;
+  cursor: default;
+}
+
+.notice img {
+  width: 38px;
+  height: 38px;
+}
+
+.notice b {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.notice p {
+  margin: 1px 0 0;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.notice time {
+  align-self: start;
+  font-size: 11px;
+  color: var(--label-2);
+}
+
+.notice-x {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tip);
+  color: var(--label);
+  box-shadow: 0 0 0 0.5px var(--sep), 0 1px 3px rgba(0, 0, 0, 0.2);
+  font-size: 14px;
+  line-height: 20px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.notice:hover .notice-x {
+  opacity: 1;
+}
+
+/* ── Spotlight ────────────────────────────────────── */
+.spot-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 6000;
+}
+
+.spot {
+  position: absolute;
+  top: 22vh;
+  left: 50%;
+  width: min(680px, calc(100vw - 24px));
+  margin-left: calc(min(680px, calc(100vw - 24px)) / -2);
+  border-radius: 26px;
+  overflow: hidden;
+  background: rgba(246, 246, 248, 0.78);
+}
+
+html.dark .spot {
+  background: rgba(36, 36, 40, 0.72);
+}
+
+.spot-field {
+  height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px;
+  color: var(--label-2);
+}
+
+.spot-field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  outline: none;
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--label);
+}
+
+.spot-field input::placeholder {
+  color: var(--label-3);
+}
+
+.spot-list {
+  max-height: 52vh;
+  margin: 0;
+  padding: 4px 8px 8px;
+  list-style: none;
+  overflow: auto;
+  border-top: 0.5px solid var(--sep);
+}
+
+.spot-head {
+  padding: 8px 10px 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.spot-row {
+  width: 100%;
+  height: 36px;
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  cursor: default;
+}
+
+.spot-row.sel {
+  background: var(--accent);
+  color: #fff;
+}
+
+.spot-row img {
+  width: 26px;
+  height: 26px;
+}
+
+.spot-glyph {
+  width: 22px;
+  height: 22px;
+  margin: 0 2px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: #8e8e93;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.spot-glyph.stat {
+  background: linear-gradient(#ff9f0a, #ff6b00);
+}
+
+.spot-glyph.sign {
+  background: linear-gradient(#5e5ce6, #3634a3);
+}
+
+.spot-title {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spot-sub {
+  font-size: 12px;
+  color: var(--label-2);
+  white-space: nowrap;
+}
+
+.spot-row.sel .spot-sub {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.spot-wait {
+  margin: 0;
+  padding: 10px 20px 14px;
+  border-top: 0.5px solid var(--sep);
+  font-size: 12px;
+  color: var(--label-2);
+}
+
+/* ── Launchpad ────────────────────────────────────── */
+.launchpad {
+  position: fixed;
+  inset: 0;
+  z-index: 3500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 64px;
+  background: rgba(30, 20, 60, 0.28);
+  -webkit-backdrop-filter: blur(40px) saturate(150%);
+  backdrop-filter: blur(40px) saturate(150%);
+}
+
+.lp-search {
+  width: 220px;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.35);
+  color: #fff;
+  text-align: center;
+  outline: none;
+}
+
+.lp-search::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.lp-grid {
+  width: min(960px, 100%);
+  margin: 56px 0 0;
+  padding: 0 24px;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  row-gap: 36px;
+}
+
+.lp-grid button {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: none;
+  color: #fff;
+  font-size: 13px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  cursor: default;
+}
+
+.lp-grid img {
+  width: 96px;
+  height: 96px;
+  transition: transform 0.15s;
+}
+
+.lp-grid button:active img {
+  transform: scale(0.92);
+  filter: brightness(0.8);
+}
+
+/* ── Dock ─────────────────────────────────────────────
+   macOS 26 기본값을 따른다: 확대 꺼짐, 아이콘 48pt(보이는 타일 약 39px), 타일 사이 약 9px,
+   맑은 유리 판, 실행 중이면 아래에 작은 점, 앱과 문서 사이 얇은 세로선 */
+.dock-wrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 6px;
+  z-index: 3000;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.dock {
+  display: flex;
+  align-items: center;
+  height: 60px;
+  margin: 0;
+  padding: 0 5px;
+  list-style: none;
+  border-radius: 24px;
+  pointer-events: auto;
+}
+
+html.dark .dock.glass.lg {
+  background: rgba(28, 28, 32, 0.3);
+}
+
+html.dark .dock.glass.lg::before {
+  background:
+    radial-gradient(120% 90% at 15% 0%, rgba(255, 255, 255, 0.14), transparent 45%),
+    linear-gradient(to top, rgba(255, 255, 255, 0.05), transparent 40%);
+}
+
+/* 아이콘 그림에는 둘레 여백(약 16%)이 들어 있어서 그만큼 겹쳐 놓아 타일 사이를 맞춘다 */
+.dock-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 -5px;
+}
+
+.dock-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  display: block;
+  cursor: default;
+}
+
+.dock-btn img,
+.dock-node {
+  display: block;
+  transform-origin: 50% 100%;
+}
+
+.dock-btn:active img {
+  filter: brightness(0.72);
+}
+
+.dock-dot {
+  position: absolute;
+  bottom: -5px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+}
+
+html.dark .dock-dot {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.dock-dot.on {
+  opacity: 1;
+}
+
+.dock-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  padding: 4px 11px;
+  border-radius: 9px;
+  background: var(--tip);
+  color: var(--label);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: 0 0 0 0.5px var(--sep), 0 4px 14px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.dock-item:hover .dock-tip {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .dock-tip {
+    display: none;
+  }
+}
+
+.dock-sep {
+  align-self: center;
+  width: 1px;
+  height: 40px;
+  margin: 0 10px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+html.dark .dock-sep {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.dock-node {
+  display: grid;
+  place-items: center;
+}
+
+.lp-icon {
+  width: 67.4%;
+  height: 67.4%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5%;
+  padding: 11%;
+  border-radius: 22.5%;
+  background: linear-gradient(160deg, #e9e9f1, #bfc1d6);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+html.dark .lp-icon {
+  background: linear-gradient(160deg, #4a4a55, #26262e);
+}
+
+.lp-icon img {
+  width: 100%;
+  height: 100%;
+  transform: scale(1.22);
+}
+
+/* ── 이 간판 도감에 관하여 ─────────────────────────── */
+.about {
+  display: grid;
+  justify-items: center;
+  padding: 24px 22px 20px !important;
+  text-align: center;
+}
+
+.about-logo {
+  color: #5e5ce6;
+}
+
+.about h3 {
+  margin: 10px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.about p {
+  margin: 2px 0 14px;
+  font-size: 11px;
+}
+
+.about dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 11px;
+  text-align: left;
+}
+
+.about dt {
+  font-weight: 600;
+  text-align: right;
+}
+
+.about dd {
+  margin: 0;
+  color: var(--label-2);
+}
+
+@media (max-width: 699px) {
+  .mb-item:not(.logo):not(.app):not(.icon):not(.clock) {
+    display: none;
+  }
+
+  .mac-win {
+    border-radius: 0;
+  }
+
+  .dock {
+    height: 50px;
+    border-radius: 20px;
+  }
+
+  .notice {
+    left: 8px;
+    right: 8px;
+    width: auto;
+  }
+}
+
+.login button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.75);
+  outline-offset: 2px;
+}
+
+/* Finder 처럼 막대가 없는 창: 신호등만 사이드바 위에 떠 있다 */
+.mac-win.unified .titlebar {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  left: 0;
+  width: 96px;
+  height: 52px;
+  background: none;
+}
+
+.mac-win.unified .lights {
+  left: 22px;
+  top: 26px;
+}
+
+/* Finder 처럼 사이드바가 창 뒤를 비추는 창: 바탕은 앱이 직접 칠한다 */
+.mac-win.unified,
+.mac-win.unified .app-body {
+  background: transparent;
+}
