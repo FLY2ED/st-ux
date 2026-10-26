@@ -7,11 +7,11 @@ routes = [{ pattern = "st-arcade.naldadev.com", custom_domain = true }]
 [vars]
 DATA_BASE = "https://st.naldadev.com/midterm/data/"
 
-# `wrangler d1 create st-arcade` 로 만든 뒤 나온 database_id 를 넣는다
+# `wrangler d1 create st-arcade --location apac` 로 만든 D1
 [[d1_databases]]
 binding = "DB"
 database_name = "st-arcade"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "26d52006-8e0e-4857-9332-5fc41e4043b0"
 
 # 같은 동네 함께 걷기: 동네마다 방 하나(Durable Object, 웹소켓 Hibernation). 저장소는 쓰지 않는다
 [[durable_objects.bindings]]
