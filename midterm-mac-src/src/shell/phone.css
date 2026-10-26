@@ -1,0 +1,444 @@
+/* ── 폰 문자 화면(iMessage 다크) ────────────────────── */
+.ph-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 4500;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.ph {
+  --ph-me: #0a84ff;
+  --ph-them: #26252a;
+  width: 320px;
+  height: min(680px, calc(100vh - 60px));
+  padding: 9px;
+  border-radius: 50px;
+  background: #000;
+  box-shadow: 0 0 0 2px #3a3a3e, 0 0 0 5px #151517, 0 30px 80px rgba(0, 0, 0, 0.7);
+  font-family: var(--font);
+  color: #f2f2f4;
+}
+
+.ph-screen {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 42px;
+  overflow: hidden;
+  background: #000;
+}
+
+.ph-island {
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  z-index: 3;
+  width: 90px;
+  height: 25px;
+  border-radius: 14px;
+  background: #000;
+  transform: translateX(-50%);
+}
+
+.ph-status {
+  flex: none;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 28px 0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.ph-ind {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ph-bat {
+  width: 23px;
+  height: 11px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: linear-gradient(90deg, #fff 70%, transparent 70%) content-box;
+  padding: 1px;
+}
+
+.ph-head {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 10px 8px;
+  background: rgba(22, 22, 24, 0.92);
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.1);
+}
+
+.ph-back {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  border: 0;
+  background: none;
+  color: var(--ph-me);
+  font-size: 30px;
+  line-height: 1;
+  padding: 0 6px;
+  cursor: pointer;
+}
+
+.ph-ava {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: linear-gradient(#9da2ad, #6e737d);
+}
+
+.ph-ava.small {
+  width: 36px;
+  height: 36px;
+}
+
+.ph-ava img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.ph-ava svg {
+  width: 60%;
+  fill: rgba(255, 255, 255, 0.92);
+}
+
+.ph-name {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.ph-name::after {
+  content: ' ›';
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.ph-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 10px 12px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.ph-list::-webkit-scrollbar {
+  display: none;
+}
+
+.ph-when {
+  margin: 4px 0 8px;
+  text-align: center;
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.ph-read {
+  align-self: flex-end;
+  margin: 2px 4px 0 0;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.ph-msg {
+  display: flex;
+  max-width: 78%;
+  animation: ph-pop 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+}
+
+.ph-msg.them {
+  align-self: flex-start;
+}
+
+.ph-msg.me {
+  align-self: flex-end;
+}
+
+.ph-msg.gap {
+  margin-top: 8px;
+}
+
+.ph-bub {
+  padding: 7px 12px 8px;
+  border-radius: 18px;
+  font-size: 14px;
+  line-height: 1.38;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.them .ph-bub {
+  background: var(--ph-them);
+}
+
+.me .ph-bub {
+  background: var(--ph-me);
+  color: #fff;
+}
+
+.ph-msg.tail.them .ph-bub {
+  border-bottom-left-radius: 5px;
+}
+
+.ph-msg.tail.me .ph-bub {
+  border-bottom-right-radius: 5px;
+}
+
+@keyframes ph-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.94);
+  }
+}
+
+.ph-photo {
+  position: relative;
+  width: 196px;
+  height: 132px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #05060f;
+}
+
+.ph-photo img {
+  position: absolute;
+  bottom: 14px;
+  width: 76px;
+  image-rendering: pixelated;
+  filter: brightness(0.17) saturate(0.2);
+}
+
+.ph-photo img:nth-of-type(1) {
+  left: 10px;
+}
+
+.ph-photo img:nth-of-type(2) {
+  left: 92px;
+  filter: brightness(0.12) saturate(0.2);
+}
+
+.ph-photo .floor {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 16px;
+  background: #0d0c1c;
+}
+
+.ph-photo span {
+  position: absolute;
+  bottom: 9px;
+  font: 700 10px 'Galmuri11 Game', Galmuri11, monospace;
+  color: rgba(255, 230, 160, 0.4);
+}
+
+.ph-typing {
+  align-self: flex-start;
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 10px 13px;
+  border-radius: 18px;
+  background: var(--ph-them);
+}
+
+.ph-typing i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  animation: ph-dot 1.1s infinite;
+}
+
+.ph-typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.ph-typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes ph-dot {
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+  }
+}
+
+.ph-foot {
+  flex: none;
+  padding: 8px 10px 22px;
+  background: rgba(22, 22, 24, 0.94);
+  border-top: 0.5px solid rgba(255, 255, 255, 0.08);
+}
+
+.ph-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.ph-choices span {
+  text-align: center;
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.ph-choices button {
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 16px;
+  background: rgba(10, 132, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.4);
+  color: #5ab0ff;
+  font: inherit;
+  font-size: 13.5px;
+  text-align: right;
+  cursor: pointer;
+  animation: ph-pop 0.3s;
+}
+
+.ph-choices button:hover,
+.ph-choices button:focus-visible {
+  background: rgba(10, 132, 255, 0.28);
+  outline: none;
+}
+
+.ph-go {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 11px;
+  border: 0;
+  border-radius: 14px;
+  background: #fff;
+  color: #000;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  animation: ph-pop 0.35s;
+}
+
+.ph-go small {
+  display: block;
+  margin-top: 1px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #555;
+}
+
+.ph-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ph-input .plus {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #2c2c30;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 20px;
+}
+
+.ph-input .field {
+  flex: 1;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 16px;
+  border: 0.5px solid rgba(255, 255, 255, 0.2);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* 폰 위로 내려오는 다음 문자 알림 */
+.ph-banner {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 22px;
+  background: rgba(60, 60, 66, 0.82);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.88);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  animation: ph-drop 0.45s cubic-bezier(0.2, 0.9, 0.25, 1.15);
+}
+
+.ph-banner b {
+  display: block;
+  color: #fff;
+  font-size: 12.5px;
+}
+
+.ph-banner small {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+@keyframes ph-drop {
+  from {
+    transform: translateY(-140%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ph-msg,
+  .ph-banner,
+  .ph-choices button,
+  .ph-go {
+    animation: none;
+  }
+  .ph-typing i {
+    animation-duration: 2.4s;
+  }
+}

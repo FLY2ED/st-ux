@@ -17,6 +17,8 @@ import Notice from './shell/Notice.jsx'
 import About from './shell/About.jsx'
 import Intro, { introSeen } from './shell/Intro.jsx'
 import { usePixelWall, WallLights } from './shell/PixelWall.jsx'
+import Phone from './shell/Phone.jsx'
+import { FACES, MSG_ICON, PHONE_STORIES, markPhone, phoneSeen } from './shell/phone-story.js'
 import CharMaker from './games/CharMaker.vue'
 import { hasLook } from './avatar.js'
 import { player } from './arcade.js'
@@ -56,6 +58,8 @@ export default function App() {
   const [spot, setSpot] = useState(false)
   const [pad, setPad] = useState(false)
   const [notice, setNotice] = useState(null)
+  // 열려 있는 폰 문자 이야기(phone-story.js 의 키)
+  const [phone, setPhone] = useState(null)
   const [muted, setMute] = useState(sound.muted)
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
   const [bouncing, setBouncing] = useState(null)
@@ -85,18 +89,31 @@ export default function App() {
     if (!booting && !locked && !maker && !introSeen()) setIntro(true)
   }, [booting, locked, maker])
 
-  // 켜지고 조금 뒤에 동네에서 청소 부탁이 온다
+  // 켜지고 조금 뒤에 문자가 온다. 처음엔 간판 스티커 번호를 보고 연락한 모르는 번호,
+  // 이야기를 시작한 뒤로는 분식 사장님이 이어서 와 달라고 한다
   useEffect(() => {
-    if (booting || locked || maker || intro) return
+    if (booting || locked || maker || intro || phone) return
+    if (winsRef.current.some((w) => w.id === 'street')) return
     const t = setTimeout(() => {
-      setNotice({ app: 'street', img: appOf('street').img, title: '간판 청소 부탁', text: '동네 간판에 먼지가 잔뜩 앉았대요. 닦으러 가 볼까요?' })
+      if (!phoneSeen('start')) {
+        setNotice({ phone: 'start', img: MSG_ICON, stay: true, ...PHONE_STORIES.start.notice })
+      } else {
+        let now = null
+        try {
+          now = JSON.parse(localStorage.getItem('gp-story-now'))
+        } catch {
+          // 진행 기록이 깨졌으면 처음처럼 부른다
+        }
+        if (now?.done) return
+        setNotice({ app: 'street', img: FACES.bunsik, title: '공릉 분식 사장님', text: '아직 꺼진 간판이 남았어. 이어서 와 줄래?' })
+      }
       sfx.bell()
     }, 1800)
     return () => clearTimeout(t)
-  }, [booting, locked, maker, intro])
+  }, [booting, locked, maker, intro, phone])
 
   useEffect(() => {
-    if (!notice) return
+    if (!notice || notice.stay) return
     const t = setTimeout(() => setNotice(null), 7000)
     return () => clearTimeout(t)
   }, [notice])
@@ -381,10 +398,27 @@ export default function App() {
             key="notice"
             notice={notice}
             onClick={() => {
-              open(notice.app)
+              if (notice.phone) setPhone(notice.phone)
+              else open(notice.app)
               setNotice(null)
             }}
             onClose={() => setNotice(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {phone && (
+          <Phone
+            key="phone"
+            story={phone}
+            me={player()?.name || '수리공'}
+            onGo={() => {
+              markPhone(phone)
+              setPhone(null)
+              open('street')
+            }}
+            onClose={() => setPhone(null)}
           />
         )}
       </AnimatePresence>
