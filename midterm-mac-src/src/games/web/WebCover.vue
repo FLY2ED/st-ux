@@ -49,6 +49,8 @@ defineProps({
   color: #fff;
   text-align: center;
   box-shadow: 0 30px 60px -30px rgb(0 0 0 / 0.6);
+  /* 사파리는 흐림(backdrop-filter) 겹을 부모 둥근 모서리로 자르지 않는다. 겹마다 모서리를 물려주고 따로 쌓는다 */
+  isolation: isolate;
 }
 
 /* 사진 아래쪽을 흐리게 덮어 버튼·글자가 읽히게 한다 */
@@ -56,8 +58,11 @@ defineProps({
   content: '';
   position: absolute;
   inset: 50% 0 0;
+  border-radius: inherit;
   background: linear-gradient(transparent, rgb(40 32 20 / 0.55));
+  -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
+  -webkit-mask: linear-gradient(transparent, #000 45%);
   mask: linear-gradient(transparent, #000 45%);
   pointer-events: none;
 }
@@ -66,6 +71,7 @@ defineProps({
   content: '';
   position: absolute;
   inset: 0 0 60%;
+  border-radius: inherit;
   background: linear-gradient(rgb(0 0 0 / 0.22), transparent);
   pointer-events: none;
 }
@@ -87,6 +93,7 @@ defineProps({
   padding: 0 11px;
   border-radius: 999px;
   background: rgb(255 255 255 / 0.22);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   font-size: 11.5px;
   font-weight: 600;
@@ -149,7 +156,9 @@ defineProps({
 .mini .cover::after {
   inset: 35% 0 0;
   background: linear-gradient(transparent, rgb(12 10 8 / 0.78) 70%);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
+  -webkit-mask: linear-gradient(transparent, #000 35%);
   mask: linear-gradient(transparent, #000 35%);
 }
 
