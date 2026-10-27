@@ -488,7 +488,6 @@ onBeforeUnmount(() => {
       <div class="rain-city" aria-hidden="true">
         <i v-for="(b, n) in BUILDINGS" :key="n" :style="{ left: `${b.x}%`, width: `${b.w}%`, height: `${b.h}%`, '--lit': b.lit }"></i>
       </div>
-      <div class="rain-streaks" aria-hidden="true"></div>
 
       <span v-if="combo > 1 && phase === 'play'" :key="combo" class="rain-combo px-text">{{ combo }} 콤보</span>
 
@@ -910,19 +909,6 @@ onBeforeUnmount(() => {
     repeating-linear-gradient(#121a2c 0 10px, transparent 10px 19px),
     linear-gradient(transparent 0 30%, color-mix(in srgb, var(--lit) 70%, #121a2c) 30% 42%, #26304a 42% 70%, color-mix(in srgb, var(--lit) 45%, #121a2c) 70% 80%, #26304a 80%);
   box-shadow: inset 0 4px #3b5a33, inset 3px 0 #1c2740;
-}
-
-/* 비스듬히 쏟아지는 초록 산성비 */
-.rain-streaks {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background:
-    repeating-linear-gradient(103deg, transparent 0 22px, rgb(160 255 120 / 0.32) 22px 24px, transparent 24px 61px),
-    repeating-linear-gradient(97deg, transparent 0 37px, rgb(200 255 170 / 0.18) 37px 38px, transparent 38px 83px);
-  background-size: 100% 140px, 100% 110px;
-  animation: rain-fall 0.45s linear infinite;
-  pointer-events: none;
 }
 
 .rain-combo {
@@ -1739,12 +1725,6 @@ onBeforeUnmount(() => {
 @keyframes rain-clouds {
   to {
     background-position: 120px 0, 210px 18px, 0 0;
-  }
-}
-
-@keyframes rain-fall {
-  to {
-    background-position: -30px 140px, -14px 110px;
   }
 }
 
