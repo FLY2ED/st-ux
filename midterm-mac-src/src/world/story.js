@@ -65,7 +65,7 @@ export const SCARED = ['저, 저기 좀 봐요… 저게 가게 앞을 막고 �
 export const CHAPTERS = [
   {
     id: 'seoultech',
-    title: '1장 · 꺼진 공릉동',
+    title: '챕터 1 · 꺼진 공릉동',
     weather: 'rain',
     time: 'midnight',
     doneTime: 'dawn',
@@ -127,7 +127,7 @@ export const CHAPTERS = [
   },
   {
     id: 'hongdae',
-    title: '2장 · 소리 잃은 홍대',
+    title: '챕터 2 · 소리 잃은 홍대',
     weather: 'clear',
     time: 'dusk',
     doneTime: 'night',
@@ -178,7 +178,7 @@ export const CHAPTERS = [
   },
   {
     id: 'gangnam',
-    title: '3장 · 멈춘 강남역',
+    title: '챕터 3 · 멈춘 강남역',
     weather: 'rain',
     time: 'late',
     doneTime: 'late',
@@ -230,7 +230,7 @@ export const CHAPTERS = [
   },
   {
     id: 'gwanghwamun',
-    title: '4장 · 광화문의 마지막 불빛',
+    title: '챕터 4 · 광화문의 마지막 불빛',
     weather: 'snow',
     time: 'predawn',
     doneTime: 'morning',

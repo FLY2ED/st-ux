@@ -2,7 +2,7 @@
 // 간판 수리공 (3D): 2D 와 같은 동네·간판·이야기를 비스듬히 내려다보는 3D 거리로 푼다.
 // 꺼진 동네는 잿빛, 간판을 고치면 네온이 켜지고 그 둘레로 색이 번진다. 1~4장 이야기·보스·부탁 놀이·
 // 내 가게 짓기·택시·도감·타임머신까지 모두 이 거리 안에서 한다. 놀이는 거리 위를 덮는 판으로 열린다
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import * as THREE from 'three'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
@@ -13,7 +13,7 @@ import { load, signsAround } from '../data.js'
 import { player as arcadePlayer } from '../arcade.js'
 import { pastelOf } from '../shops.js'
 import { sfx } from '../sound.js'
-import { drawAvatar, readLook } from '../avatar.js'
+import { readLook } from '../avatar.js'
 import { joinTown } from '../world/presence.js'
 import { loadLM } from '../signlm.js'
 import { B, meshWorld, plantStreetTrees, plantTrees, rasterize } from '../world/build.js'
@@ -21,41 +21,28 @@ import { MAX_LIT, fx, neonOf, patch } from '../world/fx.js'
 import { makePeople } from '../world/people.js'
 import { PRESETS } from '../world/presets.js'
 import { meshSigns, placeSigns } from '../world/signs.js'
-import { BOSSES, BUILD, CHAPTERS, ENDING, FOLKS, FOLK_IDLE, SCARED, TIMES, fill, ownerOf, readCleared, rideOf, saveCleared, spriteOf } from '../world/story.js'
+import { BOSSES, BUILD, CHAPTERS, ENDING, FOLKS, FOLK_IDLE, SCARED, TIMES, fill, readCleared, rideOf, saveCleared, spriteOf } from '../world/story.js'
 import { BLOCKS, GROUND_ID, blockMaterials, leafColor, leafMaterials, makeMaterials } from '../world/textures.js'
 import { makeTraffic } from '../world/traffic.js'
 import { makeWeather } from '../world/weather.js'
 import RpgDialog from './street2d/RpgDialog.vue'
 import Cutscene from './street2d/Cutscene.vue'
+import { PASSENGER, TAXI, art, bossWho, ownerWho, whoOf } from './street3d/people.js'
+import { BOSS_GOAL, QUESTS, WHY, pleaReader } from './street3d/quests.js'
+import { catOf, pickNames } from './street3d/shopName.js'
+import { camAt, easeLift, wantLift } from './street3d/cameraLift.js'
+import * as paths from './street3d/paths.js'
+import { drawMapBase, drawMini } from './street3d/minimap.js'
+import { makeTuner } from './street3d/quality.js'
+import { stepSky } from './street3d/sky.js'
+import { makeCrowd } from './street3d/crowd.js'
+import { makeSparks } from './street3d/sparks.js'
+import { avatarFrames, clearGroup, disposeNpcTex, frameOf, npcSprite, tagSprite, tagTexture, taxiModel } from './street3d/sprites.js'
 
 // windowed 는 맥 창 안, play 는 바깥(순위표·위젯)에서 바로 여는 놀이, begin·beginAt 은 인트로 시작 메뉴에서 고른 것
 const props = defineProps({ windowed: { type: Boolean, default: false }, play: { type: String, default: '' }, begin: { type: String, default: '' }, beginAt: { type: Number, default: 0 } })
 const emit = defineEmits(['close', 'unfull'])
 
-// 사장님 부탁·보스 대결로 여는 놀이: 바탕화면 앱을 그대로 거리 위 판에 띄운다. free 는 끝내지 않아도 돌아갈 수 있다
-const QUESTS = {
-  rain: { title: '간판 산성비', comp: defineAsyncComponent(() => import('./RainWindow.vue')), ink: true },
-  dodge: { title: '점심 간판 피하기', comp: defineAsyncComponent(() => import('./DodgeWindow.vue')), ink: true },
-  scratch: { title: '간판 청소', comp: defineAsyncComponent(() => import('./ScratchWindow.vue')), ink: true },
-  more: { title: '더 많을까?', comp: defineAsyncComponent(() => import('./MoreWindow.vue')), ink: 'paper' },
-  booth: { title: '간판 네컷', comp: defineAsyncComponent(() => import('./BoothWindow.vue')), ink: true, skip: true },
-  type: { title: '간판 타자왕', comp: defineAsyncComponent(() => import('./TypeWindow.vue')), ink: true },
-  guess: { title: '간판 어디게', comp: defineAsyncComponent(() => import('./GuessWindow.vue')), ink: true },
-  map: { title: '간판 지도', comp: defineAsyncComponent(() => import('./BuildingWindow.vue')), mode: 'name' },
-  open: { title: '내 가게 차리기', comp: defineAsyncComponent(() => import('./BuildingWindow.vue')), mode: 'shop', free: true },
-  atlas: { title: '간판 지도', comp: defineAsyncComponent(() => import('./BuildingWindow.vue')), mode: 'name', free: true },
-}
-const BOSS_GOAL = { rain: 6, type: 4, more: 2, map: 3 }
-
-// 인물 그림: c- 길잡이·보스 서 있는 모습, f- 동네 사람·사장님, p- 대화창 얼굴
-const NPC_ART = import.meta.glob('../assets/npc/*.png', { eager: true, import: 'default' })
-const art = (name) => NPC_ART[`../assets/npc/${name}.png`] || ''
-const whoOf = (npc, tone = 'npc') => ({ ...npc, portrait: npc.portrait || (npc.id ? art(`p-${npc.id}`) || art(`f-${npc.id}`) : ''), tone: npc.tone || tone })
-const bossWho = (id) => whoOf({ id, name: BOSSES[id].name, face: BOSSES[id].face }, 'boss')
-const ownerWho = (sign) => {
-  const o = ownerOf(sign)
-  return { ...o, sprite: spriteOf(sign.cat), portrait: art(`f-${spriteOf(sign.cat)}`) }
-}
 // 위젯에 넘기는 때: 이야기 속 때를 넷으로 줄인다
 const COARSE_TIME = { midnight: 'night', late: 'night', night: 'night', predawn: 'dawn', dawn: 'dawn', dusk: 'dusk', morning: 'day', day: 'day' }
 
@@ -117,12 +104,6 @@ const unlocked = (n) => n === 0 || cleared.value.includes(CHAPTERS[n - 1].id)
 const storyOn = computed(() => !!story.value && !story.value.done)
 const building = computed(() => !!story.value?.build && !story.value.build.done && !story.value.done)
 // 왼쪽 위 의뢰 카드: 누가 부탁했는지, 왜 가는지, 할 일 세 줄(끝난 줄·지금 줄·다음 줄)
-const WHY = {
-  scratch: '그을음이 간판 글자를 덮어서 안 보여요',
-  dodge: '떨어지는 간판 때문에 배달을 못 나가요',
-  booth: '도둑이 또 올까 봐 이름 포스터를 붙이고 싶어요',
-  guess: '되찾은 글자가 어느 동네 건지 헷갈려요',
-}
 const card = computed(() => {
   const st = story.value
   if (!st || st.done) return null
@@ -247,8 +228,10 @@ function setupScene() {
 
   makeAvatar()
   makeMarks()
-  makeSparks()
-  makeTaxi()
+  sparks = makeSparks(scene)
+  crowd = makeCrowd(scene)
+  taxiMesh = taxiModel()
+  scene.add(taxiMesh)
   makeAimBox()
 
   composer = new EffectComposer(renderer)
@@ -261,33 +244,13 @@ function setupScene() {
   resize()
 }
 
-// 느린 컴퓨터: 2초씩 재서 프레임이 무거우면 그리는 해상도를 한 단계씩 낮춘다(모양은 그대로)
-const QUALITY = [2, 1.5, 1, 0.8, 0.66]
-let quality = 0
-const perf = { ms: 0, n: 0, wait: 3 }
-function tune(ms, dt) {
-  if (perf.wait > 0) return void (perf.wait -= dt)
-  if (ms > 250) return
-  perf.ms += ms
-  perf.n++
-  if (perf.ms < 2000) return
-  const avg = perf.ms / perf.n
-  perf.ms = 0
-  perf.n = 0
-  const cur = Math.min(devicePixelRatio || 1, QUALITY[quality])
-  if (avg > 24 && quality < QUALITY.length - 1) {
-    // 화면 배율이 원래 낮으면 실제로 줄어드는 단계까지 건너뛴다
-    while (quality < QUALITY.length - 1 && QUALITY[quality] >= cur) quality++
-    if (QUALITY[quality] < cur) applyQuality()
-    perf.wait = 1
-  }
-}
-function applyQuality() {
-  const pr = Math.min(devicePixelRatio || 1, QUALITY[quality])
+// 느린 컴퓨터는 그리는 해상도를 낮춘다
+const tuner = makeTuner((pr) => {
   renderer.setPixelRatio(pr)
   composer.setPixelRatio(pr)
   resize()
-}
+})
+const tune = tuner.tune
 
 function resize() {
   if (!renderer || !box.value) return
@@ -306,21 +269,7 @@ let ghost = null
 let shadow = null
 let frames = []
 function makeAvatar() {
-  const look = readLook()
-  frames = []
-  for (let dir = 0; dir < 4; dir++) {
-    for (let f = 0; f < 3; f++) {
-      const c = document.createElement('canvas')
-      c.width = 18
-      c.height = 26
-      drawAvatar(c.getContext('2d'), look, 9, 25, { scale: 1, dir, frame: f, night: true, shadow: false })
-      const tex = new THREE.CanvasTexture(c)
-      tex.magFilter = THREE.NearestFilter
-      tex.minFilter = THREE.NearestFilter
-      tex.colorSpace = THREE.SRGBColorSpace
-      frames.push(tex)
-    }
-  }
+  frames = avatarFrames(readLook())
   if (!avatar) {
     avatar = new THREE.Sprite(new THREE.SpriteMaterial({ map: frames[0], fog: false }))
     avatar.center.set(0.5, 0)
@@ -361,28 +310,6 @@ function camAxes() {
 let ring = null
 let keyMark = null
 let beacon = null
-function tagTexture(text, bg, fg, font = 36) {
-  const c = document.createElement('canvas')
-  c.width = 64
-  c.height = 64
-  const g = c.getContext('2d')
-  if (bg) {
-    g.fillStyle = '#1b1622'
-    g.fillRect(6, 10, 52, 50)
-    g.fillStyle = bg
-    g.fillRect(6, 4, 52, 50)
-  }
-  g.fillStyle = fg
-  g.font = `700 ${font}px "Galmuri11 Game", Galmuri11, sans-serif`
-  g.textAlign = 'center'
-  g.textBaseline = 'middle'
-  g.fillText(text, 32, 31)
-  const tex = new THREE.CanvasTexture(c)
-  tex.magFilter = THREE.NearestFilter
-  tex.colorSpace = THREE.SRGBColorSpace
-  return tex
-}
-
 function makeMarks() {
   keyMark = new THREE.Sprite(new THREE.SpriteMaterial({ map: tagTexture('E', '#ffcf3a', '#1b1622'), depthTest: false, fog: false }))
   keyMark.scale.set(0.7, 0.7, 1)
@@ -400,41 +327,6 @@ function makeMarks() {
   scene.add(beacon)
 }
 
-// 간판 둘레 사각 틀(네온관·고칠 표시 함께 쓴다)
-function frameOf(placed, material, pad = 0.05, thick = 0.06) {
-  const g = new THREE.Group()
-  const half = (B * 0.47 * placed.scale) / 2 + pad
-  for (const [px, pz, qx, qz] of placed.faces) {
-    const len = Math.hypot(qx - px, qz - pz)
-    const w = (len * 0.94 * placed.scale) / 2 + pad
-    const nx = -(qz - pz) / len
-    const nz = (qx - px) / len
-    const f = new THREE.Group()
-    const bar = (cx, cy, sx, sy) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, thick), material)
-      m.position.set(cx, cy, 0)
-      f.add(m)
-    }
-    bar(0, half, w * 2 + thick, thick)
-    bar(0, -half, w * 2 + thick, thick)
-    bar(-w, 0, thick, half * 2)
-    bar(w, 0, thick, half * 2)
-    f.position.set((px + qx) / 2 + nx * 0.06, placed.y, (pz + qz) / 2 + nz * 0.06)
-    f.rotation.y = Math.atan2(qx - px, qz - pz) - Math.PI / 2
-    g.add(f)
-  }
-  return g
-}
-
-function clearGroup(g, own = false) {
-  if (!g) return
-  g.traverse((o) => {
-    o.geometry?.dispose()
-    if (own && o.material) o.material.dispose()
-  })
-  g.clear()
-}
-
 const ringMat = new THREE.MeshBasicMaterial({ color: 0xffcf3a, fog: false })
 let ringFor = null
 function showRing(placed) {
@@ -447,48 +339,6 @@ function showRing(placed) {
 }
 
 // --- 이야기 속 사람들(판 그림) ---------------------------------------------------------
-// 화면을 보는 판이라 윗부분이 벽에 묻힌다: 깊이 검사를 끄고 가까울 때만 보인다
-const texCache = new Map()
-function npcTex(name) {
-  let e = texCache.get(name)
-  if (!e) {
-    e = { tex: null, wait: [] }
-    const src = art(name)
-    if (src) {
-      e.tex = new THREE.TextureLoader().load(src, (t) => {
-        for (const fn of e.wait) fn(t)
-        e.wait = []
-      })
-      e.tex.magFilter = THREE.NearestFilter
-      e.tex.colorSpace = THREE.SRGBColorSpace
-    }
-    texCache.set(name, e)
-  }
-  return e
-}
-
-function npcSprite(name, h) {
-  const e = npcTex(name)
-  if (!e.tex) return null
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: e.tex, fog: false, alphaTest: 0.5, depthTest: false }))
-  s.center.set(0.5, 0)
-  s.renderOrder = 4
-  const fit = (t) => s.scale.set((h * t.image.width) / t.image.height, h, 1)
-  s.scale.set(h * 0.7, h, 1)
-  if (e.tex.image?.width) fit(e.tex)
-  else e.wait.push(fit)
-  return s
-}
-
-const tagTex = {}
-function tagSprite(kind) {
-  tagTex[kind] ||= kind === 'boss' ? tagTexture('!', '#ff4d6d', '#fff') : kind === 'folk' ? tagTexture('💡', '', '#fff', 40) : tagTexture('!', '#ffcf3a', '#1b1622')
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tagTex[kind], depthTest: false, fog: false }))
-  s.scale.set(0.62, 0.62, 1)
-  s.renderOrder = 6
-  return s
-}
-
 // 길잡이는 내 뒤를 따라오다가, 길잡이 가게 차례면 앞장서서 LEAD 만큼 떨어진 채로 데려간다
 const guidePos = { x: 0, z: 0, moving: false }
 const LEAD = 3.2 * B
@@ -580,70 +430,13 @@ let townLook = readLook()
 let town = null
 let townKey = ''
 let townTimer = 0
-const others = new Map()
-const FACE_OF = [[0, 1], [0, -1], [-1, 0], [1, 0]]
+let crowd = null
 const worldDir = () => (Math.abs(player.face.x) > Math.abs(player.face.y) ? (player.face.x < 0 ? 2 : 3) : player.face.y > 0 ? 0 : 1)
-
-function nameTexture(text) {
-  const c = document.createElement('canvas')
-  const g = c.getContext('2d')
-  const font = '700 22px "Galmuri11 Game", Galmuri11, sans-serif'
-  g.font = font
-  c.width = Math.ceil(g.measureText(text).width) + 16
-  c.height = 32
-  g.font = font
-  g.fillStyle = 'rgba(27, 22, 34, 0.82)'
-  g.fillRect(0, 0, c.width, c.height)
-  g.fillStyle = '#fff3b8'
-  g.textAlign = 'center'
-  g.textBaseline = 'middle'
-  g.fillText(text, c.width / 2, 17)
-  const tex = new THREE.CanvasTexture(c)
-  tex.magFilter = THREE.NearestFilter
-  tex.colorSpace = THREE.SRGBColorSpace
-  return { tex, w: c.width / c.height }
-}
-
-function makeOther(p) {
-  const tex = []
-  for (let dir = 0; dir < 4; dir++) {
-    for (let f = 0; f < 3; f++) {
-      const c = document.createElement('canvas')
-      c.width = 18
-      c.height = 26
-      drawAvatar(c.getContext('2d'), p.look || {}, 9, 25, { scale: 1, dir, frame: f, night: true, shadow: false })
-      const t = new THREE.CanvasTexture(c)
-      t.magFilter = THREE.NearestFilter
-      t.minFilter = THREE.NearestFilter
-      t.colorSpace = THREE.SRGBColorSpace
-      tex.push(t)
-    }
-  }
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex[0], fog: false }))
-  sprite.center.set(0.5, 0)
-  sprite.scale.set(1.45, 2.1, 1)
-  const name = nameTexture(p.name || '수리공')
-  const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: name.tex, fog: false, depthTest: false, transparent: true }))
-  tag.center.set(0.5, 0)
-  tag.scale.set(0.42 * name.w, 0.42, 1)
-  tag.renderOrder = 6
-  scene.add(sprite, tag)
-  return { sprite, tag, tex, look: JSON.stringify(p.look || {}), name: p.name, step: 0 }
-}
-
-function dropOther(o) {
-  scene.remove(o.sprite, o.tag)
-  for (const t of o.tex) t.dispose()
-  o.sprite.material.dispose()
-  o.tag.material.map.dispose()
-  o.tag.material.dispose()
-}
 
 function leaveTown() {
   town?.leave()
   town = null
-  for (const o of others.values()) dropOther(o)
-  others.clear()
+  crowd?.clear()
 }
 
 function updateTown(dt) {
@@ -672,62 +465,13 @@ function updateTown(dt) {
     .filter((c) => c.d < TOWN_SEE)
     .sort((a, b) => a.d - b.d)
     .slice(0, TOWN_MAX)
-  const keep = new Set()
-  for (const { p } of seen) {
-    keep.add(p.id)
-    let o = others.get(p.id)
-    if (o && (o.look !== JSON.stringify(p.look || {}) || o.name !== p.name)) {
-      dropOther(o)
-      o = null
-    }
-    if (!o) others.set(p.id, (o = makeOther(p)))
-    if (p.m) o.step += dt * 6
-    const [fx, fz] = FACE_OF[p.d & 3] || FACE_OF[0]
-    const f = p.m ? 1 + (Math.floor(o.step) % 2) : 0
-    o.sprite.material.map = o.tex[viewDir(fx, fz) * 3 + f]
-    const bob = p.m ? Math.abs(Math.sin(o.step * Math.PI)) * 0.06 : 0
-    o.sprite.position.set(p.x, bob, -p.y)
-    o.tag.position.set(p.x, 2.3, -p.y)
-  }
-  for (const [id, o] of others) {
-    if (keep.has(id)) continue
-    dropOther(o)
-    others.delete(id)
-  }
+    .map((c) => c.p)
+  crowd.show(seen, dt, viewDir)
 }
 
 // --- 불꽃 가루 -----------------------------------------------------------------
-const SPARKS = 600
 let sparks = null
-const sparkVel = new Float32Array(SPARKS * 3)
-const sparkLife = new Float32Array(SPARKS)
-let sparkNext = 0
-function makeSparks() {
-  const g = new THREE.BufferGeometry()
-  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(SPARKS * 3).fill(-999), 3))
-  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(SPARKS * 3), 3))
-  sparks = new THREE.Points(g, new THREE.PointsMaterial({ size: 0.22, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }))
-  sparks.frustumCulled = false
-  scene.add(sparks)
-}
-
-function burst(x, y, z, nx, nz, color, n = 70) {
-  const pos = sparks.geometry.attributes.position
-  const col = sparks.geometry.attributes.color
-  for (let i = 0; i < n; i++) {
-    const s = sparkNext++ % SPARKS
-    pos.setXYZ(s, x, y, z)
-    const yellow = Math.random() < 0.35
-    const c = yellow ? new THREE.Color(0xffe27a) : color
-    col.setXYZ(s, c.r * 1.6, c.g * 1.6, c.b * 1.6)
-    const sp = 2 + Math.random() * 4
-    sparkVel[s * 3] = nx * sp + (Math.random() - 0.5) * 4
-    sparkVel[s * 3 + 1] = Math.random() * 5 + 1
-    sparkVel[s * 3 + 2] = nz * sp + (Math.random() - 0.5) * 4
-    sparkLife[s] = 0.8 + Math.random() * 0.7
-  }
-  col.needsUpdate = true
-}
+const burst = (...a) => sparks.burst(...a)
 
 // 꺼진 간판은 가끔 지지직 불꽃을 튀겨 제 색을 내비친다
 let sputterAt = 0
@@ -743,45 +487,6 @@ function sputter(t) {
   const [p, s] = near[Math.floor(Math.random() * near.length)] || []
   if (!p) return
   burst(s.x + s.nx * 0.2, s.y + (Math.random() - 0.4) * 0.6, s.z + s.nz * 0.2, s.nx * 0.4, s.nz * 0.4, neonOf(pastelOf(p.sign.cat)), 10 + Math.floor(Math.random() * 10))
-}
-
-function updateSparks(dt) {
-  const pos = sparks.geometry.attributes.position
-  let any = false
-  for (let s = 0; s < SPARKS; s++) {
-    if (sparkLife[s] <= 0) continue
-    any = true
-    sparkLife[s] -= dt
-    if (sparkLife[s] <= 0) {
-      pos.setXYZ(s, 0, -999, 0)
-      continue
-    }
-    sparkVel[s * 3 + 1] -= 9 * dt
-    pos.setXYZ(s, pos.getX(s) + sparkVel[s * 3] * dt, Math.max(0.05, pos.getY(s) + sparkVel[s * 3 + 1] * dt), pos.getZ(s) + sparkVel[s * 3 + 2] * dt)
-  }
-  if (any) pos.needsUpdate = true
-}
-
-// --- 택시(주황 상자 차) ------------------------------------------------------------
-let taxiMesh = null
-function makeTaxi() {
-  const g = new THREE.Group()
-  const part = (sx, sy, sz, color, y, z = 0, basic = false) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), basic ? new THREE.MeshBasicMaterial({ color, fog: false }) : new THREE.MeshLambertMaterial({ color }))
-    m.position.set(0, y, z)
-    g.add(m)
-    return m
-  }
-  part(1.9, 0.8, 4.2, 0xf08a1c, 0.7)
-  part(1.7, 0.66, 2.1, 0x2a3442, 1.43, -0.2)
-  part(0.9, 0.32, 0.42, 0xffec27, 1.92, -0.2, true)
-  for (const x of [-0.62, 0.62]) {
-    const l = part(0.36, 0.2, 0.08, 0xfff6c0, 0.78, 2.12, true)
-    l.position.x = x
-  }
-  g.visible = false
-  taxiMesh = g
-  scene.add(g)
 }
 
 // --- 세계 만들기 --------------------------------------------------------------
@@ -843,7 +548,7 @@ async function enter(next, start) {
   for (const s of signMeshes) patch(s.material, 'sign')
   scene.add(signGroup)
   for (const g of [worldGroup, traffic.group, people.group, signGroup]) patchGroup(g)
-  mapBase = drawMapBase()
+  mapBase = drawMapBase(grid)
   resetTown()
   spawn(start)
   status.value = ''
@@ -961,58 +666,10 @@ function signAt(p) {
 const distTo = (o) => (o ? Math.hypot(o.x - player.pos.x, o.z - player.pos.z) : 99)
 
 // --- 걸어서 갈 길 ----------------------------------------------------------------
-// (x, z) 칸에서 걸을 수 있는 칸으로 번져 나가며 몇 칸 걸어야 닿는지 적는다. -1 은 못 가는 칸
-function walkField(x, z, maxSteps) {
-  const { N } = grid
-  const field = new Int16Array(N * N).fill(-1)
-  const [si, sk] = cellOf(x, z)
-  if (!cellFree(si, sk)) return field
-  const queue = new Int32Array(N * N)
-  let head = 0
-  let tail = 0
-  field[sk * N + si] = 0
-  queue[tail++] = sk * N + si
-  while (head < tail) {
-    const c = queue[head++]
-    const d = field[c]
-    if (d >= maxSteps) continue
-    const i = c % N
-    const k = (c - i) / N
-    for (const [ni, nk] of [[i + 1, k], [i - 1, k], [i, k + 1], [i, k - 1]]) {
-      const nc = nk * N + ni
-      if (field[nc] !== -1 || !cellFree(ni, nk)) continue
-      field[nc] = d + 1
-      queue[tail++] = nc
-    }
-  }
-  return field
-}
-
-// 그 자리까지 걸어서 몇 미터인지(못 가면 -1)
-function walkMeters(field, at) {
-  const [i, k] = cellOf(at.x, at.z)
-  const steps = field[k * grid.N + i]
-  return steps < 0 ? -1 : steps * B
-}
-
-// 길 위에서 목표 쪽으로 한 칸 더 가까운 옆 칸 가운데. 모서리는 질러가지 않는다
-function nextCell(field, x, z) {
-  const { N } = grid
-  const [i, k] = cellOf(x, z)
-  const here = field[k * N + i]
-  if (here <= 0) return null
-  let best = null
-  for (let dk = -1; dk <= 1; dk++) {
-    for (let di = -1; di <= 1; di++) {
-      if (!di && !dk) continue
-      const d = field[(k + dk) * N + i + di]
-      if (d < 0 || d >= here) continue
-      if (di && dk && (field[k * N + i + di] < 0 || field[(k + dk) * N + i] < 0)) continue
-      if (!best || d < best.d) best = { d, i: i + di, k: k + dk }
-    }
-  }
-  return best && cellMid(best.i, best.k)
-}
+const walkMap = () => ({ N: grid.N, B, cellOf, cellFree, cellMid })
+const walkField = (x, z, maxSteps) => paths.walkField(walkMap(), x, z, maxSteps)
+const walkMeters = (field, at) => paths.walkMeters(walkMap(), field, at)
+const nextCell = (field, x, z) => paths.nextCell(walkMap(), field, x, z)
 
 // --- 불 켜기 ------------------------------------------------------------------
 // 셰이더가 받는 불빛 자리는 MAX_LIT 개까지. 넘치면 오래된 작은 불빛부터 번짐을 거두고 네온 틀만 남긴다
@@ -1389,17 +1046,12 @@ function onGameOver(e) {
   if (q.placed) setTimeout(() => quest.value === done && questBack(), 2200)
 }
 
-// 이야기 속 놀이 중에 '봐주세요'·'살려주세요'를 치면 봐준다. 한글 입력기가 켜져 있어도 되게 자판 위치(두벌식)로 읽는다
-const PLEAS = ['qhkwntpdy', 'tkffuwntpdy']
-let plea = ''
+// 이야기 속 놀이 중에 '봐주세요'를 치면 봐준다
+const plea = pleaReader()
 function onPlea(e) {
   const q = quest.value
-  if (!q || !q.placed || q.done || wipe.value) return void (plea = '')
-  const m = /^Key([A-Z])$/.exec(e.code)
-  if (!m) return
-  plea = (plea + m[1].toLowerCase()).slice(-12)
-  if (!PLEAS.some((w) => plea.endsWith(w))) return
-  plea = ''
+  if (!q || !q.placed || q.done || wipe.value) return plea.reset()
+  if (!plea.push(e.code)) return
   const done = { ...q, done: true, begged: true, score: q.score ?? 1 }
   quest.value = done
   sfx.click()
@@ -1442,14 +1094,6 @@ function saveShop(v) {
 }
 
 // --- 내 가게 짓기 --------------------------------------------------------------
-// 간판 이름은 간판 이름 25만 개로만 배운 작은 언어 모델이 지어 준다(브라우저 안에서 계산)
-const CAT_WORDS = [
-  [/분식|떡볶이|김밥|튀김/, '분식'], [/빵|베이커리|제과/, '빵집'], [/카페|커피|디저트|케이크/, '카페'], [/치킨|닭/, '치킨'], [/세탁|빨래/, '세탁소'],
-  [/미용|헤어|네일|뷰티/, '미용실'], [/약국/, '약국'], [/학원|교습|공부/, '학원'], [/노래/, '노래방'], [/꽃/, '꽃집'],
-  [/마트|슈퍼|상회|상사|편의/, '슈퍼'], [/식당|밥|국|찌개|고기|갈비|면|반점|횟집|집$/, '식당'], [/술|포차|주점|호프/, '주점'],
-]
-const catOf = (name) => CAT_WORDS.find(([re]) => re.test(name))?.[1] || '가게'
-
 async function startBuild() {
   const st = story.value
   if (!st) return
@@ -1457,25 +1101,12 @@ async function startBuild() {
   paused.value = true
   await new Promise((r) => setTimeout(r, 30))
   const lm = await loadLM().catch(() => null)
-  const names = pickNames(lm)
+  const names = pickNames(lm, myName())
   notice.value = ''
   if (story.value !== st) return
   say(whoOf(st.ch.npc), BUILD.pick.map((l) => fill(l, vars(null, null))), {
     choices: [...names.map((n) => ({ label: `「${n}」`, fn: () => chooseName(n) })), { label: '다시 뽑기', fn: startBuild }],
   })
-}
-
-function pickNames(lm) {
-  const who = myName().replace(/\s+/g, '').slice(0, 6)
-  if (!lm) return [`${who}네 가게`, `${who} 상회`, `${who}네 분식`]
-  const out = new Set()
-  for (let n = 0; n < 9 && out.size < 3; n++) {
-    const name = (out.size === 0 ? lm.sample(`${who}네`, 0.8) : lm.sample('', 0.9)).trim()
-    const len = [...name].length
-    if (len >= 2 && len <= 12 && name !== `${who}네`) out.add(name)
-  }
-  if (!out.size) out.add(`${who}네 가게`)
-  return [...out]
 }
 
 function chooseName(name) {
@@ -1849,14 +1480,13 @@ function endMachine() {
 
 // --- 택시 ----------------------------------------------------------------------
 // 손 흔들면 와서 서고, 고른 곳까지 태워 준다. 손님 태우기는 미터기 시간 안에 직접 몰고 간다
-const TAXI = { name: '택시 기사님', face: '🚕', portrait: '', tone: 'npc' }
-const PASSENGER = { name: '손님', face: '🧳', portrait: '', tone: 'npc' }
 const COMPASS = ['북', '북동', '동', '남동', '남', '남서', '서', '북서']
 // 북쪽 = -z
 const compassOf = (dx, dz) => COMPASS[Math.round(((Math.atan2(dx, -dz) * 180) / Math.PI + 360) / 45) % 8]
 const lerp = (a, b, k) => a + (b - a) * k
 let cab = null
 let fareRun = null
+let taxiMesh = null
 
 function hailTaxi() {
   if (cab?.phase === 'drive' && !paused.value) return endFare(false)
@@ -2219,10 +1849,6 @@ function goalOf() {
 }
 
 // --- 하늘: 이야기 속 때(TIMES)를 천천히 따라간다 ------------------------------------------
-const SKY_NIGHT = new THREE.Color(0x0b1030)
-const SKY_DAY = new THREE.Color(0x8ec5ee)
-const SKY_DUSK = new THREE.Color(0xd9876a)
-const tmpColor = new THREE.Color()
 function setTime(id, snap = false) {
   if (!TIMES[id]) return
   timeMode.value = id
@@ -2230,20 +1856,7 @@ function setTime(id, snap = false) {
 }
 
 function updateSky(dt) {
-  const to = TIMES[timeMode.value]
-  const k = Math.min(1, dt * 0.5)
-  sky.night += (to.night - sky.night) * k
-  sky.dusk += (to.dusk - sky.dusk) * k
-  tmpColor.copy(SKY_DAY).lerp(SKY_NIGHT, sky.night).lerp(SKY_DUSK, sky.dusk * 0.5)
-  scene.background = tmpColor
-  scene.fog.color.copy(tmpColor)
-  const day = 1 - sky.night
-  stars.material.opacity = 0.8 * sky.night
-  ambient.intensity = 0.75 + day * 0.55
-  moon.intensity = 0.55 + day * 0.7
-  moon.color.setRGB(0.78 + day * 0.22, 0.83 + day * 0.05 - sky.dusk * 0.1, 1 - day * 0.2 - sky.dusk * 0.25)
-  fx.uNight.value = sky.night
-  for (const m of mats.wallMats) m.emissiveIntensity = 0.8 * sky.night
+  stepSky(sky, TIMES[timeMode.value], dt, { scene, stars, ambient, moon, wallMats: mats.wallMats, fx })
 }
 
 function move(dt) {
@@ -2280,39 +1893,15 @@ function move(dt) {
   player.step += dt * speed * 1.4
 }
 
-// 건물이 나를 가리면 카메라를 살짝 들어 올리고 당겨서 비켜 본다(조금만, 천천히)
-const LIFT_MAX = 0.4
+// 건물이 나를 가리면 카메라를 살짝 들어 올린다
 let camLift = 0
-function camAt(lift) {
-  const pitch = Math.min(1.4, cam.pitch + lift)
-  const dist = cam.dist * (1 - lift * 0.6)
-  const cp = Math.cos(pitch) * dist
-  return { x: cam.target.x + Math.sin(cam.yaw) * cp, y: cam.target.y + Math.sin(pitch) * dist, z: cam.target.z + Math.cos(cam.yaw) * cp }
-}
-function hidden(lift) {
-  const c = camAt(lift)
-  const y0 = cam.target.y + 1
-  const n = Math.ceil(Math.hypot(c.x - cam.target.x, c.z - cam.target.z) / (B * 0.7))
-  for (let j = 2; j <= n; j++) {
-    const k = j / n
-    const [i, kk] = cellOf(cam.target.x + (c.x - cam.target.x) * k, cam.target.z + (c.z - cam.target.z) * k)
-    if (i < 0 || kk < 0 || i >= grid.N || kk >= grid.N) continue
-    if (grid.height[kk * grid.N + i] * B > y0 + (c.y - y0) * k) return true
-  }
-  return false
-}
 function updateLift(dt) {
-  let want = 0
-  if (grid && !cine && !machine.value) {
-    want = LIFT_MAX
-    for (let l = 0; l <= LIFT_MAX + 1e-6; l += 0.1) if (!hidden(l)) { want = l; break }
-  }
-  // 올라갈 땐 조금 빠르게, 내려올 땐 느긋하게
-  camLift += (want - camLift) * Math.min(1, dt * (want > camLift ? 2.2 : 0.9))
+  const want = grid && !cine && !machine.value ? wantLift(cam, grid, B, cellOf) : 0
+  camLift = easeLift(camLift, want, dt)
 }
 
 function placeCamera() {
-  const p = camAt(camLift)
+  const p = camAt(cam, camLift)
   camera.position.set(p.x, p.y, p.z)
   if (shake > 0) {
     camera.position.x += (Math.random() - 0.5) * shake * 0.8
@@ -2434,70 +2023,29 @@ function frame(now) {
   updateSpread(t)
   updateZone(dt)
   if (!paused.value && !cine) sputter(t)
-  updateSparks(dt)
+  sparks.update(dt)
   updateSky(dt)
   miniTimer -= dt
   if (miniTimer <= 0) {
     miniTimer = 0.12
-    drawMini(t, g)
+    updateMini(t, g)
   }
   tune(ms, dt)
   composer.render()
 }
 
 // --- 작은 지도 ------------------------------------------------------------------
-const MAP_COLOR = ['#3a3a44', '#202028', '#3a3430', '#2c4a2a', '#1d3560', '#2c4a2a', '#2a2a30', '#34302c', '#2c4a2a', '#45454e']
-function drawMapBase() {
-  const { N, height, ground } = grid
-  const c = document.createElement('canvas')
-  c.width = N
-  c.height = N
-  const m = c.getContext('2d')
-  const img = m.createImageData(N, N)
-  const rgb = MAP_COLOR.map((hx) => [1, 3, 5].map((o) => Number.parseInt(hx.slice(o, o + 2), 16)))
-  for (let n = 0; n < N * N; n++) {
-    const h = height[n]
-    const v = Math.min(150, 70 + h * 2)
-    const [r, g, b] = h ? [v, v, v + 8] : rgb[ground[n]] || rgb[0]
-    img.data.set([r, g, b, 255], n * 4)
-  }
-  m.putImageData(img, 0, 0)
-  return c
-}
-
-function drawMini(t, goal) {
+function updateMini(t, goal) {
   const cv = mini.value
   if (!cv || !mapBase) return
-  const S = cv.width
-  const g = cv.getContext('2d')
-  const zoom = 1.6
-  const [pi, pk] = [player.pos.x / B + grid.half, player.pos.z / B + grid.half]
-  g.fillStyle = '#0a0a10'
-  g.fillRect(0, 0, S, S)
-  g.save()
-  g.translate(S / 2, S / 2)
-  g.rotate(cam.yaw)
-  g.scale(zoom, zoom)
-  g.imageSmoothingEnabled = false
-  g.drawImage(mapBase, -pi, -pk)
-  const dot = (x, z, color, size) => {
-    g.fillStyle = color
-    g.fillRect(x / B + grid.half - pi - size / 2, z / B + grid.half - pk - size / 2, size, size)
-  }
+  const dots = []
   for (const p of litSet) {
     const s = signAt(p)
-    dot(s.x, s.z, '#ffcf3a', 3)
+    dots.push({ x: s.x, z: s.z, color: '#ffcf3a', size: 3 })
   }
-  for (const n of npcs) if (n.kind === 'folk') dot(n.at.x, n.at.z, '#7ee0ff', 3)
-  if (goal && Math.sin(t * 8) > -0.3) dot(goal.x, goal.z, goal.kind === 'fare' ? '#ffa300' : '#ff4d6d', 6)
-  g.restore()
-  // 나는 가운데 노란 세모(늘 위쪽을 본다)
-  g.fillStyle = '#ffcf3a'
-  g.beginPath()
-  g.moveTo(S / 2, S / 2 - 6)
-  g.lineTo(S / 2 + 5, S / 2 + 5)
-  g.lineTo(S / 2 - 5, S / 2 + 5)
-  g.fill()
+  for (const n of npcs) if (n.kind === 'folk') dots.push({ x: n.at.x, z: n.at.z, color: '#7ee0ff', size: 3 })
+  if (goal && Math.sin(t * 8) > -0.3) dots.push({ x: goal.x, z: goal.z, color: goal.kind === 'fare' ? '#ffa300' : '#ff4d6d', size: 6 })
+  drawMini(cv, { base: mapBase, half: grid.half, B, at: player.pos, yaw: cam.yaw, dots })
 }
 
 // --- 입력 -----------------------------------------------------------------------
@@ -2675,7 +2223,7 @@ onMounted(() => {
   window.addEventListener('keyup', onKeyUp)
   window.addEventListener('look:change', onLook)
   window.addEventListener('game:over', onGameOver)
-  if (import.meta.env.DEV) window.__street3d = { player, cam, repair, signs: () => signPlaced, near, story, quest, dialog, machine, startStory, openQuest, questBack, finishChapter, startBuild, chooseName, finishBuild, placeBlock, voxels, startMachine, hailTaxi, startFare, cab: () => cab, fareRun: () => fareRun, interact, askBoss, setTime, lit: () => litSet, guidePos, nextLine, grid: () => grid, endMachine, town: () => town, others, nextShop, placeFolks, walkField, lift: () => camLift, pr: () => renderer.getPixelRatio() }
+  if (import.meta.env.DEV) window.__street3d = { player, cam, repair, signs: () => signPlaced, near, story, quest, dialog, machine, startStory, openQuest, questBack, finishChapter, startBuild, chooseName, finishBuild, placeBlock, voxels, startMachine, hailTaxi, startFare, cab: () => cab, fareRun: () => fareRun, interact, askBoss, setTime, lit: () => litSet, guidePos, nextLine, grid: () => grid, endMachine, town: () => town, others: () => crowd?.others, nextShop, placeFolks, walkField, lift: () => camLift, pr: () => renderer.getPixelRatio() }
   boot()
   if (props.play) playFromOutside()
 })
@@ -2732,7 +2280,7 @@ onBeforeUnmount(() => {
     people?.dispose()
     weatherFx?.dispose()
     for (const t of frames) t.dispose()
-    for (const e of texCache.values()) e.tex?.dispose()
+    disposeNpcTex()
   }
   composer?.dispose()
   renderer?.dispose()
@@ -2906,14 +2454,14 @@ onBeforeUnmount(() => {
             <button class="on" @click="playStory">▶ {{ storyOn || (nextCh > 0) ? '이어하기' : '시작하기' }}</button>
           </template>
           <button v-else class="on" @click="closeMenu">▶ 계속하기</button>
-          <button @click="openPanel('story')">장 고르기</button>
+          <button @click="openPanel('story')">챕터 고르기</button>
           <button @click="menuAtlas">간판 지도</button>
           <button @click="openPanel('keys')">조작법</button>
           <button v-if="!onTitle && !windowed" @click="unfull">창 모드로</button>
           <button @click="close">나가기</button>
         </template>
         <template v-else-if="panel === 'story'">
-          <h2>장 고르기</h2>
+          <h2>챕터 고르기</h2>
           <button v-for="(c, n) in CHAPTERS" :key="c.id" class="s3-ch" :class="{ on: story?.ch === c, lock: !unlocked(n) }" :disabled="!unlocked(n)" @click="menuStory(n)">
             <i class="s3-ride-dot" :style="{ background: c.ride.color }">{{ c.ride.line }}</i>{{ c.title }}<span v-if="cleared.includes(c.id)" class="s3-ok">✓</span>
           </button>
@@ -2947,969 +2495,4 @@ onBeforeUnmount(() => {
     </div>
   </div>
 </template>
-<style scoped>
-.s3 {
-  position: fixed;
-  inset: 0;
-  z-index: 15000;
-  overflow: hidden;
-  background: #0b1030;
-  color: #f4f1ea;
-  font-family: 'Galmuri11 Game', Galmuri11, sans-serif;
-  user-select: none;
-}
-
-.s3.windowed {
-  position: absolute;
-  z-index: auto;
-  border-radius: inherit;
-}
-
-.s3 :deep(canvas:first-child) {
-  display: block;
-  width: 100%;
-  height: 100%;
-  cursor: grab;
-}
-
-.s3-load {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 14px;
-  background: #000;
-  font-size: 15px;
-  color: #8e8ea0;
-}
-
-.s3-load p {
-  margin: 0;
-}
-
-.s3-dots {
-  display: flex;
-  gap: 8px;
-}
-
-.s3-dots i {
-  width: 8px;
-  height: 8px;
-  background: #ffcf3a;
-  animation: s3-blink 0.9s infinite steps(1);
-}
-
-.s3-dots i:nth-child(2) {
-  animation-delay: 0.3s;
-}
-
-.s3-dots i:nth-child(3) {
-  animation-delay: 0.6s;
-}
-
-@keyframes s3-blink {
-  50% {
-    opacity: 0.15;
-  }
-}
-
-.s3-notice {
-  position: absolute;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  margin: 0;
-  padding: 8px 14px;
-  background: #000;
-  border: 2px solid #ffcf3a;
-  font-size: 13px;
-}
-
-.s3-count {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 12px 7px 9px;
-  background: rgb(0 0 0 / 0.72);
-  box-shadow: 0 0 0 2px #000, inset 0 0 0 2px #2a2a36;
-  font-size: 18px;
-  font-weight: 700;
-  color: #ffcf3a;
-}
-
-.s3-count small {
-  font-size: 13px;
-  color: #8e8ea0;
-}
-
-.s3-count .ic {
-  width: 18px;
-  height: 18px;
-}
-
-.s3-card {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  width: 272px;
-  padding: 10px 12px 10px;
-  background: rgb(14 14 22 / 0.9);
-  box-shadow: 0 0 0 2px #000, inset 0 0 0 2px #ffcf3a, 4px 4px 0 2px #000;
-  font-size: 13px;
-  line-height: 1.45;
-  pointer-events: none;
-}
-
-.s3-card-from {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.s3-card-from b {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #ffcf3a;
-}
-
-.s3-card-from em {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  font-style: normal;
-  font-weight: 700;
-  color: #ffcf3a;
-}
-
-.s3-card-from .ic {
-  width: 14px;
-  height: 14px;
-}
-
-.s3-card-face {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  overflow: hidden;
-  background: #1b1622;
-  font-size: 20px;
-}
-
-.s3-card-face img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: top;
-  image-rendering: pixelated;
-}
-
-.s3-card p {
-  margin: 7px 0 8px;
-  color: #fff;
-}
-
-.s3-card ol {
-  display: grid;
-  gap: 3px;
-  margin: 0 0 8px;
-  padding: 0;
-  list-style: none;
-  font-size: 12px;
-  color: #8e8ea0;
-}
-
-.s3-card li::before {
-  content: '□ ';
-}
-
-.s3-card li.ok {
-  text-decoration: line-through;
-}
-
-.s3-card li.ok::before {
-  content: '■ ';
-  color: #4ade80;
-}
-
-.s3-card li.now {
-  color: #ffcf3a;
-}
-
-.s3-card li.now::before {
-  content: '▶ ';
-}
-
-.s3-card .s3-pips {
-  margin-left: 0;
-}
-
-@media (max-width: 720px) {
-  .s3-card {
-    width: 200px;
-    padding: 8px 10px;
-  }
-
-  .s3-card p {
-    display: none;
-  }
-
-  .s3-card ol {
-    margin-top: 6px;
-  }
-
-  .s3-card ~ .s3-goal {
-    top: 160px;
-    left: 16px;
-    transform: none;
-  }
-}
-
-.s3-mini {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 132px;
-  height: 132px;
-  image-rendering: pixelated;
-  box-shadow: 0 0 0 2px #000, 0 0 0 4px #2a2a36;
-  border-radius: 50%;
-}
-
-.s3-goal {
-  position: absolute;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px 6px 10px;
-  background: rgb(0 0 0 / 0.72);
-  box-shadow: 0 0 0 2px #000, inset 0 0 0 2px #ffcf3a;
-  font-size: 15px;
-  font-weight: 700;
-  color: #ffcf3a;
-}
-
-.s3-arrow {
-  display: inline-block;
-  width: 22px;
-  height: 36px;
-  margin: -6px 0;
-  transition: transform 0.12s linear;
-}
-
-.s3-arrow svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  filter: drop-shadow(0 0 4px currentColor);
-  animation: s3-nudge 0.9s ease-in-out infinite;
-}
-
-.s3-arrow .tail {
-  animation: s3-tail 0.9s ease-in-out infinite;
-}
-
-@keyframes s3-nudge {
-  50% {
-    transform: translateY(-3px);
-  }
-}
-
-@keyframes s3-tail {
-  50% {
-    transform: scaleY(1.12);
-    transform-origin: 50% 40%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .s3-arrow svg,
-  .s3-arrow .tail {
-    animation: none;
-  }
-}
-
-.s3-hint {
-  position: absolute;
-  bottom: 13%;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px 6px 6px;
-  background: rgb(0 0 0 / 0.78);
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.s3-hint kbd {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  background: #ffcf3a;
-  color: #1b1622;
-  font: inherit;
-  box-shadow: 0 3px 0 #8a6a10;
-  animation: s3-tap 0.8s infinite;
-}
-
-.s3-hint-wide kbd {
-  width: auto;
-  padding: 0 8px;
-}
-
-@keyframes s3-tap {
-  50% {
-    transform: translateY(2px);
-    box-shadow: 0 1px 0 #8a6a10;
-  }
-}
-
-.s3-toast {
-  position: absolute;
-  top: 22%;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 8px 18px;
-  font-size: 26px;
-  font-weight: 700;
-  color: #fff;
-  white-space: nowrap;
-  text-shadow: 0 0 6px var(--neon), 0 0 16px var(--neon), 3px 3px 0 #000;
-  pointer-events: none;
-}
-
-.s3-pop-enter-active {
-  animation: s3-in 0.35s steps(4);
-}
-
-.s3-pop-leave-active {
-  transition: opacity 0.4s;
-}
-
-.s3-pop-leave-to {
-  opacity: 0;
-}
-
-@keyframes s3-in {
-  from {
-    transform: translateX(-50%) scale(1.6);
-    opacity: 0;
-  }
-}
-
-.s3-scrim {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgb(0 0 0 / 0.6);
-}
-
-.s3-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  min-width: 280px;
-  padding: 26px 34px;
-  background: #000;
-  box-shadow: 0 0 0 2px #2a2a36, 0 0 0 4px #000;
-}
-
-.s3-panel h1 {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin: 0 0 14px;
-  font-size: 30px;
-  color: #f4f1ea;
-  text-shadow: 3px 3px 0 #1b1622;
-}
-
-.s3-panel h1 em {
-  font-style: normal;
-  font-size: 14px;
-  padding: 2px 5px;
-  background: #ffcf3a;
-  color: #1b1622;
-  text-shadow: none;
-}
-
-.s3-panel button {
-  padding: 8px 4px;
-  border: 0;
-  background: none;
-  color: #8e8ea0;
-  font: 700 18px/1 'Galmuri11 Game', Galmuri11, sans-serif;
-  letter-spacing: 0.04em;
-  cursor: pointer;
-}
-
-.s3-panel button:hover,
-.s3-panel button.on {
-  color: #ffcf3a;
-  text-shadow: 3px 3px 0 #1b1622;
-}
-
-.s3-keys {
-  display: grid;
-  grid-template-columns: auto auto;
-  gap: 8px 22px;
-  margin: 0 0 12px;
-  font-size: 14px;
-}
-
-.s3-keys dt {
-  color: #ffcf3a;
-  text-align: right;
-}
-
-.s3-keys dd {
-  margin: 0;
-  color: #d8d6e0;
-}
-
-.s3-panel h2 {
-  margin: 0 0 12px;
-  font-size: 20px;
-  color: #ffcf3a;
-  text-shadow: 3px 3px 0 #1b1622;
-}
-
-.s3-panel button:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.s3-panel button.back {
-  margin-top: 8px;
-  font-size: 15px;
-}
-
-.s3-ch {
-  display: flex;
-  align-items: center;
-}
-
-.s3-ok {
-  margin-left: 6px;
-  color: #30d158;
-}
-
-.s3-ride-dot {
-  display: inline-grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  margin-right: 8px;
-  border-radius: 50%;
-  color: #fff;
-  font-size: 11px;
-  font-style: normal;
-  text-shadow: none;
-}
-
-.s3-pips {
-  display: flex;
-  gap: 3px;
-  margin-left: 4px;
-}
-
-.s3-pips i {
-  width: 8px;
-  height: 8px;
-  background: #2a2a36;
-}
-
-.s3-pips i.on {
-  background: #ffcf3a;
-}
-
-.s3-goal.boss {
-  color: #ff6b81;
-  box-shadow: 0 0 0 2px #000, inset 0 0 0 2px #ff4d6d;
-}
-
-.s3-goal.fare {
-  color: #ffa300;
-  box-shadow: 0 0 0 2px #000, inset 0 0 0 2px #ffa300;
-}
-
-.s3-fare {
-  position: absolute;
-  top: 60px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 6px 14px;
-  background: #000;
-  box-shadow: 0 0 0 2px #ffa300;
-  font-size: 14px;
-  color: #f4f1ea;
-  white-space: nowrap;
-}
-
-.s3-fare b {
-  font-size: 22px;
-  color: #ffa300;
-}
-
-.s3-fare.hurry b {
-  color: #ff4d6d;
-  animation: s3-blink 0.5s infinite steps(1);
-}
-
-.s3-fare small {
-  color: #8e8ea0;
-}
-
-.s3-toast small {
-  display: block;
-  margin-top: 2px;
-  font-size: 13px;
-  text-align: center;
-  color: #ffcf3a;
-  text-shadow: 2px 2px 0 #000;
-}
-
-.s3-chat {
-  position: absolute;
-  top: 164px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(440px, calc(100% - 20px));
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px 8px 8px;
-  font-size: 14px;
-  line-height: 1.55;
-  background: #000;
-  box-shadow: 0 0 0 2px #2a2a36, 0 0 0 4px #000;
-  pointer-events: none;
-}
-
-.s3-chat-face {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  overflow: hidden;
-  background: #1b1622;
-  font-size: 28px;
-}
-
-.s3-chat-face img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: top;
-  image-rendering: pixelated;
-}
-
-.s3-chat p {
-  margin: 0;
-}
-
-.s3-chat b {
-  display: block;
-  color: #ffcf3a;
-}
-
-.s3-hotbar {
-  position: absolute;
-  bottom: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  background: #000;
-  box-shadow: 0 0 0 2px #2a2a36;
-}
-
-.s3-hotbar button {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: 0;
-  background: #1b1622;
-  cursor: pointer;
-}
-
-.s3-hotbar button.on {
-  outline: 3px solid #ffcf3a;
-}
-
-.s3-hotbar img {
-  image-rendering: pixelated;
-}
-
-.s3-hotbar .hand,
-.s3-hotbar .erase {
-  font-size: 20px;
-  color: #f4f1ea;
-}
-
-.s3-hotbar .erase {
-  color: #ff5a5a;
-}
-
-.s3-hotbar span {
-  position: absolute;
-  right: 3px;
-  bottom: 1px;
-  font-size: 10px;
-  color: #f4f1ea;
-  text-shadow: 1px 1px 0 #000;
-}
-
-.s3-pad {
-  position: absolute;
-  left: 14px;
-  bottom: 70px;
-  display: grid;
-  grid-template: repeat(3, 48px) / repeat(3, 48px);
-}
-
-.s3-pad button,
-.s3-acts button {
-  padding: 0;
-  border: 0;
-  background: rgb(0 0 0 / 0.72);
-  box-shadow: inset 0 0 0 2px #2a2a36;
-  color: #ffcf3a;
-  font: 700 15px 'Galmuri11 Game', Galmuri11, sans-serif;
-  touch-action: none;
-}
-
-.s3-pad .up {
-  grid-area: 1 / 2;
-}
-
-.s3-pad .left {
-  grid-area: 2 / 1;
-}
-
-.s3-pad .right {
-  grid-area: 2 / 3;
-}
-
-.s3-pad .down {
-  grid-area: 3 / 2;
-}
-
-.s3-acts {
-  position: absolute;
-  right: 14px;
-  bottom: 70px;
-  display: grid;
-  gap: 6px;
-}
-
-.s3-acts button {
-  width: 70px;
-  height: 42px;
-}
-
-.s3-year {
-  position: absolute;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  text-align: center;
-  font-size: 18px;
-  text-shadow: 3px 3px 0 #1b1622;
-}
-
-.s3-year b {
-  font-size: 56px;
-  color: #ffcf3a;
-}
-
-.s3-year small {
-  display: block;
-  font-size: 13px;
-  color: #f4f1ea;
-}
-
-.s3-machine {
-  position: absolute;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: min(620px, calc(100% - 24px));
-  padding: 10px 14px;
-  background: #000;
-  box-shadow: 0 0 0 2px #2a2a36;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.s3-machine input {
-  flex: 1;
-  accent-color: #ffcf3a;
-}
-
-.s3-machine button {
-  padding: 4px 10px;
-  border: 0;
-  background: none;
-  color: #ffcf3a;
-  font: 700 16px 'Galmuri11 Game', Galmuri11, sans-serif;
-  cursor: pointer;
-}
-
-/* 놀이 판: 거리를 다 덮는다 */
-.s3-stage {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  background: #000;
-}
-
-.s3-stage-bar {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 12px;
-  padding: 8px 14px;
-  background: #000;
-  box-shadow: 0 2px 0 #2a2a36;
-  font-size: 13px;
-}
-
-.s3-stage.boss .s3-stage-bar {
-  box-shadow: 0 2px 0 #ff4d6d;
-}
-
-.s3-stage-face {
-  width: 34px;
-  height: 34px;
-  object-fit: cover;
-  object-position: top;
-  image-rendering: pixelated;
-  box-shadow: 0 0 0 2px #2a2a36;
-}
-
-.s3-stage-who {
-  color: #ffcf3a;
-}
-
-.s3-stage.boss .s3-stage-who {
-  color: #ff6b81;
-}
-
-.s3-stage-bar b {
-  font-size: 16px;
-}
-
-.s3-stage-state {
-  color: #8e8ea0;
-}
-
-.s3-stage-state.ok {
-  color: #30d158;
-}
-
-.s3-stage-acts {
-  display: flex;
-  gap: 8px;
-  margin-left: auto;
-}
-
-.s3-stage-acts button {
-  padding: 5px 12px;
-  border: 0;
-  background: #1b1622;
-  box-shadow: inset 0 0 0 2px #2a2a36;
-  color: #d8d6e0;
-  font: 700 13px 'Galmuri11 Game', Galmuri11, sans-serif;
-  cursor: pointer;
-}
-
-.s3-stage-acts button:hover {
-  color: #ffcf3a;
-}
-
-.s3-stage-acts .primary {
-  background: #ffcf3a;
-  box-shadow: none;
-  color: #1b1622;
-}
-
-.s3-stage-acts .primary:hover {
-  color: #1b1622;
-}
-
-.s3-stage-body {
-  min-height: 0;
-  overflow: auto;
-  user-select: text;
-}
-
-.s3-stage-body > :deep(*) {
-  min-height: 100%;
-}
-
-.s3-stage-win {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  border-radius: 0;
-}
-
-.s3-stage-win > .app-body {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
-
-/* 한 줄씩 엇갈려 덮었다가 걷히는 막 */
-.s3-wipe {
-  position: absolute;
-  inset: 0;
-  z-index: 60;
-  display: grid;
-  grid-template-rows: repeat(14, 1fr);
-  overflow: hidden;
-  pointer-events: all;
-}
-
-.s3-wipe i {
-  display: block;
-  background: #000;
-  box-shadow: inset 0 -2px 0 #ffcf3a33;
-  transform: translateX(calc(var(--s) * 101%));
-}
-
-.s3-wipe.cover i {
-  animation: s3-wipe-in 0.2s steps(5) var(--d) forwards;
-}
-
-.s3-wipe.reveal i {
-  transform: none;
-  animation: s3-wipe-out 0.2s steps(5) var(--d) forwards;
-}
-
-@keyframes s3-wipe-in {
-  to {
-    transform: none;
-  }
-}
-
-@keyframes s3-wipe-out {
-  to {
-    transform: translateX(calc(var(--s) * -101%));
-  }
-}
-
-/* 장 시작 지하철 카드 */
-.s3-ride {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  z-index: 30;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 6px 16px;
-  width: min(420px, calc(100% - 24px));
-  padding: 18px 22px;
-  background: #000;
-  box-shadow: 0 0 0 2px #2a2a36, 0 0 0 4px #000;
-  transform: translate(-50%, -50%);
-  animation: s3-ride-in 0.35s steps(4);
-}
-
-.s3-ride-line {
-  display: grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  font-size: 24px;
-  font-weight: 700;
-}
-
-.s3-ride-text {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.s3-ride-text small {
-  color: #8e8ea0;
-}
-
-.s3-ride-text b {
-  font-size: 22px;
-  text-shadow: 3px 3px 0 #1b1622;
-}
-
-.s3-ride-text span {
-  color: #ffcf3a;
-  font-size: 13px;
-}
-
-.s3-ride-track {
-  position: relative;
-  grid-column: 1 / -1;
-  height: 6px;
-  margin-top: 8px;
-  background: color-mix(in srgb, var(--c) 30%, transparent);
-  overflow: hidden;
-}
-
-.s3-ride-track i {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 28%;
-  background: var(--c);
-  animation: s3-ride-go 1.4s linear infinite;
-}
-
-@keyframes s3-ride-go {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(360%);
-  }
-}
-
-@keyframes s3-ride-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -44%);
-  }
-}
-</style>
+<style scoped src="./street3d/street3d.css"></style>
