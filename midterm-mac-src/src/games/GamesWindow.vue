@@ -113,7 +113,7 @@ const heroLine = computed(() => {
   if (!started.value) return '공릉동에서 시작해요'
   return now.value?.next || `${CHAPTERS[curN.value].ride.station}역으로 가요`
 })
-const heroCh = computed(() => (allDone.value ? '모든 장을 끝냈어요' : CHAPTERS[curN.value].title))
+const heroCh = computed(() => (allDone.value ? '모든 챕터를 끝냈어요' : CHAPTERS[curN.value].title))
 const heroPct = computed(() => {
   if (allDone.value) return 100
   const ch = chapters.value[curN.value]
@@ -227,7 +227,7 @@ onBeforeUnmount(() => {
           </article>
 
           <div class="stats">
-            <button class="b stat" @click="go('story')"><strong>{{ cleared.length }}<small>/{{ CHAPTERS.length }}</small></strong><span>장</span></button>
+            <button class="b stat" @click="go('story')"><strong>{{ cleared.length }}<small>/{{ CHAPTERS.length }}</small></strong><span>챕터</span></button>
             <button class="b stat" @click="go('story')"><strong>{{ beaten }}<small>/{{ BOSS_LIST.length }}</small></strong><span>보스</span></button>
             <div class="stat"><strong>{{ fmt(dex.length) }}</strong><span>간판</span></div>
             <div class="stat"><strong class="shop-name">{{ shop?.name || '-' }}</strong><span>내 가게</span></div>

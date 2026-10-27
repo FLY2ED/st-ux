@@ -3525,7 +3525,7 @@ onBeforeUnmount(() => {
                   {{ story && !story.done ? `계속하기 · ${story.ch.title}` : nextCh < 0 ? '처음부터 다시' : nextCh === 0 ? '이야기 시작' : `이어하기 · ${CHAPTERS[nextCh].title}` }}
                 </button>
                 <div class="pair">
-                  <button class="mc-btn" :disabled="!ready" @click="openPanel('story')">장 고르기</button>
+                  <button class="mc-btn" :disabled="!ready" @click="openPanel('story')">챕터 고르기</button>
                   <button class="mc-btn" @click="openPanel('keys')">조작법</button>
                 </div>
               </template>
@@ -3533,7 +3533,7 @@ onBeforeUnmount(() => {
                 <button class="mc-btn" @click="resume">게임으로 돌아가기</button>
                 <button class="mc-btn" :disabled="!ready" @click="openQuest('atlas')">간판 지도 (M)</button>
                 <div class="pair">
-                  <button class="mc-btn" :disabled="!ready" @click="openPanel('story')">장 고르기</button>
+                  <button class="mc-btn" :disabled="!ready" @click="openPanel('story')">챕터 고르기</button>
                   <button class="mc-btn" @click="openPanel('keys')">조작법</button>
                 </div>
               </template>
