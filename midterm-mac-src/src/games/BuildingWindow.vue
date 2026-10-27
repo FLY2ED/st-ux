@@ -4,13 +4,15 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 // Vite 가 maplibre 를 미리 묶으면 워커 주소를 잃어서 워커 파일을 따로 넘긴다
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { Protocol } from 'pmtiles'
-import { load, looksLikeName, nameCount, nearby, search } from '../data.js'
+import { graphDots, load, looksLikeName, nameCount, nearby, search } from '../data.js'
 import { enter, openShop, player, shops as sharedShops, where } from '../arcade.js'
 import { sfx } from '../sound.js'
 import { signsInRadius, tileIndex, tileUrl } from '../tiles.js'
+import HandControl from './HandControl.vue'
+import NameGraph from './NameGraph.vue'
 import PixelShop from './PixelShop.vue'
 
-// mode: 처음 열 탭. '우리 동네'·'내 가게' 앱도 이 창을 그 탭으로 연다
+// mode: 처음 열 단계. '우리 동네'·'내 가게' 앱도 이 창을 그 단계로 연다
 // word: 처음부터 찾아 둘 글자(간판 수리공 이야기에서 내 이름을 넣어 연다)
 const props = defineProps({
   mode: { type: String, default: 'name' },
@@ -24,12 +26,9 @@ const props = defineProps({
 const MapDuel = defineAsyncComponent(() => import('./stage/MapDuel.vue'))
 const emit = defineEmits(['opened'])
 
-const MODES = [
-  { id: 'name', label: '이름 찾기' },
-  { id: 'near', label: '우리 동네' },
-  { id: 'shop', label: '내 가게' },
-]
-const validMode = (m) => (MODES.some((x) => x.id === m) ? m : 'name')
+// 탭 없이 지구본 동작으로 단계가 바뀐다: 이름을 찾으면 name, 땅을 누르면 near, '여기에 가게 차리기'를 누르면 shop
+const STAGES = ['name', 'near', 'shop']
+const validMode = (m) => (STAGES.includes(m) ? m : 'name')
 const duel = props.embed && validMode(props.mode) === 'name'
 const tab = ref(validMode(props.mode))
 watch(
@@ -42,22 +41,45 @@ const KOREA = [
   [124.6, 33.0],
   [130.9, 38.7],
 ]
-// 바탕 지도 없이 간판 점만으로 전국을 그린다. 색은 흑백에 강조색 하나(찾은 간판·내 자리)
+const inKorea = (lng, lat) => lng >= KOREA[0][0] && lng <= KOREA[1][0] && lat >= KOREA[0][1] && lat <= KOREA[1][1]
+// 지구 전체가 보이는 자리. 한국이 가운데 오게 돌려 둔다
+const WORLD = { center: [127.8, 30], zoom: 1.4 }
+// 바탕 지도 없이 간판 점만으로 지구본을 그린다. 색은 흑백에 강조색 하나(찾은 간판·내 자리)
 const HOT = '#ff4f00'
 const isDark = () => document.documentElement.classList.contains('dark')
 const ink = () => (isDark() ? '#f2f2f2' : '#111111')
-const paper = () => (isDark() ? '#0b0b0c' : '#f7f7f5')
+// 공 표면 색. 공 밖(우주)은 CSS 바탕색이 비쳐서 둘을 조금 다르게 둔다
+const paper = () => (isDark() ? '#151517' : '#ffffff')
 // 글자 모양(글리프)만 OpenFreeMap에서 받는다. 한글은 localIdeographFontFamily로 브라우저 글꼴을 쓴다
 const blankStyle = () => ({
   version: 8,
+  projection: { type: 'globe' },
   glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
   sources: {},
   layers: [{ id: 'bg', type: 'background', paint: { 'background-color': paper() } }],
 })
+
+// 지구본에 15도마다 긋는 경위선. 땅 모양 없이도 공이 도는 게 보인다
+function graticule() {
+  const lines = []
+  for (let lng = -180; lng < 180; lng += 15) {
+    const c = []
+    for (let lat = -80; lat <= 80; lat += 4) c.push([lng, lat])
+    lines.push(c)
+  }
+  for (let lat = -75; lat <= 75; lat += 15) {
+    const c = []
+    for (let lng = -180; lng <= 180; lng += 4) c.push([lng, lat])
+    lines.push(c)
+  }
+  return { type: 'FeatureCollection', features: lines.map((coordinates) => ({ type: 'Feature', geometry: { type: 'LineString', coordinates }, properties: {} })) }
+}
 const SUGGEST = ['민수', '지은', '행복', '사랑', '하늘']
 
 const query = ref('')
 const result = ref(null)
+// 별자리 점(말마다 전국에서 고르게 뽑은 최대 1000곳). 색인에 없는 말이면 null
+const dots = shallowRef(null)
 const floors = ref([])
 const busy = ref(false)
 const error = ref('')
@@ -68,7 +90,6 @@ const mapEl = ref(null)
 const ready = ref(false)
 let map = null
 let maplibre = null
-let markers = []
 let popup = null
 
 const candidates = computed(() => {
@@ -110,9 +131,14 @@ async function submit(word = query.value) {
   }
   busy.value = true
   picked.value = null
+  tab.value = 'name'
   try {
-    result.value = await search(word)
+    const [found, graph] = await Promise.all([search(word), graphDots(word).catch(() => null)])
+    result.value = found
+    dots.value = graph
     if (!listed.value.length) error.value = '그 글자가 들어간 간판을 못 찾았어요'
+    // 찾으면 먼저 이름 별자리로 보여 준다. 지도는 '장소'에서
+    else view.value = 'graph'
     if (candidates.value.length) build()
     window.dispatchEvent(new CustomEvent('game:over', { detail: { game: 'map', score: listed.value.length, word } }))
   } catch {
@@ -157,24 +183,65 @@ function esc(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
 }
 
-function pinEl(town) {
-  const top = town.rows[0]
-  const el = document.createElement('button')
-  el.className = 'am-pin'
-  el.setAttribute('aria-label', `${town.region} ${town.rows.length}곳`)
-  el.innerHTML = `<span class="am-dot">${town.rows.length > 1 ? town.rows.length : esc(top.cat[0])}</span><span class="am-label">${esc(town.short)}</span>`
-  el.addEventListener('click', (e) => {
-    e.stopPropagation()
-    pick(town)
-  })
-  return el
+// ── 이름 별자리: 찾은 동네마다 땅에서 실을 세워 공중에 별(카드)을 띄우고, 가까운 별끼리 선으로 잇는다 ──
+const stars = shallowRef([])
+const links = shallowRef([])
+let starRaf = 0
+
+// 가까운 동네끼리 잇는 최소 신장 트리(동네가 수십 곳이라 단순하게 Prim)
+function linkTowns(list) {
+  if (list.length < 2) return []
+  const d = (a, b) => (a.lng - b.lng) ** 2 + (a.lat - b.lat) ** 2
+  const inTree = [0]
+  const edges = []
+  while (inTree.length < list.length) {
+    let best = null
+    for (const i of inTree)
+      for (let j = 0; j < list.length; j++) {
+        if (inTree.includes(j)) continue
+        const w = d(list[i], list[j])
+        if (!best || w < best[2]) best = [i, j, w]
+      }
+    edges.push([best[0], best[1]])
+    inTree.push(best[1])
+  }
+  return edges
 }
+
+// 화면 위치를 다시 잡는다. 지구 뒤편으로 넘어간 동네는 감춘다
+function placeStars() {
+  starRaf = 0
+  if (!map || tab.value !== 'name' || !towns.value.length) {
+    stars.value = []
+    return
+  }
+  const c = map.getCenter()
+  const z = map.getZoom()
+  const cards = z < 4 ? 4 : z < 7 ? 8 : 14
+  const r = Math.PI / 180
+  // 이름 카드는 겹치거나 검색창 밑으로 들어가면 빼고 별만 남긴다
+  const boxes = []
+  const free = (x, y) => {
+    const b = [x - 70, y - 46, x + 70, y + 4]
+    if (b[1] < 64 || boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1])) return false
+    boxes.push(b)
+    return true
+  }
+  stars.value = towns.value.map((t, i) => {
+    const facing = Math.sin(c.lat * r) * Math.sin(t.lat * r) + Math.cos(c.lat * r) * Math.cos(t.lat * r) * Math.cos((t.lng - c.lng) * r)
+    const p = map.project([t.lng, t.lat])
+    const lift = 30 + (i % 3) * 18
+    const hidden = facing < 0.2
+    const y = p.y - lift
+    return { t, i, gx: p.x, gy: p.y, x: p.x, y, hidden, card: !hidden && i < cards && free(p.x, y) }
+  })
+}
+const queueStars = () => (starRaf ||= requestAnimationFrame(placeStars))
 
 function drawPins() {
   if (!map) return
-  for (const m of markers) m.remove()
-  markers = towns.value.map((t) => new maplibre.Marker({ element: pinEl(t), anchor: 'bottom' }).setLngLat([t.lng, t.lat]).addTo(map))
-  showMarkers()
+  links.value = linkTowns(towns.value)
+  placeStars()
   if (tab.value !== 'name') return
   popup?.remove()
   fitTowns()
@@ -184,7 +251,7 @@ function fitTowns() {
   if (!towns.value.length) return
   const b = new maplibre.LngLatBounds()
   for (const t of towns.value) b.extend([t.lng, t.lat])
-  map.fitBounds(b, { padding: pad(60), maxZoom: 11, duration: 900 })
+  map.fitBounds(b, { padding: pad(80), maxZoom: 11, duration: 900 })
 }
 
 function panelWidth() {
@@ -192,9 +259,10 @@ function panelWidth() {
 }
 
 // 넓은 창은 왼쪽 패널, 좁은 창은 아래 시트(높이 55%)를 비켜서 맞춘다
+// 위쪽은 검색창(약 54px)만큼 더 비운다
 function pad(n) {
-  if (panelWidth()) return { top: n, bottom: n, left: panelWidth() + n - 20, right: n }
-  return { top: n, bottom: (mapEl.value?.offsetHeight || 0) * 0.55 + n / 2, left: n / 2, right: n / 2 }
+  if (panelWidth()) return { top: n + 44, bottom: n, left: panelWidth() + n - 20, right: n }
+  return { top: n + 44, bottom: (mapEl.value?.offsetHeight || 0) * 0.55 + n / 2, left: n / 2, right: n / 2 }
 }
 
 function pick(town) {
@@ -208,7 +276,7 @@ function pick(town) {
     .map((r) => `<li><i></i><b>${esc(r.name)}</b><small>${esc(r.cat)}${r.floor !== null ? ` · ${floorLabel(r.floor)}` : ''}</small></li>`)
     .join('')
   const more = town.rows.length > 6 ? `<p>외 ${town.rows.length - 6}곳</p>` : ''
-  popup = new maplibre.Popup({ offset: 34, closeButton: false, className: 'am-pop', maxWidth: '260px' })
+  popup = new maplibre.Popup({ anchor: 'top', offset: 12, closeButton: false, className: 'am-pop', maxWidth: '260px' })
     .setLngLat([town.lng, town.lat])
     .setHTML(`<h4>${esc(town.region)}</h4><ul>${items}</ul>${more}`)
     .addTo(map)
@@ -246,12 +314,33 @@ const signTotal = ref(0)
 const inView = ref(null)
 const zoomed = ref(false)
 
+// 지구본에서 볼 때(z5 아래)는 2km 칸마다 간판 수를 모은 점(map.json)으로 한국을 그린다. 멀리선 강조색으로 빛난다
+let cellPts = []
+const cellColor = () => ['interpolate', ['linear'], ['zoom'], 2, HOT, 4.2, ink()]
+
 async function setupSigns() {
-  const [idx, cats] = await Promise.all([tileIndex(), load('cats.json')])
+  const [idx, cats, grid] = await Promise.all([tileIndex(), load('cats.json'), load('map.json')])
   if (!map) return
   signTotal.value = idx.total
   const before = 'near-fill'
   const attribution = '소상공인시장진흥공단 상가(상권)정보'
+  const half = grid.step / 2
+  cellPts = grid.cells.map(([x, y, n]) => ({ lng: x * grid.step + half, lat: y * grid.step + half, n }))
+  map.addSource('cells', { type: 'geojson', data: fc(cellPts.map((c) => point(c.lng, c.lat, { n: c.n }))), attribution })
+  map.addLayer(
+    {
+      id: 'cells',
+      type: 'circle',
+      source: 'cells',
+      maxzoom: 5.2,
+      paint: {
+        'circle-color': cellColor(),
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, ['interpolate', ['linear'], ['get', 'n'], 1, 0.5, 2000, 1.4], 4.5, ['interpolate', ['linear'], ['get', 'n'], 1, 0.8, 2000, 2.4]],
+        'circle-opacity': ['interpolate', ['linear'], ['zoom'], 4.2, 0.9, 5.2, 0],
+      },
+    },
+    before,
+  )
   map.addSource('sign-ov', { type: 'vector', url: 'pmtiles://' + tileUrl('overview'), attribution })
   map.addLayer(
     {
@@ -311,13 +400,17 @@ async function setupSigns() {
 
 // 이름 찾기 중이면 그 글자가 든 간판만 강조색으로 띄우고 나머지 점은 흐린 전국 윤곽으로 남긴다.
 // 덜어 낸 전국 점(overview)엔 이름이 없어서 동네까지 당겨야 찾은 간판이 다 보인다
+// 왼쪽 패널은 보여 줄 것이 있을 때만 뜬다
+const graphOn = computed(() => tab.value === 'name' && view.value === 'graph' && !!(result.value && listed.value.length))
+const showPanel = computed(() => (tab.value === 'name' ? !!(result.value && listed.value.length) && !graphOn.value : true))
+
 const signWord = computed(() => (tab.value === 'name' && result.value?.word) || '')
 function applySigns() {
   if (!signsReady.value || !map) return
   const w = signWord.value
   const hit = ['in', w, ['get', 'n']]
   const on = (a, b) => (w ? ['case', hit, a, b] : b)
-  map.setPaintProperty('sign-ov', 'circle-opacity', ['interpolate', ['linear'], ['zoom'], 5, w ? 0.22 : 0.5, 11, w ? 0.3 : 0.85])
+  map.setPaintProperty('sign-ov', 'circle-opacity', ['interpolate', ['linear'], ['zoom'], 4.2, 0, 5, w ? 0.22 : 0.5, 11, w ? 0.3 : 0.85])
   for (const id of signLabels) {
     map.setFilter(id, w ? hit : null)
     map.setLayerZoomRange(id, w ? 14 : 16, 24)
@@ -340,7 +433,11 @@ watch(signWord, applySigns)
 function applyTheme() {
   if (!map || !ready.value) return
   map.setPaintProperty('bg', 'background-color', paper())
-  if (signsReady.value) map.setPaintProperty('sign-ov', 'circle-color', ink())
+  map.setPaintProperty('grid', 'line-color', ink())
+  if (signsReady.value) {
+    map.setPaintProperty('sign-ov', 'circle-color', ink())
+    map.setPaintProperty('cells', 'circle-color', cellColor())
+  }
   for (const id of ['near-fill', 'near-line']) map.setPaintProperty(id, id.endsWith('fill') ? 'fill-color' : 'line-color', ink())
   for (const id of ['near-dot', 'rival-dot', 'near-me']) map.setPaintProperty(id, 'circle-stroke-color', paper())
   map.setPaintProperty('rival-dot', 'circle-color', ink())
@@ -396,6 +493,14 @@ const NEAR_LAYERS = ['near-fill', 'near-line', 'near-dot', 'near-me-halo', 'near
 const SHOP_LAYERS = ['rival-fill', 'rival-line', 'rival-dot']
 
 function setupLayers() {
+  map.addSource('grid', { type: 'geojson', data: graticule() })
+  map.addLayer({
+    id: 'grid',
+    type: 'line',
+    source: 'grid',
+    maxzoom: 7,
+    paint: { 'line-color': ink(), 'line-width': 0.6, 'line-opacity': ['interpolate', ['linear'], ['zoom'], 1, 0.16, 5, 0.1, 7, 0] },
+  })
   for (const id of ['near-area', 'near-dots', 'near-me', 'rival-area', 'rival-dots']) map.addSource(id, { type: 'geojson', data: fc([]) })
   const dot = (id, source, extra = {}) =>
     map.addLayer({
@@ -441,7 +546,7 @@ function showPop(lngLat, html, offset = 12) {
 
 // 탭마다 보이는 것만 남긴다
 function showMarkers() {
-  for (const m of markers) m.getElement().style.display = tab.value === 'name' ? '' : 'none'
+  queueStars()
   for (const m of shopMarkers) m.getElement().style.display = tab.value === 'shop' ? '' : 'none'
   if (spotMarker) spotMarker.getElement().style.display = tab.value === 'shop' ? '' : 'none'
 }
@@ -475,6 +580,7 @@ const HERE_NOTE = {
   precise: '기기에서 받은 내 위치',
   ip: '인터넷 주소로 짐작한 대략 위치라 몇 km 어긋날 수 있어요',
   spot: '예시 장소예요. 내 위치가 아니에요',
+  pick: '지도에서 고른 자리 둘레예요',
 }
 
 async function scanAt(spot) {
@@ -483,9 +589,25 @@ async function scanAt(spot) {
   focus.value = null
   popup?.remove()
   here.value = spot
+  nearItems.value = []
   nearShown.value = 80
+  tab.value = 'near'
   try {
-    const rows = await nearby(spot.lng, spot.lat, RADIUS)
+    let rows = await nearby(spot.lng, spot.lat, RADIUS)
+    // 지도에서 고른 자리는 점 묶음(약 2km 칸) 한가운데라 간판에서 비켜날 수 있다. 가장 가까운 간판 쪽으로 옮겨 다시 모은다
+    if (!rows.length && spot.kind === 'pick') {
+      const pts = await signsInRadius(spot.lng, spot.lat, 2000).catch(() => [])
+      const kx0 = KX(spot.lat)
+      const near = pts.reduce((b, s) => {
+        const d = Math.hypot((s.lng - spot.lng) * kx0, (s.lat - spot.lat) * KY)
+        return !b || d < b.d ? { s, d } : b
+      }, null)
+      if (near) {
+        spot = { ...spot, lng: near.s.lng, lat: near.s.lat }
+        here.value = spot
+        rows = await nearby(spot.lng, spot.lat, RADIUS)
+      }
+    }
     const kx = KX(spot.lat)
     nearItems.value = rows.map((s, i) => ({ ...s, id: i, lng: spot.lng + s.dx / kx, lat: spot.lat + s.dy / KY }))
     nearSample.value = !!rows.sample
@@ -506,6 +628,7 @@ function locate() {
   }
   nearBusy.value = true
   nearErr.value = ''
+  tab.value = 'near'
   navigator.geolocation.getCurrentPosition(
     (p) => {
       geoGranted.value = true
@@ -553,6 +676,70 @@ function paintNearDots() {
   map.setPaintProperty('near-dot', 'circle-radius', ['interpolate', ['linear'], ['zoom'], 12, ['case', hit, 6, 2.2], 16, ['case', hit, 10, 4.5]])
 }
 watch(focus, paintNearDots)
+
+// 지구본을 누른 자리. 멀리서 누르면 손가락 둘레(40px) 안에서 간판이 가장 많은 칸으로 붙여 준다
+const notice = ref('')
+let noticeTimer = 0
+function say(text) {
+  notice.value = text
+  clearTimeout(noticeTimer)
+  noticeTimer = setTimeout(() => (notice.value = ''), 2600)
+}
+
+function snapToSigns(e) {
+  if (map.getZoom() >= 11 || !cellPts.length) return e.lngLat
+  let best = null
+  for (const c of cellPts) {
+    if (Math.abs(c.lng - e.lngLat.lng) > 3 || Math.abs(c.lat - e.lngLat.lat) > 3) continue
+    const p = map.project([c.lng, c.lat])
+    if (Math.hypot(p.x - e.point.x, p.y - e.point.y) > 40) continue
+    if (!best || c.n > best.n) best = c
+  }
+  return best
+}
+
+function onMapClick(e) {
+  if (tab.value === 'shop') {
+    if (map.queryRenderedFeatures(e.point, { layers: ['rival-dot'] }).length) return
+    setSpot(e.lngLat)
+    return
+  }
+  if (map.queryRenderedFeatures(e.point, { layers: ['near-dot', ...signDots].filter((id) => map.getLayer(id)) }).length) return
+  const { lng, lat } = e.lngLat
+  if (!inKorea(lng, lat)) {
+    say('간판 자료는 한국에만 있어요. 한국으로 데려갈게요')
+    home()
+    return
+  }
+  const at = snapToSigns(e)
+  if (!at) {
+    say('여긴 간판이 없어요. 점이 모인 곳을 눌러 보세요')
+    return
+  }
+  scanAt({ lng: at.lng, lat: at.lat, label: '고른 곳', kind: 'pick' })
+}
+
+// 별자리에서 고른 동네를 지도로 연다
+function graphTown(region) {
+  view.value = 'map'
+  const t = towns.value.find((x) => x.region === region)
+  if (t) setTimeout(() => pick(t), 50)
+}
+
+// 동네에서 바로 가게 차리기로 넘어간다. 자리는 지금 보는 동네 한가운데
+function goShop() {
+  if (here.value) setSpot(here.value)
+  tab.value = 'shop'
+}
+
+function clearName() {
+  result.value = null
+  query.value = ''
+  error.value = ''
+  picked.value = null
+  view.value = 'map'
+  popup?.remove()
+}
 
 const nearBars = computed(() => {
   const m = new Map()
@@ -741,7 +928,7 @@ watch(tab, (t) => {
   if (t === 'name' && ready.value) fitTowns()
   if (t === 'near') {
     if (here.value) drawNear(true)
-    else if (geoGranted.value) locate()
+    else if (geoGranted.value && !nearBusy.value) locate()
   }
   if (t === 'shop') {
     loadShared()
@@ -777,11 +964,12 @@ onMounted(async () => {
     protocolAdded = true
   }
   if (!mapEl.value) return
+  // 처음엔 지구 전체를 보여 주고 한국으로 내려앉는다. 다른 앱이 특정 단계로 열면 바로 한국에서 시작한다
+  const intro = tab.value === 'name' && !props.word
   map = new maplibre.Map({
     container: mapEl.value,
     style: blankStyle(),
-    bounds: KOREA,
-    fitBoundsOptions: { padding: { top: 30, bottom: 30, left: panelWidth() + 20, right: 30 } },
+    ...(intro ? WORLD : { bounds: KOREA, fitBoundsOptions: { padding: { top: 30, bottom: 30, left: panelWidth() + 20, right: 30 } } }),
     attributionControl: { compact: true },
     localIdeographFontFamily: getComputedStyle(document.body).fontFamily,
     dragRotate: false,
@@ -796,16 +984,16 @@ onMounted(async () => {
     drawShared()
     drawRivals()
     setupSigns().catch(() => {})
+    // 잠깐 지구를 보여 준 뒤, 그사이 사람이 먼저 돌리지 않았으면 한국으로 내려간다
+    if (intro) setTimeout(() => map && !map.isMoving() && !result.value && !here.value && home(2800), 1500)
   })
-  map.on('click', (e) => {
-    if (tab.value !== 'shop') return
-    if (map.queryRenderedFeatures(e.point, { layers: ['rival-dot'] }).length) return
-    setSpot(e.lngLat)
-  })
+  map.on('click', onMapClick)
   // 전국을 볼 때는 핀 이름이 겹쳐서 숫자만 남긴다
   const near = () => mapEl.value?.classList.toggle('far', map.getZoom() < 7.5)
   map.on('zoom', near)
   near()
+  map.on('move', queueStars)
+  map.on('resize', queueStars)
   observer = new ResizeObserver(() => map?.resize())
   observer.observe(mapEl.value)
   themeWatch = new MutationObserver(applyTheme)
@@ -815,8 +1003,10 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('arcade:player', onPlayer)
   clearTimeout(checkTimer)
+  clearTimeout(noticeTimer)
   observer?.disconnect()
   themeWatch?.disconnect()
+  cancelAnimationFrame(starRaf)
   map?.remove()
   map = null
   signDots = []
@@ -826,96 +1016,172 @@ onBeforeUnmount(() => {
 watch(towns, drawPins)
 
 const zoom = (d) => map?.easeTo({ zoom: map.getZoom() + d, duration: 250 })
-const home = () => map?.fitBounds(KOREA, { padding: { top: 30, bottom: 30, left: panelWidth() + 20, right: 30 }, duration: 700 })
+// 한국 전체. 처음 안내 카드가 떠 있으면 넓은 창에선 그 오른쪽, 좁은 창에선 그 위에 맞춘다
+const hintEl = ref(null)
+function home(duration = 900) {
+  if (!map) return
+  const hint = hintEl.value?.offsetHeight || 0
+  const wide = panelWidth() > 0
+  const padding = { top: 70, bottom: 30, left: wide ? 340 : 20, right: 30 }
+  if (!wide && hint) padding.bottom = hint + 24
+  map.fitBounds(KOREA, { padding, duration })
+}
+const globe = () => map?.flyTo({ ...WORLD, duration: 1400 })
+
+// 손 조작: 집어 끌면 지구본이 손을 따라 돌고, 두 손으로 벌리면 그 사이를 중심으로 당겨진다
+const hand = ref(false)
+const handPoint = ref(null)
+const graphRef = ref(null)
+const handDrag = (dx, dy) => (graphOn.value ? graphRef.value?.rotate(dx, dy) : map?.panBy([-dx, -dy], { duration: 0 }))
+function handZoom(dz, x, y) {
+  if (graphOn.value) return graphRef.value?.zoomBy(dz)
+  if (!map || !dz) return
+  map.zoomTo(map.getZoom() + dz, { around: map.unproject([x, y]), duration: 0 })
+}
+// 톡 집기는 그 자리를 마우스로 누른 것과 같게 친다(핀·단추·지도 모두)
+function handTap(x, y) {
+  const el = document.elementFromPoint(x, y)
+  if (!el) return
+  if (graphOn.value && el.tagName === 'CANVAS' && graphRef.value) return graphRef.value.choose(x, y)
+  for (const type of ['mousedown', 'mouseup', 'click']) el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 }))
+}
 </script>
 
 <template>
   <MapDuel v-if="duel" :goal="props.goal" :word="props.word" :boss="props.boss" :boss-name="props.bossName || '잊힘'" />
-  <div v-else class="amap" :class="`tab-${tab}`">
+  <div v-else class="amap" :class="[`tab-${tab}`, { 'has-panel': showPanel }]">
     <div ref="mapEl" class="map"></div>
 
-    <aside class="panel">
-      <div class="m-seg modes" role="tablist" aria-label="지도 보기">
-        <button v-for="m in MODES" :key="m.id" :class="{ on: tab === m.id }" role="tab" :aria-selected="tab === m.id" @click="tab = m.id">{{ m.label }}</button>
-      </div>
-
-      <!-- 이름 찾기 -->
-      <template v-if="tab === 'name'">
-        <form class="sbar" role="search" @submit.prevent="submit()">
-          <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6" /><path d="M10.4 10.4L14 14" /></svg>
-          <input v-model="query" type="search" placeholder="간판 이름 검색 (예: 민수)" maxlength="10" aria-label="간판 이름 검색" />
-          <span v-if="busy" class="spin" aria-label="찾는 중"></span>
-        </form>
-        <p v-if="error" class="m-err">{{ error }}</p>
-
-        <template v-if="result && listed.length">
-          <div class="m-seg seg" role="tablist">
-            <button :class="{ on: view === 'map' }" role="tab" @click="view = 'map'">장소</button>
-            <button :class="{ on: view === 'building' }" role="tab" :disabled="!floors.length" @click="view = 'building'">이름 빌딩</button>
-          </div>
-          <p class="sum">
-            ‘{{ result.word }}’ 들어간 간판 {{ result.exactCount ? '' : '최대 ' }}<b>{{ result.count.toLocaleString() }}곳</b><br />
-            <span>그중 {{ listed.length }}곳 · 동네 {{ towns.length }}곳</span>
-          </p>
-          <ul class="results">
-            <li v-for="r in listed.slice(0, 120)" :key="r.key">
-              <button :class="{ on: picked === r.region, accident: r.accident }" @click="pick(towns.find((t) => t.region === r.region))">
-                <i class="glyph">{{ r.cat[0] }}</i>
-                <span class="txt">
-                  <span class="name">{{ r.parts[0] }}<b>{{ r.parts[1] }}</b>{{ r.parts[2] }}<em v-if="r.accident">우연</em></span>
-                  <small>{{ r.cat }} · {{ r.short }}{{ r.floor !== null ? ` · ${floorLabel(r.floor)}` : '' }}</small>
-                </span>
-              </button>
-            </li>
-          </ul>
-          <p v-if="signsReady" class="live">
-            <template v-if="inView !== null">지금 화면에 ‘{{ result.word }}’ 간판 <b>{{ inView.toLocaleString() }}곳</b> · 정확한 자리</template>
-            <template v-else>골목까지 확대하면 ‘{{ result.word }}’ 들어간 간판이 정확한 자리에 전부 떠요 <button class="m-chip" :disabled="jumping" @click="zoomInto">{{ jumping ? '찾는 중…' : '한 곳 가 보기' }}</button></template>
-          </p>
-          <p class="note">목록·핀은 시·군·구별로 골라 담은 것 · 지도 점은 전국 전부 · ‘우연’ = 이름이 아니라 글자가 우연히 걸린 곳</p>
+    <!-- 이름 별자리. 별을 누르면(손으로 톡 집어도) 그 동네 간판을 펼친다 -->
+    <div v-if="tab === 'name' && stars.length" :key="result?.word" class="stars">
+      <svg aria-hidden="true">
+        <template v-for="([a, b], k) in links" :key="'l' + k">
+          <line v-if="!stars[a].hidden && !stars[b].hidden" class="link" :x1="stars[a].x" :y1="stars[a].y" :x2="stars[b].x" :y2="stars[b].y" />
         </template>
+        <template v-for="st in stars" :key="'s' + st.i">
+          <g v-if="!st.hidden">
+            <line class="stem" :x1="st.gx" :y1="st.gy" :x2="st.x" :y2="st.y" />
+            <circle class="ground" :cx="st.gx" :cy="st.gy" r="2" />
+          </g>
+        </template>
+      </svg>
+      <button
+        v-for="st in stars"
+        v-show="!st.hidden"
+        :key="st.t.region"
+        class="star"
+        :class="{ card: st.card, on: picked === st.t.region }"
+        :style="{ transform: `translate(${st.x}px, ${st.y}px)`, '--d': st.i * 45 + 'ms' }"
+        :aria-label="`${st.t.region} ${st.t.rows.length}곳`"
+        @click.stop="pick(st.t)"
+      >
+        <span class="float">
+          <i class="node"></i>
+          <span v-if="st.card" class="label">
+            <b>{{ st.t.rows[0].parts[0] }}<em>{{ st.t.rows[0].parts[1] }}</em>{{ st.t.rows[0].parts[2] }}</b>
+            <small>{{ st.t.short }}{{ st.t.rows.length > 1 ? ` · ${st.t.rows.length}곳` : '' }}</small>
+          </span>
+        </span>
+      </button>
+    </div>
 
-        <div v-else-if="!result" class="hello">
-          <p class="h">이름으로 간판 찾기</p>
-          <p class="d">이름을 넣으면 그 글자가 들어간 전국의 진짜 가게를 지도에 꽂아요.</p>
-          <p v-if="signTotal" class="d">지도엔 전국 간판 {{ signTotal.toLocaleString() }}곳이 다 찍혀 있어요. 확대할수록 촘촘해지고, 끝까지 당기면 이름이 보여요.</p>
-          <div class="chips">
-            <button v-for="w in SUGGEST" :key="w" class="m-chip" @click="submit(w)">{{ w }}</button>
-          </div>
+    <NameGraph
+      v-if="graphOn"
+      ref="graphRef"
+      :key="result.word"
+      :word="result.word"
+      :rows="listed"
+      :dots="dots?.dots || []"
+      :total="dots?.n || 0"
+      :pointer="hand ? handPoint : null"
+      :hand="hand"
+      @hand="hand = !hand"
+      @town="graphTown"
+      @close="view = 'map'"
+    />
+
+    <!-- 늘 떠 있는 검색창. 이름을 넣으면 그 글자가 든 간판이 지구본 위에서 빛난다 -->
+    <div class="top">
+      <form class="sbar" role="search" @submit.prevent="submit()">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6" /><path d="M10.4 10.4L14 14" /></svg>
+        <input v-model="query" type="search" placeholder="이름을 넣어 보세요 (예: 민수)" maxlength="10" aria-label="간판 이름 검색" />
+        <span v-if="busy" class="spin" aria-label="찾는 중"></span>
+      </form>
+      <p v-if="error" class="m-err">{{ error }}</p>
+      <Transition name="fade">
+        <p v-if="notice" class="notice">{{ notice }}</p>
+      </Transition>
+    </div>
+
+    <!-- 처음 화면: 무엇을 할 수 있는지 한 장으로 -->
+    <Transition name="fade">
+      <div v-if="!showPanel && !hand && !graphOn" ref="hintEl" class="hint">
+        <p class="h">지구본을 돌려서 간판을 찾아요</p>
+        <p class="d">
+          점 하나하나가 진짜 간판이에요{{ signTotal ? ` (전국 ${signTotal.toLocaleString()}곳)` : '' }}. 이름을 검색하거나, <b>점이 모인 곳을 누르면</b> 그 동네 간판이 펼쳐져요.
+        </p>
+        <div class="chips">
+          <span class="lab">이름</span>
+          <button v-for="w in SUGGEST" :key="w" class="m-chip" @click="submit(w)">{{ w }}</button>
         </div>
+        <div class="chips">
+          <span class="lab">동네</span>
+          <button class="m-chip" :disabled="nearBusy" @click="locate">📍 내 위치</button>
+          <button v-for="s in SPOTS" :key="s.label" class="m-chip" :disabled="nearBusy" @click="scanAt({ ...s, kind: 'spot' })">{{ s.label }}</button>
+        </div>
+        <button class="handbtn" @click="hand = true">✋ 웹캠으로 손을 써서 돌려 보기</button>
+      </div>
+    </Transition>
+
+    <aside v-if="showPanel" class="panel">
+      <!-- 이름 찾기 결과 -->
+      <template v-if="tab === 'name'">
+        <header class="phead">
+          <p>‘{{ result.word }}’ 찾기</p>
+          <button class="x" aria-label="찾기 닫기" @click="clearName">×</button>
+        </header>
+        <div class="m-seg seg" role="tablist">
+          <button role="tab" @click="view = 'graph'">별자리</button>
+          <button :class="{ on: view === 'map' }" role="tab" @click="view = 'map'">장소</button>
+          <button :class="{ on: view === 'building' }" role="tab" :disabled="!floors.length" @click="view = 'building'">이름 빌딩</button>
+        </div>
+        <p class="sum">
+          ‘{{ result.word }}’ 들어간 간판 {{ result.exactCount ? '' : '최대 ' }}<b>{{ result.count.toLocaleString() }}곳</b><br />
+          <span>그중 {{ listed.length }}곳 · 동네 {{ towns.length }}곳</span>
+        </p>
+        <ul class="results">
+          <li v-for="r in listed.slice(0, 120)" :key="r.key">
+            <button :class="{ on: picked === r.region, accident: r.accident }" @click="pick(towns.find((t) => t.region === r.region))">
+              <i class="glyph">{{ r.cat[0] }}</i>
+              <span class="txt">
+                <span class="name">{{ r.parts[0] }}<b>{{ r.parts[1] }}</b>{{ r.parts[2] }}<em v-if="r.accident">우연</em></span>
+                <small>{{ r.cat }} · {{ r.short }}{{ r.floor !== null ? ` · ${floorLabel(r.floor)}` : '' }}</small>
+              </span>
+            </button>
+          </li>
+        </ul>
+        <p v-if="signsReady" class="live">
+          <template v-if="inView !== null">지금 화면에 ‘{{ result.word }}’ 간판 <b>{{ inView.toLocaleString() }}곳</b> · 정확한 자리</template>
+          <template v-else>골목까지 확대하면 ‘{{ result.word }}’ 들어간 간판이 정확한 자리에 전부 떠요 <button class="m-chip" :disabled="jumping" @click="zoomInto">{{ jumping ? '찾는 중…' : '한 곳 가 보기' }}</button></template>
+        </p>
+        <p class="note">목록·핀은 시·군·구별로 골라 담은 것 · 지도 점은 전국 전부 · ‘우연’ = 이름이 아니라 글자가 우연히 걸린 곳</p>
       </template>
 
-      <!-- 우리 동네 -->
+      <!-- 누른 동네 -->
       <template v-else-if="tab === 'near'">
-        <div class="locbar">
-          <button class="go locate" :disabled="nearBusy" @click="locate">
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M14.5 1.5L1.5 7l5.6 1.9L9 14.5z" /></svg>
-            {{ geoGranted ? '내 위치 다시 잡기' : '내 위치 쓰기' }}
-          </button>
-          <button v-if="approx" class="m-chip approx" :class="{ on: here?.kind === 'ip' }" :disabled="nearBusy" @click="useApprox">
-            대략 위치(IP){{ approx.city ? ` · ${approx.city}` : '' }}
-          </button>
-        </div>
-        <div class="chips spots">
-          <span class="lab">예시 장소</span>
-          <button
-            v-for="s in SPOTS"
-            :key="s.label"
-            class="m-chip"
-            :class="{ on: here?.kind === 'spot' && here.label === s.label }"
-            :disabled="nearBusy"
-            @click="scanAt({ ...s, kind: 'spot' })"
-          >
-            {{ s.label }}
-          </button>
-        </div>
+        <header class="phead">
+          <p>{{ here ? here.label : '우리 동네' }}</p>
+          <button class="x" aria-label="동네 닫기" @click="tab = 'name'">×</button>
+        </header>
+        <p v-if="nearBusy" class="sum"><span class="spin inline"></span> 둘레 {{ RADIUS }}m 간판을 모으는 중…</p>
         <p v-if="nearErr" class="m-err">{{ nearErr }}</p>
 
         <template v-if="here && nearItems.length">
           <p class="sum">
-            <b class="place">{{ here.label }}</b> 반경 {{ RADIUS }}m 간판 <b>{{ nearItems.length.toLocaleString() }}곳</b><br />
-            <span :class="{ warn: here.kind !== 'precise' }">{{ HERE_NOTE[here.kind] }}</span>
+            반경 {{ RADIUS }}m 간판 <b>{{ nearItems.length.toLocaleString() }}곳</b><br />
+            <span :class="{ warn: here.kind !== 'precise' && here.kind !== 'pick' }">{{ HERE_NOTE[here.kind] }}</span>
           </p>
+          <button class="go openbtn" @click="goShop">🏠 여기에 내 가게 차리기</button>
           <div class="bars">
             <div v-for="b in nearBars" :key="b.cat" class="bar">
               <span class="bl">{{ b.cat }}</span>
@@ -936,16 +1202,35 @@ const home = () => map?.fitBounds(KOREA, { padding: { top: 30, bottom: 30, left:
           </ul>
           <button v-if="nearItems.length > nearShown" class="m-chip more" @click="nearShown += 200">가까운 순 {{ nearShown }}곳까지 봤어요 · 더 보기</button>
         </template>
-        <div v-else-if="!here" class="hello">
-          <p class="h">우리 동네 간판</p>
+        <div v-else-if="!here && !nearBusy" class="hello">
           <p class="d">위치를 허용하면 내 주변 {{ RADIUS }}m 안 진짜 간판을 지도에 찍어요. 위치는 이 화면에서만 쓰고 어디에도 저장하지 않아요.</p>
         </div>
-        <p v-if="nearSample" class="note">지도 타일을 못 받아 구역마다 골고루 추린 표본을 보여 줘요. 점은 약 100m 단위로 반올림한 자리예요.</p>
-        <p v-else class="note">소상공인시장진흥공단 상가 정보에 등록된 가게 전부예요. 점은 등록된 좌표 그대로예요.</p>
+        <div class="locbar">
+          <button class="m-chip" :class="{ on: here?.kind === 'precise' }" :disabled="nearBusy" @click="locate">📍 {{ geoGranted ? '내 위치 다시' : '내 위치' }}</button>
+          <button v-if="approx" class="m-chip" :class="{ on: here?.kind === 'ip' }" :disabled="nearBusy" @click="useApprox">대략 위치{{ approx.city ? ` · ${approx.city}` : '' }}</button>
+          <button
+            v-for="s in SPOTS"
+            :key="s.label"
+            class="m-chip"
+            :class="{ on: here?.kind === 'spot' && here.label === s.label }"
+            :disabled="nearBusy"
+            @click="scanAt({ ...s, kind: 'spot' })"
+          >
+            {{ s.label }}
+          </button>
+        </div>
+        <p class="note">
+          지도 다른 곳을 눌러도 그 동네로 옮겨 가요 ·
+          {{ nearSample ? '지도 타일을 못 받아 구역마다 고르게 추린 표본이에요(약 100m 단위 자리)' : '소상공인시장진흥공단 상가 정보에 등록된 가게 전부, 등록된 좌표 그대로예요' }}
+        </p>
       </template>
 
-      <!-- 내 가게 -->
+      <!-- 내 가게 차리기 -->
       <template v-else>
+        <header class="phead">
+          <button class="x back" aria-label="뒤로" @click="tab = here ? 'near' : 'name'">‹</button>
+          <p>내 가게 차리기</p>
+        </header>
         <form class="group m-card" @submit.prevent="openHere">
           <label class="line">
             <span>업종</span>
@@ -960,7 +1245,7 @@ const home = () => map?.fitBounds(KOREA, { padding: { top: 30, bottom: 30, left:
           <div class="line spotline">
             <span>자리</span>
             <em v-if="!spot">지도를 눌러 고르세요</em>
-            <em v-else class="ok">골랐어요 · 핀을 끌어 옮길 수 있어요</em>
+            <em v-else class="ok">골랐어요 · 지도를 누르거나 핀을 끌어 옮겨요</em>
           </div>
         </form>
 
@@ -999,13 +1284,18 @@ const home = () => map?.fitBounds(KOREA, { padding: { top: 30, bottom: 30, left:
       </template>
     </aside>
 
-    <div class="ctrl" role="group" aria-label="지도 확대">
-      <button aria-label="확대" @click="zoom(1)">+</button>
-      <button aria-label="축소" @click="zoom(-1)">−</button>
-      <button aria-label="전국 보기" class="home" @click="home">
+    <div class="ctrl" role="group" aria-label="지도 조작">
+      <button aria-label="확대" title="확대" @click="zoom(1)">+</button>
+      <button aria-label="축소" title="축소" @click="zoom(-1)">−</button>
+      <button aria-label="한국 전체" title="한국 전체" class="home" @click="home()">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.9 4.6 4.6 1.9-4.6 1.9L8 14.5 6.1 9.9 1.5 8l4.6-1.9z" /></svg>
       </button>
+      <button aria-label="지구 전체" title="지구 전체" class="sm" @click="globe">🌐</button>
+      <button aria-label="내 위치" title="내 위치" class="sm" :disabled="nearBusy" @click="locate">📍</button>
+      <button aria-label="손으로 조작" title="웹캠 손 조작" class="sm" :class="{ on: hand }" @click="hand = !hand">✋</button>
     </div>
+
+    <HandControl v-if="hand" @drag="handDrag" @zoom="handZoom" @tap="handTap" @point="handPoint = $event" @off="hand = false" />
 
     <Transition name="sheet">
       <div v-if="tab === 'name' && view === 'building' && floors.length" class="bsheet">
@@ -1044,6 +1334,7 @@ const home = () => map?.fitBounds(KOREA, { padding: { top: 30, bottom: 30, left:
   --mk-fill: rgb(0 0 0 / 0.05);
   --mk-fill-2: rgb(0 0 0 / 0.09);
   --mk-hot: #ff4f00;
+  --mk-space: #e6e6e2;
   --label: var(--mk-ink);
   --label-2: var(--mk-ink-2);
   --label-3: var(--mk-ink-3);
@@ -1076,6 +1367,7 @@ const home = () => map?.fitBounds(KOREA, { padding: { top: 30, bottom: 30, left:
     --mk-line: rgb(255 255 255 / 0.12);
     --mk-fill: rgb(255 255 255 / 0.06);
     --mk-fill-2: rgb(255 255 255 / 0.12);
+    --mk-space: #050506;
   }
 }
 
@@ -1091,6 +1383,175 @@ const home = () => map?.fitBounds(KOREA, { padding: { top: 30, bottom: 30, left:
 .map {
   position: absolute;
   inset: 0;
+  background: radial-gradient(circle at 50% 45%, var(--mk-bg), var(--mk-space) 75%);
+}
+
+/* 위 가운데 검색창. 패널이 뜨면 패널 오른쪽 가운데로 비킨다 */
+.top {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 0 60px;
+  pointer-events: none;
+}
+
+.amap.has-panel .top {
+  left: 320px;
+  padding: 0 56px 0 10px;
+}
+
+.top > * {
+  pointer-events: auto;
+}
+
+.top .sbar {
+  width: min(420px, 100%);
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--mk-card);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 0 0 1px var(--mk-line), 0 10px 28px rgb(0 0 0 / 0.2);
+}
+
+.top .sbar:focus-within {
+  box-shadow: 0 0 0 1.5px var(--mk-ink), 0 10px 28px rgb(0 0 0 / 0.2);
+}
+
+.top .m-err,
+.notice {
+  margin: 0;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--mk-card);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 0 0 1px var(--mk-line);
+  font-size: 12px;
+}
+
+.notice {
+  color: var(--mk-ink);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s, transform 0.25s;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+/* 처음 화면 안내 카드 (아래 가운데) */
+.hint {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 2;
+  width: 320px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: var(--mk-card);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 0 0 1px var(--mk-line), 0 16px 40px rgb(0 0 0 / 0.22);
+}
+
+.hint p {
+  margin: 0;
+}
+
+.hint .h {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.hint .d {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--label-2);
+}
+
+.hint .d b {
+  color: var(--mk-hot);
+}
+
+.hint .chips {
+  align-items: center;
+  margin-top: 8px;
+}
+
+.hint .lab {
+  width: 28px;
+  font-size: 11px;
+  color: var(--label-3);
+}
+
+.app-body .hint .handbtn {
+  width: 100%;
+  min-height: 32px;
+  margin-top: 10px;
+  border-radius: 10px;
+  background: var(--mk-fill);
+  box-shadow: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--mk-ink);
+}
+
+.app-body .hint .handbtn:hover {
+  background: var(--mk-fill-2);
+}
+
+/* 패널 머리: 지금 무엇을 보는지 + 닫기 */
+.phead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 2px 0 6px;
+}
+
+.phead p {
+  flex: 1;
+  margin: 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.app-body .phead .x {
+  width: 28px;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--mk-fill);
+  box-shadow: none;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--mk-ink-2);
+}
+
+.app-body .phead .x:hover {
+  background: var(--mk-fill-2);
+  color: var(--mk-ink);
+}
+
+.phead .back {
+  order: -1;
 }
 
 /* 왼쪽 위에 떠 있는 유리 검색 패널 (Apple 지도의 사이드바) */
@@ -1146,6 +1607,12 @@ const home = () => map?.fitBounds(KOREA, { padding: { top: 30, bottom: 30, left:
   box-shadow: none !important;
   font-size: 14px !important;
   outline: none;
+}
+
+.spin.inline {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 4px;
 }
 
 .spin {
@@ -1360,42 +1827,141 @@ const home = () => map?.fitBounds(KOREA, { padding: { top: 30, bottom: 30, left:
   border-top: 0.5px solid var(--sep);
 }
 
+.app-body .ctrl button.sm {
+  font-size: 14px;
+}
+
+.app-body .ctrl button.on {
+  background: var(--mk-ink);
+}
+
 .ctrl .home svg {
   width: 14px;
   height: 14px;
   fill: var(--mk-ink);
 }
 
-/* 지도 위 핀: 강조색 동그라미 + 아래 이름 */
-.amap :deep(.am-pin) {
-  display: grid;
-  justify-items: center;
-  gap: 1px;
+/* 이름 별자리: 땅의 점에서 실이 올라가 공중의 별(카드)에 닿는다 */
+.stars {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.stars svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.stars .link {
+  stroke: var(--mk-hot);
+  stroke-width: 1;
+  stroke-opacity: 0.55;
+}
+
+.stars .stem {
+  stroke: var(--mk-ink);
+  stroke-width: 0.8;
+  stroke-opacity: 0.35;
+  stroke-dasharray: 2 2;
+}
+
+.stars .ground {
+  fill: var(--mk-ink);
+  fill-opacity: 0.6;
+}
+
+.app-body .star {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-height: 0;
   padding: 0;
   border: 0;
   background: none;
   box-shadow: none;
+  pointer-events: auto;
   cursor: pointer;
 }
 
-.amap :deep(.am-dot) {
-  min-width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  padding: 0 6px;
-  border: 2px solid var(--mk-bg);
-  border-radius: 999px;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  background: var(--mk-hot);
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
-  transition: transform 0.15s var(--spring);
+/* 이름 카드가 다른 별의 점에 가리지 않게 위로 */
+.app-body .star.card {
+  z-index: 1;
 }
 
-.amap :deep(.am-pin:hover .am-dot) {
-  transform: scale(1.15);
+.app-body .star.on {
+  z-index: 2;
+}
+
+.star .float {
+  position: relative;
+  display: block;
+  animation: star-rise 0.7s var(--spring) backwards;
+  animation-delay: var(--d);
+}
+
+@keyframes star-rise {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.6);
+  }
+}
+
+.star .node {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--mk-hot);
+  box-shadow: 0 0 0 2px var(--mk-bg), 0 0 14px 3px rgb(255 79 0 / 0.55);
+  transition: scale 0.15s;
+}
+
+.star:hover .node,
+.star.on .node {
+  scale: 1.4;
+}
+
+.star .label {
+  position: absolute;
+  bottom: 9px;
+  left: 0;
+  display: grid;
+  translate: -50% 0;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--mk-card);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 0 1px var(--mk-line), 0 6px 16px rgb(0 0 0 / 0.25);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.star .label b {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mk-ink);
+}
+
+.star .label em {
+  font-style: normal;
+  color: var(--mk-hot);
+}
+
+.star .label small {
+  font-size: 10px;
+  color: var(--mk-ink-2);
+}
+
+.star.on .label {
+  box-shadow: 0 0 0 1.5px var(--mk-hot), 0 6px 16px rgb(0 0 0 / 0.25);
 }
 
 .map.far :deep(.am-label) {
@@ -1603,16 +2169,6 @@ const home = () => map?.fitBounds(KOREA, { padding: { top: 30, bottom: 30, left:
   color: var(--label-2);
 }
 
-/* 탭: 이름 찾기 | 우리 동네 | 내 가게 */
-.modes {
-  align-self: stretch;
-}
-
-.app-body .modes button {
-  flex: 1;
-  padding: 2px 6px;
-}
-
 /* 고른 칩·탭·주 단추는 흑백 반전, 강조색은 지도 위 '찾은 것'에만 쓴다 */
 .app-body .m-chip.on,
 .app-body .amap .m-seg button.on {
@@ -1636,40 +2192,7 @@ const home = () => map?.fitBounds(KOREA, { padding: { top: 30, bottom: 30, left:
 .locbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-}
-
-.app-body .locate {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  border-radius: 8px;
-  font-weight: 600;
-}
-
-.locate svg {
-  width: 12px;
-  height: 12px;
-  fill: currentColor;
-}
-
-.app-body .approx {
-  min-height: 30px;
-}
-
-.spots {
-  align-items: center;
-  margin-top: 0;
-}
-
-.spots .lab {
-  font-size: 11px;
-  color: var(--label-2);
-}
-
-.sum .place {
-  font-size: 14px;
+  gap: 5px;
 }
 
 .sum .warn {
@@ -1874,6 +2397,13 @@ const home = () => map?.fitBounds(KOREA, { padding: { top: 30, bottom: 30, left:
   background: var(--mk-hot);
 }
 
+/* 창을 최대화하면 메뉴 막대·제목 막대·Dock 여백만 빼고 화면을 다 쓴다 */
+:global(.mac-win.max) {
+  .amap {
+    height: calc(100dvh - 136px);
+  }
+}
+
 /* 좁은 창(휴대폰): 패널이 아래 시트가 된다 */
 @media (max-width: 699px) {
   .amap {
@@ -1891,6 +2421,23 @@ const home = () => map?.fitBounds(KOREA, { padding: { top: 30, bottom: 30, left:
 
   .panel:not(:has(.results)) {
     bottom: 8px;
+  }
+
+  .top,
+  .amap.has-panel .top {
+    left: 0;
+    padding: 0 54px 0 10px;
+    justify-items: stretch;
+  }
+
+  .top .sbar {
+    width: 100%;
+  }
+
+  .hint {
+    left: 8px;
+    bottom: 8px;
+    width: calc(100% - 16px);
   }
 
   .ctrl {

@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { sfx } from '../sound.js'
-import snack from '../assets/shop-snack.webp'
-import laundry from '../assets/shop-laundry.webp'
+import photo from '../assets/phone-photo.webp'
 import { FACES, PHONE_STORIES } from './phone-story.js'
 import './phone.css'
 
@@ -24,18 +23,9 @@ function Face({ who, small }) {
   )
 }
 
-// 간판이 꺼진 골목 사진: 불 꺼진 가게 둘과 바닥에 떨어진 글자
+// 간판이 꺼진 정문 앞 사진: 불 꺼진 분식집과 바닥에 떨어진 글자
 function Photo() {
-  return (
-    <div className="ph-photo" role="img" aria-label="간판 불이 꺼진 깜깜한 골목 사진">
-      <img src={snack} alt="" />
-      <img src={laundry} alt="" />
-      <i className="floor" />
-      <span style={{ left: 30 }}>분</span>
-      <span style={{ left: 122, rotate: '30deg' }}>세</span>
-      <span style={{ left: 162, rotate: '-70deg' }}>탁</span>
-    </div>
-  )
+  return <img className="ph-photo" src={photo} alt="간판 불이 꺼지고 글자가 바닥에 떨어진 분식집 앞 사진" />
 }
 
 // 문자 화면. 대화를 차례로 틀고, 답장은 고르기만 하고, 마지막 버튼으로 게임에 들어간다

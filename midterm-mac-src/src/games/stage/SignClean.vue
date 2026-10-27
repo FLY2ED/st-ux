@@ -2,6 +2,7 @@
 // 간판 청소: 그을음·새똥·전단지로 뒤덮여 꺼진 간판을 문질러 닦는다.
 // 다 닦으면 간판에 불이 들어오고, 빨리 닦을수록 점수가 높다. 세 개를 닦으면 끝
 // embed(이야기 속 부탁): 사장님이 옆에 서서 말을 걸고, 첫 간판은 그 가게 간판이다
+// 간판 아래에는 업종에 맞는 가게 앞모습(편의점·분식집·약국…)이 서고, 간판 색도 그 업종을 닮는다
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { signPool } from '../../data.js'
 import { pastelOf } from '../../shops.js'
@@ -14,6 +15,7 @@ const props = defineProps({
   ownerName: { type: String, default: '' },
   ownerArt: { type: String, default: '' },
   shopName: { type: String, default: '' },
+  shopCat: { type: String, default: '' },
 })
 const ROUNDS = 3
 const CELL = 4 // 때 한 칸 = 화면 4px (픽셀 느낌 + 가벼운 계산)
@@ -38,6 +40,16 @@ const box = ref(null)
 const cv = ref(null)
 
 const sign = computed(() => signs.value[round.value] || null)
+const kind = computed(() => kindOf(sign.value))
+const front = computed(() => FRONT[`../../assets/storefront/${kind.value}.webp`])
+const look = computed(() => {
+  const p = PLATE[kind.value]
+  return {
+    '--plate': p?.plate || pastelOf(sign.value?.name || ''),
+    '--band': p?.band || 'linear-gradient(#1d1d2b, #1d1d2b)',
+    '--ink': p?.ink || '#1d1d2b',
+  }
+})
 const nameSize = computed(() => {
   const n = [...(sign.value?.name || '')].length
   return `clamp(26px, ${Math.max(4.2, 15 - n * 1.2)}cqi, ${Math.max(40, 104 - n * 8)}px)`
@@ -62,15 +74,49 @@ const later = (fn, ms) => {
 }
 const rnd = (a, b) => a + Math.random() * (b - a)
 
+// 업종 → 가게 앞모습. 업종 이름과 상호를 같이 보고, 모르면 동네 가게
+const FRONT = import.meta.glob('../../assets/storefront/*.webp', { eager: true, import: 'default' })
+const KINDS = [
+  ['conv', /편의점|슈퍼|마트|식료품|반찬|GS25|CU|세븐일레븐|이마트24|미니스톱/],
+  ['pharm', /약국|약방/],
+  ['laundry', /세탁|빨래/],
+  ['hair', /미용|헤어|이용원|네일|뷰티|피부/],
+  ['cafe', /카페|커피|다방|찻집|디저트|아이스크림|빙수/],
+  ['bread', /빵|베이커리|제과|도넛|케이크/],
+  ['chicken', /치킨|통닭|호프|주점|술집|포차|맥주|고기|갈비|삼겹|족발/],
+  ['snack', /분식|김밥|떡볶이|만두|국수|식당|한식|백반|중식|중국|일식|돈가스|음식|반점/],
+  ['clinic', /의원|병원|치과|한의|학원|교습|부동산|중개|사무소|세무|법무/],
+]
+const kindOf = (s) => (s ? KINDS.find(([, re]) => re.test(`${s.cat} ${s.name}`))?.[0] || 'store' : 'store')
+// 업종마다 간판 판 색과 아래 띠. 편의점은 흰 판에 세 줄 띠, 약국은 초록 판처럼
+const PLATE = {
+  conv: { plate: '#f7f7f2', band: 'linear-gradient(#2fb36a 0 33%, #2f6fff 33% 66%, #8a5cf6 66%)' },
+  pharm: { plate: '#3fbf7a', band: 'linear-gradient(#fff, #fff)', ink: '#fff' },
+  laundry: { plate: '#8fd0f2', band: 'linear-gradient(#2f6fff, #2f6fff)' },
+  hair: { plate: '#f6a5c0', band: 'repeating-linear-gradient(90deg, #e8483f 0 12px, #fff 12px 24px, #2f6fff 24px 36px)' },
+  cafe: { plate: '#5b3a29', band: 'linear-gradient(#e8c46a, #e8c46a)', ink: '#fff1d6' },
+  bread: { plate: '#f2d7a6', band: 'linear-gradient(#a8683a, #a8683a)' },
+  chicken: { plate: '#ffb020', band: 'linear-gradient(#e8483f, #e8483f)' },
+  snack: { plate: '#ffd84d', band: 'linear-gradient(#e8483f, #e8483f)' },
+  clinic: { plate: '#ffffff', band: 'linear-gradient(#2f6fff, #2f6fff)' },
+}
+
 async function pickSigns() {
   const out = []
-  if (props.shopName) out.push({ name: props.shopName, cat: '', region: '' })
+  if (props.shopName) out.push({ name: props.shopName, cat: props.shopCat, region: '' })
+  // 업종을 알아볼 수 있는 간판을 먼저, 같은 업종은 겹치지 않게 고른다
   for (let k = 0; k < 4 && out.length < ROUNDS; k++) {
     const rows = await signPool().catch(() => [])
     const ok = rows.filter((r) => /^[가-힣0-9A-Za-z]{2,9}$/.test(r.name) && /[가-힣]/.test(r.name) && !out.some((o) => o.name === r.name))
-    while (ok.length && out.length < ROUNDS) out.push(ok.splice(Math.floor(Math.random() * ok.length), 1)[0])
+    const known = ok.filter((r) => kindOf(r) !== 'store')
+    const list = known.length ? known : ok
+    while (list.length && out.length < ROUNDS) {
+      const r = list.splice(Math.floor(Math.random() * list.length), 1)[0]
+      if (k < 3 && kindOf(r) !== 'store' && out.some((o) => kindOf(o) === kindOf(r))) continue
+      out.push(r)
+    }
   }
-  while (out.length < ROUNDS) out.push({ name: ['행복슈퍼', '골목분식', '달빛세탁'][out.length], cat: '', region: '' })
+  while (out.length < ROUNDS) out.push([{ name: '행복슈퍼', cat: '슈퍼마켓' }, { name: '골목분식', cat: '분식' }, { name: '달빛세탁', cat: '세탁소' }][out.length])
   return out
 }
 
@@ -333,9 +379,9 @@ onBeforeUnmount(() => {
       <span>그을음·새똥·전단지를 문질러 벗기면 간판에 불이 들어와요</span>
     </p>
 
-    <!-- 가게 앞: 벽돌 벽에 간판, 그 아래 셔터 -->
+    <!-- 가게 앞: 건물 벽에 간판, 그 아래 업종에 맞는 가게 앞모습 -->
     <div class="sc-front">
-      <div ref="box" class="sc-sign" :class="{ lit: phase === 'lit' || phase === 'done' }" :style="{ '--plate': pastelOf(sign?.name || '') }">
+      <div ref="box" class="sc-sign" :class="{ lit: phase === 'lit' || phase === 'done' }" :style="look">
         <span class="sc-name" :style="{ fontSize: nameSize }">{{ sign?.name || '' }}</span>
         <canvas
           ref="cv"
@@ -358,7 +404,7 @@ onBeforeUnmount(() => {
         <span v-for="s in sparks" :key="s.id" class="sc-spark" :style="{ left: `${s.x}%`, top: `${s.y}%`, animationDelay: `${s.d}s` }" aria-hidden="true"></span>
         <span v-if="phase === 'lit'" class="sg-float" :style="{ left: '50%', top: '-10%' }">+{{ gained }}</span>
       </div>
-      <div class="sc-shutter" aria-hidden="true"></div>
+      <img v-if="front" :key="front" class="sc-shop" :class="{ lit: phase === 'lit' || phase === 'done' }" :src="front" alt="" draggable="false" />
     </div>
 
     <!-- 길: 사장님(부탁일 때)과 나 -->
@@ -390,7 +436,6 @@ onBeforeUnmount(() => {
   grid-template-rows: auto minmax(0, 1fr) auto;
   padding-top: 52px;
   background:
-    linear-gradient(#0000 0 calc(100% - 70px), #2a2d52 calc(100% - 70px) calc(100% - 64px), #3a3e6a calc(100% - 64px)),
     /* 벽돌 */
     repeating-linear-gradient(0deg, #4a2b33 0 2px, transparent 2px 18px),
     repeating-linear-gradient(90deg, #4a2b33 0 2px, transparent 2px 36px),
@@ -450,15 +495,33 @@ onBeforeUnmount(() => {
   grid-template-rows: auto minmax(40px, 1fr);
   justify-items: center;
   gap: 0;
-  padding: 18px 5% 0;
+  padding: 14px 4% 0;
   min-height: 0;
+}
+
+/* 가게 앞모습: 간판에 불이 들어오면 가게 안 불도 같이 켜진다 */
+.sc-shop {
+  width: min(100%, 820px);
+  height: 100%;
+  min-height: 0;
+  margin-top: 10px;
+  object-fit: cover;
+  object-position: 50% 100%;
+  image-rendering: pixelated;
+  box-shadow: 0 0 0 4px #16161c;
+  filter: brightness(0.5) saturate(0.6);
+  transition: filter 0.5s steps(4);
+}
+
+.sc-shop.lit {
+  filter: none;
 }
 
 /* 간판: 쇠틀 안의 판. 꺼져 있을 땐 칙칙하고, 다 닦으면 불이 들어온다 */
 .sc-sign {
   position: relative;
-  width: min(100%, 760px);
-  height: clamp(120px, 24cqi, 260px);
+  width: min(100%, 820px);
+  height: clamp(96px, 17cqi, 180px);
   display: grid;
   place-items: center;
   padding: 0 4%;
@@ -494,8 +557,16 @@ onBeforeUnmount(() => {
   }
 }
 
+.sc-sign::after {
+  content: '';
+  position: absolute;
+  inset: auto 6px 6px;
+  height: 12px;
+  background: var(--band);
+}
+
 .sc-name {
-  color: #1d1d2b;
+  color: var(--ink);
   line-height: 1.1;
   white-space: nowrap;
   letter-spacing: 0.02em;
@@ -578,13 +649,7 @@ onBeforeUnmount(() => {
   }
 }
 
-.sc-shutter {
-  width: min(86%, 640px);
-  margin-top: 22px;
-  background: repeating-linear-gradient(#5b6170 0 8px, #474c59 8px 11px);
-  box-shadow: 0 0 0 4px #16161c;
-}
-
+/* 가게 앞 보도: 연석 한 줄과 보도블록 */
 .sc-walk {
   position: relative;
   display: flex;
@@ -592,6 +657,11 @@ onBeforeUnmount(() => {
   gap: 16px;
   min-height: 120px;
   padding: 0 5% 10px;
+  background:
+    linear-gradient(#b6bfd0 0 4px, #6b7184 4px 8px, transparent 8px),
+    repeating-linear-gradient(90deg, transparent 0 46px, #4a5062 46px 48px),
+    repeating-linear-gradient(0deg, transparent 0 22px, #4a5062 22px 24px),
+    #5c6376;
 }
 
 .sc-owner {

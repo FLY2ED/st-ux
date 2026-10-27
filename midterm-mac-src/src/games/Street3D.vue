@@ -1045,7 +1045,7 @@ function openQuest(game, opts = {}) {
   if (opts.placed && !opts.boss) {
     const w = opts.who || {}
     const ownerArt = w.sprite ? art(`f-${w.sprite}`) : w.id ? art(`c-${w.id}`) || art(`f-${w.id}`) : ''
-    Object.assign(qp, { ownerName: w.name || '', ownerArt, shopName: opts.placed.sign?.name || '' })
+    Object.assign(qp, { ownerName: w.name || '', ownerArt, shopName: opts.placed.sign?.name || '', shopCat: opts.placed.sign?.cat || '' })
   }
   if (opts.boss) Object.assign(qp, { goal: BOSS_GOAL[game] || 10, boss: art(`c-${opts.boss}`), bossName: BOSSES[opts.boss]?.name || '' })
   const next = { game, ...q, props: qp, placed: opts.placed || null, who: opts.who || null, boss: opts.boss || null, then: opts.then || null, done: false, score: null }

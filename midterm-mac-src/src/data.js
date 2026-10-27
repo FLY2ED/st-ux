@@ -50,6 +50,25 @@ export async function search(word) {
   return { word: word.trim(), count: rarest.n, exactCount: grams.length === 1, rows }
 }
 
+// 이름 별자리 점: 그 말이 든 간판을 전국에서 고르게 뽑은 것(만드는 법은 scripts/build_graph.mjs). 이름은 없고 동네·업종·글자 자리만 있다
+// → {n: 전국 간판 수, dots: [{region, lng, lat, cat, spot}]}, spot 0 이름 전체 · 1 맨 앞 · 2 가운데 · 3 맨 끝. 색인에 없는 말이면 null
+export async function graphDots(word) {
+  if (!/^[가-힣]{2,4}$/.test(word)) return null
+  const [shard, regions, cats] = await Promise.all([load(`graph/${bucket(word)}.json`), load('regions.json'), load('cats.json')])
+  const entry = shard[word]
+  if (!entry) return null
+  const dots = []
+  for (const cell of entry.d.split(' ')) {
+    const [k, c = '1'] = cell.split('.')
+    const key = parseInt(k, 36)
+    const spot = key % 4
+    const cat = ((key - spot) / 4) % 1000
+    const [region, lng, lat] = regions[((key - spot) / 4 - cat) / 1000]
+    for (let i = parseInt(c, 36); i > 0; i--) dots.push({ region, lng, lat, cat: cats[cat], spot })
+  }
+  return { n: entry.n, dots }
+}
+
 // 전국에 같은 이름이 몇 곳인지. 두 곳 이상인 이름만 색인에 있어서, 없으면 0 또는 1곳이다.
 export async function nameCount(name) {
   const m = name.match(/[가-힣]{2}/)

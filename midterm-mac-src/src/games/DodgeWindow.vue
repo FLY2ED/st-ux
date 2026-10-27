@@ -4,22 +4,13 @@ import { randomNames, search } from '../data.js'
 import { closeCamera, faceTracker, openCamera } from '../face.js'
 import CameraGate from './CameraGate.vue'
 import Leaderboard from './Leaderboard.vue'
+import Hero from './stage/Hero.vue'
+import { pastelOf } from '../shops.js'
 import { sfx } from '../sound.js'
 import './pixel.css'
 
 // 점심 간판 피하기: 오늘 먹은 음식이 들어간 진짜 간판들이 쏟아진다. 피하고, 노란 그릇은 받아 먹는다
-const art = (n) => new URL(`../assets/${n}.webp`, import.meta.url).href
-const RUN = art('kid-run')
-const EAT = art('kid-eat')
-// 간판 색은 PICO-8 16색 중 글자가 잘 읽히는 짝만 쓴다
-const TINTS = [
-  ['#fff1e8', '#1d2b53'],
-  ['#ff004d', '#fff1e8'],
-  ['#29adff', '#1d2b53'],
-  ['#00e436', '#1d2b53'],
-  ['#ffa300', '#1d2b53'],
-  ['#7e2553', '#fff1e8'],
-]
+// 피하는 사람은 캐릭터 만들기에서 고른 내 모습(Hero), 간판 판 색은 이름마다 정해진 파스텔
 const FOODS = ['김밥', '국밥', '짜장', '떡볶이', '치킨', '마라탕', '돈까스', '냉면']
 // 간판 수리공 이야기 안에서 열리면 embed 와 부탁한 사장님·가게 이름을 받는다. 판이 끝나면 game:over 로 알린다
 defineProps({ embed: Boolean, word: { type: String, default: '' }, ownerName: { type: String, default: '' }, ownerArt: { type: String, default: '' }, shopName: { type: String, default: '' } })
@@ -34,7 +25,7 @@ const food = ref('')
 const info = ref('')
 const items = ref([])
 const pops = ref([])
-const player = ref({ x: 200, flip: false, eat: false, hurt: false })
+const player = ref({ x: 200, flip: false, eat: false, hurt: false, walk: false })
 const score = ref(0)
 const lives = ref(LIVES)
 const eaten = ref(0)
@@ -59,6 +50,9 @@ let stream = null
 let tracker = null
 
 const pad = (n) => String(n).padStart(6, '0')
+// 맞으면 hurt, 먹으면 만세, 움직이면 걷기. 서 있을 땐 앞을 본다
+const pose = (p) => (p.hurt ? 'hurt' : p.eat ? 'cheer' : p.walk ? 'walk' : 'idle')
+const dirOf = (p) => (p.eat || (!p.walk && !p.hurt) ? 0 : p.flip ? 2 : 3)
 const snap = (v) => Math.round(v / 2) * 2
 
 async function choose(word) {
@@ -87,7 +81,7 @@ function start() {
   score.value = 0
   lives.value = LIVES
   eaten.value = 0
-  player.value = { x: W / 2 - PW / 2, flip: false, eat: false, hurt: false }
+  player.value = { x: W / 2 - PW / 2, flip: false, eat: false, hurt: false, walk: false }
   phase.value = 'play'
   t0 = performance.now()
   last = t0
@@ -98,19 +92,19 @@ function start() {
 
 // 맞은 뒤 잠깐은 다시 맞지 않는다
 let safeUntil = 0
+// 멈춘 뒤에도 잠깐은 걷는 모습을 유지해 발이 깜빡이지 않게 한다
+let walkUntil = 0
 
 function spawn(now) {
   const lvl = 1 + (now - t0) / 15000
   const bowl = Math.random() < 0.12
   const name = bowl ? `${food.value} 한 그릇` : names[Math.floor(Math.random() * names.length)]
   const w = Math.min(W * 0.6, 24 + name.length * 20)
-  const [bg, fg] = TINTS[id % TINTS.length]
   items.value.push({
     id: ++id,
     name,
     bowl,
-    bg,
-    fg,
+    bg: bowl ? '#ffec27' : pastelOf(name),
     x: Math.random() * (W - w),
     y: -50,
     w,
@@ -137,6 +131,7 @@ function tick(now) {
 
   // 손·키보드·얼굴 중 마지막으로 움직인 것을 따라간다
   const p = player.value
+  const was = p.x
   const face = tracker?.read()
   if (face) {
     target = face.x * W - PW / 2
@@ -151,6 +146,8 @@ function tick(now) {
     p.x += d * Math.min(1, dt * 12)
   }
   p.x = Math.max(0, Math.min(W - PW, p.x))
+  if (Math.abs(p.x - was) > 40 * dt) walkUntil = now + 140
+  p.walk = now < walkUntil
 
   const px = p.x + 14
   const pw = PW - 28
@@ -249,7 +246,8 @@ async function camReady(s) {
   }
 }
 
-// 픽셀 점심 거리: 하늘, 구름, 먼 빌딩, 간판 달린 가게, 보도블록. 같은 씨앗이라 늘 같은 거리
+// 픽셀 점심 거리: 한낮 하늘, 해, 구름, 두 겹 빌딩, 차양 달린 식당가, 가로등·가로수, 보도블록.
+// 같은 씨앗이라 늘 같은 거리
 function paintCity() {
   const cv = city.value
   if (!cv) return
@@ -261,78 +259,197 @@ function paintCity() {
   const g = cv.getContext('2d')
   let seed = 7
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+  const pick = (list) => list[Math.floor(rnd() * list.length)]
   const box = (x, y, bw, bh, c) => {
     g.fillStyle = c
     g.fillRect(x, y, bw, bh)
   }
 
-  box(0, 0, w, h, '#29adff')
-  // 아래로 갈수록 옅은 하늘: 체크 무늬로 섞는다
-  const band = Math.floor(h * 0.42)
-  for (let y = band; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (y > band + 8 || (x + y) % 2 === 0) box(x, y, 1, 1, '#8fd8ff')
+  // 하늘: 세 줄 띠를 체크 무늬로 이어 붙인다
+  const skies = ['#29adff', '#5cc2ff', '#9ad9ff']
+  box(0, 0, w, h, skies[0])
+  for (let k = 1; k < skies.length; k++) {
+    const band = Math.floor(h * (0.14 + k * 0.17))
+    for (let y = band; y < h; y++) {
+      for (let x = 0; x < w; x++) if (y > band + 3 || (x + y) % 2 === 0) box(x, y, 1, 1, skies[k])
     }
   }
-  // 해
+  // 정오의 해와 짧은 햇살
   const sx = Math.floor(w * 0.3)
-  box(sx, 22, 8, 8, '#ffec27')
-  box(sx - 1, 23, 10, 6, '#ffec27')
-  box(sx + 1, 21, 6, 10, '#ffec27')
+  const sy = 16
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2
+    box(Math.round(sx + 4 + Math.cos(a) * 9), Math.round(sy + 4 + Math.sin(a) * 9), 1, 1, '#fff1e8')
+  }
+  box(sx, sy, 8, 8, '#ffec27')
+  box(sx - 1, sy + 1, 10, 6, '#ffec27')
+  box(sx + 1, sy - 1, 6, 10, '#ffec27')
+  box(sx + 1, sy + 1, 2, 2, '#fff1e8')
+  box(sx + 5, sy + 6, 3, 2, '#ffa300')
   // 구름
-  for (const [cx, cy, s] of [[10, 14, 1], [w * 0.45, 8, 1.4], [w * 0.7, 24, 0.9]]) {
+  for (const [cx, cy, s] of [[10, 12, 1], [w * 0.45, 7, 1.4], [w * 0.7, 22, 0.9], [w * 0.9, 9, 1.1]]) {
     const x = Math.floor(cx)
     const k = (n) => Math.round(n * s)
     box(x, cy + k(3), k(22), k(4), '#fff1e8')
     box(x + k(4), cy, k(10), k(4), '#fff1e8')
     box(x + k(12), cy + k(1), k(6), k(3), '#fff1e8')
+    box(x + k(5), cy + 1, k(4), 1, '#ffffff')
     box(x + k(2), cy + k(7), k(18), 1, '#c2c3c7')
   }
 
-  const ground = h - 11
-  // 먼 빌딩
+  const ground = h - 14
+  // 가장 먼 빌딩: 하늘에 묻힌 옅은 보라
+  for (let x = -6; x < w; ) {
+    const bw = 12 + Math.floor(rnd() * 16)
+    const bh = Math.floor(h * (0.42 + rnd() * 0.3))
+    box(x, ground - bh, bw, bh, '#a7b4dc')
+    for (let y = ground - bh + 3; y < ground; y += 4) {
+      for (let wx = x + 2; wx < x + bw - 2; wx += 3) box(wx, y, 1, 2, '#c4cff0')
+    }
+    x += bw + 2 + Math.floor(rnd() * 6)
+  }
+  // 먼 빌딩: 옥상 물탱크·안테나, 창문 몇 개는 햇빛에 반짝인다
   for (let x = -4; x < w; ) {
     const bw = 10 + Math.floor(rnd() * 14)
-    const bh = Math.floor(h * (0.3 + rnd() * 0.32))
-    box(x, ground - bh, bw, bh, '#83769c')
-    for (let y = ground - bh + 3; y < ground - 4; y += 4) {
-      for (let wx = x + 2; wx < x + bw - 2; wx += 3) if (rnd() < 0.35) box(wx, y, 1, 2, '#c2c3c7')
+    const bh = Math.floor(h * (0.3 + rnd() * 0.3))
+    const top = ground - bh
+    box(x, top, bw, bh, '#83769c')
+    box(x, top, bw, 1, '#a99cc0')
+    box(x + bw - 1, top, 1, bh, '#6b5f86')
+    const roof = rnd()
+    if (roof < 0.3) {
+      box(x + 2, top - 3, 5, 2, '#5f574f')
+      box(x + 2, top - 1, 1, 1, '#5f574f')
+      box(x + 6, top - 1, 1, 1, '#5f574f')
+    } else if (roof < 0.55) {
+      box(x + bw - 4, top - 6, 1, 6, '#5f574f')
+      box(x + bw - 5, top - 4, 3, 1, '#5f574f')
+      box(x + bw - 4, top - 7, 1, 1, '#ff004d')
+    }
+    for (let y = top + 3; y < ground - 4; y += 4) {
+      for (let wx = x + 2; wx < x + bw - 2; wx += 3) {
+        const q = rnd()
+        if (q < 0.35) box(wx, y, 1, 2, '#c2c3c7')
+        else if (q < 0.4) box(wx, y, 1, 2, '#fff1e8')
+      }
     }
     x += bw + 1
   }
-  // 가까운 가게: 지붕선, 창문, 간판, 문
-  const walls = ['#5f574f', '#ab5236', '#1d2b53', '#7e2553', '#008751']
+  // 가까운 식당가: 처마, 창틀 있는 창문, 간판, 줄무늬 차양, 불 켜진 진열창과 문
+  const walls = [
+    ['#ab5236', '#8a3f2a'],
+    ['#5f574f', '#4a433d'],
+    ['#1d2b53', '#141e3c'],
+    ['#7e2553', '#62193f'],
+    ['#008751', '#006a40'],
+    ['#c27a4e', '#a3633d'],
+  ]
   const signs = ['#ff004d', '#ffa300', '#fff1e8', '#00e436', '#29adff', '#ffec27']
+  const awnings = ['#ff004d', '#29adff', '#00e436', '#ffa300', '#7e2553']
+  const lots = []
   for (let x = -3; x < w; ) {
-    const bw = 18 + Math.floor(rnd() * 16)
-    const bh = Math.floor(h * (0.16 + rnd() * 0.2))
+    const bw = 22 + Math.floor(rnd() * 14)
+    const bh = Math.floor(h * (0.24 + rnd() * 0.16))
     const top = ground - bh
-    const wall = walls[Math.floor(rnd() * walls.length)]
+    const [wall, deep] = pick(walls)
     box(x, top, bw, bh, wall)
-    box(x, top, bw, 1, '#000')
-    box(x, top + 1, bw, 1, 'rgba(255,255,255,0.18)')
-    for (let y = top + 4; y < ground - 14; y += 5) {
-      for (let wx = x + 2; wx < x + bw - 3; wx += 4) box(wx, y, 2, 3, rnd() < 0.7 ? '#ffccaa' : '#1d2b53')
+    box(x + bw - 1, top, 1, bh, deep)
+    // 처마 돌림띠
+    box(x - 1, top - 1, bw + 2, 2, '#000')
+    box(x, top - 1, bw, 1, '#c2c3c7')
+    box(x, top + 1, bw, 1, deep)
+    // 위층 창문: 창틀·유리·반사, 가끔 화분이나 에어컨 실외기
+    const floorTop = ground - 17
+    for (let y = top + 4; y + 5 < floorTop; y += 7) {
+      for (let wx = x + 3; wx + 4 < x + bw - 1; wx += 6) {
+        box(wx - 1, y - 1, 5, 6, deep)
+        const lit = rnd() < 0.25
+        box(wx, y, 3, 4, lit ? '#ffccaa' : '#29adff')
+        if (!lit) box(wx, y, 1, 2, '#c8ecff')
+        box(wx - 1, y + 4, 5, 1, '#c2c3c7')
+        const extra = rnd()
+        if (extra < 0.1) {
+          box(wx, y + 3, 3, 1, '#008751')
+          box(wx + 1, y + 2, 1, 1, '#ff77a8')
+        } else if (extra < 0.16) {
+          box(wx + 3, y + 1, 3, 3, '#c2c3c7')
+          box(wx + 4, y + 2, 1, 1, '#5f574f')
+        }
+      }
     }
-    // 1층 간판과 출입문
-    const sy = ground - 12
-    const sc = signs[Math.floor(rnd() * signs.length)]
-    box(x + 1, sy, bw - 2, 5, '#000')
-    box(x + 2, sy + 1, bw - 4, 3, sc)
+    // 점심 장사 중인 집은 환풍구에서 김이 오른다
+    if (rnd() < 0.5) {
+      const vx = x + 3 + Math.floor(rnd() * (bw - 8))
+      box(vx, top - 4, 2, 3, '#5f574f')
+      box(vx - 1, top - 5, 4, 1, '#5f574f')
+      for (const [dx, dy] of [[0, -7], [1, -8], [0, -10], [-1, -11], [0, -13]]) box(vx + dx, top + dy, 2, 1, 'rgba(255,241,232,0.8)')
+    }
+    // 1층 간판
+    const sy = ground - 17
+    const sc = pick(signs)
+    box(x + 1, sy, bw - 2, 6, '#000')
+    box(x + 2, sy + 1, bw - 4, 4, sc)
+    box(x + 2, sy + 1, bw - 4, 1, 'rgba(255,255,255,0.35)')
     const ink = sc === '#fff1e8' || sc === '#ffec27' ? '#1d2b53' : '#fff1e8'
-    for (let tx = x + 4; tx < x + bw - 5; tx += 3) box(tx, sy + 2, 2, 1, ink)
-    box(x + Math.floor(bw / 2) - 2, ground - 6, 4, 6, '#000')
-    box(x + 2, ground - 6, Math.floor(bw / 2) - 5, 4, '#c2c3c7')
+    for (let tx = x + 5; tx < x + bw - 6; tx += 3) box(tx, sy + 2, 2, 2, ink)
+    // 줄무늬 차양: 아래 끝이 물결진다
+    const aw = pick(awnings)
+    const ay = sy + 6
+    for (let ax = x + 1; ax < x + bw - 1; ax++) {
+      const c = Math.floor((ax - x) / 3) % 2 ? '#fff1e8' : aw
+      box(ax, ay, 1, 3, c)
+      if ((ax - x) % 3 !== 2) box(ax, ay + 3, 1, 1, c)
+    }
+    // 진열창과 문
+    const fy = ay + 4
+    const door = x + Math.floor(bw / 2) - 2
+    box(x + 2, fy, bw - 4, ground - fy, deep)
+    box(x + 3, fy + 1, door - x - 4, ground - fy - 2, '#ffccaa')
+    box(door + 5, fy + 1, x + bw - door - 8, ground - fy - 2, '#ffccaa')
+    box(x + 3, fy + 1, 1, 2, '#fff1e8')
+    box(door, fy, 4, ground - fy, '#000')
+    box(door + 1, fy + 1, 2, ground - fy - 1, '#5f574f')
+    box(door + 2, fy + 3, 1, 1, '#ffec27')
+    lots.push(x)
     x += bw
   }
-  // 보도블록과 연석
-  box(0, ground, w, h - ground, '#c2c3c7')
+
+  // 보도블록: 두 톤 타일을 엇갈려 깔고, 맨 아래에 연석
+  box(0, ground, w, h - ground, '#d6cfd9')
   box(0, ground, w, 1, '#000')
   box(0, ground + 1, w, 1, '#fff1e8')
-  for (let y = ground + 4; y < h; y += 4) box(0, y, w, 1, '#83769c')
-  for (let y = ground + 1; y < h; y += 4) {
-    for (let x = (y / 4) % 2 ? 0 : 4; x < w; x += 8) box(x, y + 1, 1, 3, '#83769c')
+  for (let y = ground + 2, row = 0; y < h - 3; y += 3, row++) {
+    for (let x = row % 2 ? -3 : 0; x < w; x += 6) {
+      box(x, y, 6, 3, (x / 3 + row) % 4 < 2 ? '#c2c3c7' : '#d6cfd9')
+      box(x, y + 2, 6, 1, '#a39cb0')
+      box(x + 5, y, 1, 3, '#a39cb0')
+    }
   }
+  box(0, h - 3, w, 1, '#5f574f')
+  box(0, h - 2, w, 1, '#fff1e8')
+  box(0, h - 1, w, 1, '#83769c')
+
+  // 가로수와 가로등: 가게 사이마다 번갈아 선다
+  lots.slice(1).forEach((lx, n) => {
+    if (n % 2 === 0) {
+      // 가로수 화단과 둥근 잎
+      box(lx - 3, ground - 2, 7, 3, '#5f574f')
+      box(lx - 2, ground - 2, 5, 1, '#ab5236')
+      box(lx, ground - 12, 1, 10, '#5f3a24')
+      box(lx - 4, ground - 20, 9, 7, '#008751')
+      box(lx - 5, ground - 18, 11, 4, '#008751')
+      box(lx - 3, ground - 21, 6, 1, '#008751')
+      box(lx - 3, ground - 19, 3, 2, '#00e436')
+      box(lx + 1, ground - 15, 3, 1, '#006a40')
+    } else {
+      // 가로등
+      box(lx, ground - 26, 1, 26, '#1d2b53')
+      box(lx - 1, ground - 2, 3, 2, '#1d2b53')
+      box(lx, ground - 26, 4, 1, '#1d2b53')
+      box(lx + 3, ground - 25, 3, 2, '#1d2b53')
+      box(lx + 4, ground - 23, 1, 1, '#ffec27')
+    }
+  })
 }
 
 onMounted(async () => {
@@ -385,8 +502,9 @@ onBeforeUnmount(() => {
           :key="it.id"
           class="item"
           :class="{ bowl: it.bowl }"
-          :style="{ transform: `translate(${snap(it.x)}px, ${snap(it.y)}px)`, width: `${it.w}px`, height: `${it.h}px`, '--bg': it.bowl ? '#ffec27' : it.bg, '--fg': it.bowl ? '#1d2b53' : it.fg }"
+          :style="{ transform: `translate(${snap(it.x)}px, ${snap(it.y)}px)`, width: `${it.w}px`, height: `${it.h}px`, '--plate': it.bg }"
         >
+          <i class="hook" aria-hidden="true"></i>
           <svg v-if="it.bowl" class="bowl-ico" viewBox="0 0 9 6" shape-rendering="crispEdges" aria-hidden="true">
             <rect x="2" y="0" width="5" height="1" fill="#fff1e8" />
             <rect x="1" y="1" width="7" height="1" fill="#fff1e8" />
@@ -399,14 +517,23 @@ onBeforeUnmount(() => {
         </div>
 
         <i class="shadow" aria-hidden="true" :style="{ transform: `translateX(${snap(player.x + 12)}px)` }"></i>
-        <img
+        <div
           class="me"
-          :class="{ hurt: player.hurt }"
-          :src="player.eat ? EAT : RUN"
-          :style="{ transform: `translateX(${snap(player.x)}px) scaleX(${player.flip ? -1 : 1})`, width: `${PW}px`, height: `${PH}px` }"
-          alt="나"
-          draggable="false"
-        />
+          :class="{ hurt: player.hurt, walk: player.walk }"
+          :style="{ transform: `translateX(${snap(player.x)}px)`, width: `${PW}px`, height: `${PH}px` }"
+          role="img"
+          aria-label="나"
+        >
+          <svg v-if="player.eat" class="yum bowl-ico" viewBox="0 0 9 6" shape-rendering="crispEdges" aria-hidden="true">
+            <rect x="2" y="0" width="5" height="1" fill="#fff1e8" />
+            <rect x="1" y="1" width="7" height="1" fill="#fff1e8" />
+            <rect x="0" y="2" width="9" height="1" fill="#ff004d" />
+            <rect x="1" y="3" width="7" height="1" fill="#ff004d" />
+            <rect x="2" y="4" width="5" height="1" fill="#7e2553" />
+            <rect x="3" y="5" width="3" height="1" fill="#7e2553" />
+          </svg>
+          <Hero :scale="4" :dir="dirOf(player)" :pose="pose(player)" />
+        </div>
         <b v-for="p in pops" :key="p.id" class="pop px-outline" :class="p.kind" :style="{ left: `${snap(p.x)}px` }">{{ p.text }}</b>
 
         <video ref="video" class="cam" :class="{ on: camOn }" muted playsinline></video>
@@ -496,13 +623,22 @@ onBeforeUnmount(() => {
 /* 머리 위 HUD */
 .hud {
   position: absolute;
-  inset: 8px 10px auto;
+  inset: 10px 12px auto;
   z-index: 3;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
   pointer-events: none;
+}
+
+/* 간판이 지나가도 숫자가 읽히게 어두운 판을 깐다 */
+.hud-l,
+.hud-m,
+.hearts {
+  padding: 4px 8px 6px;
+  background: rgb(29 27 46 / 0.72);
+  box-shadow: 0 0 0 2px #000, inset 0 2px rgb(255 255 255 / 0.12);
 }
 
 .hud small {
@@ -521,7 +657,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding-top: 8px;
+  margin-top: 6px;
 }
 
 .hud-m b {
@@ -536,7 +672,7 @@ onBeforeUnmount(() => {
 .hearts {
   display: flex;
   gap: 4px;
-  padding-top: 6px;
+  padding: 6px 8px;
 }
 
 .heart {
@@ -558,7 +694,7 @@ onBeforeUnmount(() => {
   fill: var(--px-ash);
 }
 
-/* 떨어지는 간판: 검은 2px 테두리, 딱 떨어지는 그림자, 나사 두 개 */
+/* 떨어지는 간판: 파스텔 판에 짙은 3px 테두리, 네 귀퉁이 나사, 위쪽 반사광. 위에는 끊어진 걸이 두 가닥 */
 .item {
   position: absolute;
   left: 0;
@@ -568,42 +704,46 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  overflow: hidden;
-  padding: 0 8px;
-  font-family: Galmuri9, Galmuri11, sans-serif;
-  color: var(--fg);
-  background: var(--bg);
+  padding: 0 7px;
+  border: 3px solid #1d1b2e;
+  font-family: var(--game-font);
+  -webkit-font-smoothing: none;
+  color: #1d1b2e;
+  background:
+    radial-gradient(circle, #1d1b2e 0 1.5px, transparent 2px) 3px 3px / 4px 4px no-repeat,
+    radial-gradient(circle, #1d1b2e 0 1.5px, transparent 2px) calc(100% - 3px) 3px / 4px 4px no-repeat,
+    radial-gradient(circle, #1d1b2e 0 1.5px, transparent 2px) 3px calc(100% - 3px) / 4px 4px no-repeat,
+    radial-gradient(circle, #1d1b2e 0 1.5px, transparent 2px) calc(100% - 3px) calc(100% - 3px) / 4px 4px no-repeat,
+    var(--plate);
   box-shadow:
-    inset 0 0 0 2px #000,
-    inset 0 -6px 0 0 rgba(0, 0, 0, 0.18),
-    4px 4px 0 0 rgba(0, 0, 0, 0.35);
+    inset 0 3px rgb(255 255 255 / 0.55),
+    inset 0 -4px rgb(0 0 0 / 0.16),
+    4px 4px 0 0 rgb(0 0 0 / 0.35);
   will-change: transform;
 }
 
-.item::before,
-.item::after {
-  content: '';
+.item .hook {
   position: absolute;
-  top: 5px;
-  width: 2px;
-  height: 2px;
-  background: rgba(0, 0, 0, 0.55);
-}
-
-.item::before {
-  left: 5px;
-}
-
-.item::after {
-  right: 5px;
+  bottom: calc(100% + 3px);
+  left: 12px;
+  right: 12px;
+  height: 9px;
+  background:
+    linear-gradient(#1d1b2e, #1d1b2e) 0 100% / 3px 9px no-repeat,
+    linear-gradient(#1d1b2e, #1d1b2e) 100% 100% / 3px 9px no-repeat,
+    linear-gradient(#5f574f, #5f574f) 3px 0 / 3px 3px no-repeat,
+    linear-gradient(#5f574f, #5f574f) calc(100% - 3px) 3px / 3px 3px no-repeat;
 }
 
 .item span {
   max-width: 100%;
   overflow: hidden;
   font-size: 20px;
+  line-height: 1;
+  letter-spacing: 0;
   text-overflow: clip;
   white-space: nowrap;
+  text-shadow: 0 2px rgb(255 255 255 / 0.45);
 }
 
 .item.bowl {
@@ -612,7 +752,6 @@ onBeforeUnmount(() => {
 
 .item.bowl span {
   font-size: 12px;
-  font-family: Galmuri11, sans-serif;
   font-weight: 700;
 }
 
@@ -622,17 +761,25 @@ onBeforeUnmount(() => {
   height: 12px;
 }
 
+/* 내 캐릭터: 판정 상자(PW×PH) 바닥 가운데에 선다 */
 .me {
   position: absolute;
   left: 0;
   bottom: 10px;
   z-index: 2;
-  object-fit: contain;
-  image-rendering: pixelated;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
 }
 
-.playing .me {
-  animation: bob 0.3s steps(1) infinite;
+.me :deep(canvas) {
+  flex: none;
+  margin-bottom: -2px;
+  filter: drop-shadow(0 2px 0 rgb(0 0 0 / 0.25));
+}
+
+.playing .me:not(.walk) {
+  animation: bob 0.6s steps(1) infinite;
 }
 
 .me.hurt,
@@ -640,14 +787,27 @@ onBeforeUnmount(() => {
   animation: blink 0.15s steps(1) 3;
 }
 
+/* 받아 낸 그릇을 옆에 번쩍 든다 */
+.me .yum {
+  position: absolute;
+  bottom: 52px;
+  left: calc(100% - 8px);
+  width: 27px;
+  height: 18px;
+  filter: drop-shadow(2px 0 0 #000) drop-shadow(-2px 0 0 #000) drop-shadow(0 2px 0 #000) drop-shadow(0 -2px 0 #000);
+  animation: lift 0.3s steps(1) infinite;
+}
+
 .shadow {
   position: absolute;
   left: 0;
-  bottom: 8px;
+  bottom: 7px;
   z-index: 1;
   width: 50px;
   height: 6px;
-  background: rgba(0, 0, 0, 0.28);
+  background:
+    linear-gradient(rgb(0 0 0 / 0.3), rgb(0 0 0 / 0.3)) 6px 0 / calc(100% - 12px) 100% no-repeat,
+    linear-gradient(rgb(0 0 0 / 0.3), rgb(0 0 0 / 0.3)) 0 2px / 100% 2px no-repeat;
 }
 
 .pop {
@@ -1010,6 +1170,12 @@ onBeforeUnmount(() => {
   }
 }
 
+@keyframes lift {
+  50% {
+    translate: 0 -3px;
+  }
+}
+
 @keyframes bob {
   50% {
     bottom: 13px;
@@ -1028,9 +1194,9 @@ onBeforeUnmount(() => {
 @keyframes glow {
   50% {
     box-shadow:
-      inset 0 0 0 2px #000,
-      inset 0 0 0 4px var(--px-white),
-      4px 4px 0 0 rgba(0, 0, 0, 0.35);
+      inset 0 0 0 3px var(--px-white),
+      4px 4px 0 0 rgb(0 0 0 / 0.35),
+      0 0 14px 3px rgb(255 236 39 / 0.75);
   }
 }
 
