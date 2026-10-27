@@ -8,6 +8,7 @@ import { graphDots, load, looksLikeName, nameCount, nearby, search } from '../da
 import { enter, openShop, player, shops as sharedShops, where } from '../arcade.js'
 import { sfx } from '../sound.js'
 import { signsInRadius, tileIndex, tileUrl } from '../tiles.js'
+import Glass from './Glass.vue'
 import HandControl from './HandControl.vue'
 import NameGraph from './NameGraph.vue'
 import PixelShop from './PixelShop.vue'
@@ -75,10 +76,12 @@ function graticule() {
   return { type: 'FeatureCollection', features: lines.map((coordinates) => ({ type: 'Feature', geometry: { type: 'LineString', coordinates }, properties: {} })) }
 }
 const SUGGEST = ['민수', '지은', '행복', '사랑', '하늘']
+// 창을 열면 이 말을 찾아 둔 채 별자리부터 보여 준다
+const START_WORD = '커피'
 
 const query = ref('')
 const result = ref(null)
-// 별자리 점(말마다 전국에서 고르게 뽑은 최대 1000곳). 색인에 없는 말이면 null
+// 별자리 점(말마다 전국에서 고르게 뽑은 최대 4000곳). 색인에 없는 말이면 null
 const dots = shallowRef(null)
 const floors = ref([])
 const busy = ref(false)
@@ -953,7 +956,7 @@ onMounted(async () => {
     .then((r) => (approx.value = r.approx))
     .catch(() => {})
   if (tab.value === 'shop') loadShared()
-  if (props.word && tab.value === 'name') submit(props.word)
+  if (tab.value === 'name') submit(props.word || START_WORD)
   if (props.word && tab.value === 'shop') shopName.value = props.word.replace(/\s+/g, '').slice(0, 12)
 
   const mod = await import('maplibre-gl')
@@ -964,12 +967,11 @@ onMounted(async () => {
     protocolAdded = true
   }
   if (!mapEl.value) return
-  // 처음엔 지구 전체를 보여 주고 한국으로 내려앉는다. 다른 앱이 특정 단계로 열면 바로 한국에서 시작한다
-  const intro = tab.value === 'name' && !props.word
   map = new maplibre.Map({
     container: mapEl.value,
     style: blankStyle(),
-    ...(intro ? WORLD : { bounds: KOREA, fitBoundsOptions: { padding: { top: 30, bottom: 30, left: panelWidth() + 20, right: 30 } } }),
+    bounds: KOREA,
+    fitBoundsOptions: { padding: { top: 30, bottom: 30, left: panelWidth() + 20, right: 30 } },
     attributionControl: { compact: true },
     localIdeographFontFamily: getComputedStyle(document.body).fontFamily,
     dragRotate: false,
@@ -984,8 +986,6 @@ onMounted(async () => {
     drawShared()
     drawRivals()
     setupSigns().catch(() => {})
-    // 잠깐 지구를 보여 준 뒤, 그사이 사람이 먼저 돌리지 않았으면 한국으로 내려간다
-    if (intro) setTimeout(() => map && !map.isMoving() && !result.value && !here.value && home(2800), 1500)
   })
   map.on('click', onMapClick)
   // 전국을 볼 때는 핀 이름이 겹쳐서 숫자만 남긴다
@@ -1020,7 +1020,7 @@ const zoom = (d) => map?.easeTo({ zoom: map.getZoom() + d, duration: 250 })
 const hintEl = ref(null)
 function home(duration = 900) {
   if (!map) return
-  const hint = hintEl.value?.offsetHeight || 0
+  const hint = hintEl.value?.$el?.offsetHeight || 0
   const wide = panelWidth() > 0
   const padding = { top: 70, bottom: 30, left: wide ? 340 : 20, right: 30 }
   if (!wide && hint) padding.bottom = hint + 24
@@ -1107,11 +1107,11 @@ function handTap(x, y) {
 
     <!-- 늘 떠 있는 검색창. 이름을 넣으면 그 글자가 든 간판이 지구본 위에서 빛난다 -->
     <div class="top">
-      <form class="sbar" role="search" @submit.prevent="submit()">
+      <Glass tag="form" class="sbar" role="search" :radius="21" :band="10" :scale="28" @submit.prevent="submit()">
         <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6" /><path d="M10.4 10.4L14 14" /></svg>
         <input v-model="query" type="search" placeholder="이름을 넣어 보세요 (예: 민수)" maxlength="10" aria-label="간판 이름 검색" />
         <span v-if="busy" class="spin" aria-label="찾는 중"></span>
-      </form>
+      </Glass>
       <p v-if="error" class="m-err">{{ error }}</p>
       <Transition name="fade">
         <p v-if="notice" class="notice">{{ notice }}</p>
@@ -1120,7 +1120,7 @@ function handTap(x, y) {
 
     <!-- 처음 화면: 무엇을 할 수 있는지 한 장으로 -->
     <Transition name="fade">
-      <div v-if="!showPanel && !hand && !graphOn" ref="hintEl" class="hint">
+      <Glass v-if="!showPanel && !hand && !graphOn" ref="hintEl" class="hint" :radius="20" :band="14" :scale="40" :blur="10">
         <p class="h">지구본을 돌려서 간판을 찾아요</p>
         <p class="d">
           점 하나하나가 진짜 간판이에요{{ signTotal ? ` (전국 ${signTotal.toLocaleString()}곳)` : '' }}. 이름을 검색하거나, <b>점이 모인 곳을 누르면</b> 그 동네 간판이 펼쳐져요.
@@ -1135,7 +1135,7 @@ function handTap(x, y) {
           <button v-for="s in SPOTS" :key="s.label" class="m-chip" :disabled="nearBusy" @click="scanAt({ ...s, kind: 'spot' })">{{ s.label }}</button>
         </div>
         <button class="handbtn" @click="hand = true">✋ 웹캠으로 손을 써서 돌려 보기</button>
-      </div>
+      </Glass>
     </Transition>
 
     <aside v-if="showPanel" class="panel">
@@ -1289,7 +1289,7 @@ function handTap(x, y) {
       </template>
     </aside>
 
-    <div class="ctrl" role="group" aria-label="지도 조작">
+    <Glass class="ctrl" role="group" aria-label="지도 조작" :radius="17" :band="9" :scale="24">
       <button aria-label="확대" title="확대" @click="zoom(1)">+</button>
       <button aria-label="축소" title="축소" @click="zoom(-1)">−</button>
       <button aria-label="한국 전체" title="한국 전체" class="home" @click="home()">
@@ -1298,7 +1298,7 @@ function handTap(x, y) {
       <button aria-label="지구 전체" title="지구 전체" class="sm" @click="globe">🌐</button>
       <button aria-label="내 위치" title="내 위치" class="sm" :disabled="nearBusy" @click="locate">📍</button>
       <button aria-label="손으로 조작" title="웹캠 손 조작" class="sm" :class="{ on: hand }" @click="hand = !hand">✋</button>
-    </div>
+    </Glass>
 
     <HandControl v-if="hand" :full="graphOn" @stream="handStream = $event" @frame="handFrame" @drag="handDrag" @zoom="handZoom" @tap="handTap" @point="handPoint = $event" @off="hand = false" />
 
@@ -1353,6 +1353,13 @@ function handTap(x, y) {
   --control: var(--mk-fill);
   --control-ring: var(--mk-line);
   --accent: var(--mk-hot);
+  /* 리퀴드 글라스 판(Glass.vue)의 색: 옅은 바탕 + 위왼쪽 빛 테두리 + 그림자 */
+  --glass-tint: rgb(255 255 255 / 0.4);
+  --glass-ring:
+    0 0 0 0.5px rgb(0 0 0 / 0.08),
+    0 10px 30px rgb(0 0 0 / 0.16),
+    inset 1px 1px 0 -0.5px rgb(255 255 255 / 0.95),
+    inset -1px -1px 0 -0.5px rgb(255 255 255 / 0.6);
   position: relative;
   height: min(620px, calc(100vh - 150px));
   min-height: 420px;
@@ -1373,6 +1380,12 @@ function handTap(x, y) {
     --mk-fill: rgb(255 255 255 / 0.06);
     --mk-fill-2: rgb(255 255 255 / 0.12);
     --mk-space: #050506;
+    --glass-tint: rgb(40 40 46 / 0.3);
+    --glass-ring:
+      0 0 0 0.5px rgb(255 255 255 / 0.12),
+      0 10px 30px rgb(0 0 0 / 0.45),
+      inset 1px 1px 0 -0.5px rgb(255 255 255 / 0.35),
+      inset -1px -1px 0 -0.5px rgb(255 255 255 / 0.12);
   }
 }
 
@@ -1415,18 +1428,16 @@ function handTap(x, y) {
 }
 
 .top .sbar {
-  width: min(420px, 100%);
+  width: min(440px, 100%);
   height: 42px;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: var(--mk-card);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 0 0 1px var(--mk-line), 0 10px 28px rgb(0 0 0 / 0.2);
+  padding: 0 16px;
+  border-radius: 21px;
+  background: var(--glass-tint);
+  box-shadow: var(--glass-ring);
 }
 
 .top .sbar:focus-within {
-  box-shadow: 0 0 0 1.5px var(--mk-ink), 0 10px 28px rgb(0 0 0 / 0.2);
+  box-shadow: 0 0 0 1.5px var(--mk-hot), var(--glass-ring);
 }
 
 .top .m-err,
@@ -1434,10 +1445,10 @@ function handTap(x, y) {
   margin: 0;
   padding: 5px 12px;
   border-radius: 999px;
-  background: var(--mk-card);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 0 0 1px var(--mk-line);
+  background: var(--glass-tint);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  backdrop-filter: blur(18px) saturate(170%);
+  box-shadow: var(--glass-ring);
   font-size: 12px;
 }
 
@@ -1463,12 +1474,10 @@ function handTap(x, y) {
   bottom: 10px;
   z-index: 2;
   width: 320px;
-  padding: 14px 16px;
+  padding: 16px 18px;
   border-radius: 20px;
-  background: var(--mk-card);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 0 0 1px var(--mk-line), 0 16px 40px rgb(0 0 0 / 0.22);
+  background: var(--glass-tint);
+  box-shadow: var(--glass-ring);
 }
 
 .hint p {
@@ -1504,11 +1513,11 @@ function handTap(x, y) {
 
 .app-body .hint .handbtn {
   width: 100%;
-  min-height: 32px;
-  margin-top: 10px;
-  border-radius: 10px;
+  min-height: 34px;
+  margin-top: 12px;
+  border-radius: 17px;
   background: var(--mk-fill);
-  box-shadow: none;
+  box-shadow: inset 0 0 0 0.5px var(--mk-line);
   font-size: 12.5px;
   font-weight: 600;
   color: var(--mk-ink);
@@ -1807,29 +1816,29 @@ function handTap(x, y) {
   bottom: 30px;
   z-index: 2;
   display: grid;
-  overflow: hidden;
-  border-radius: 12px;
-  background: var(--mk-card);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 0 0 1px var(--mk-line), 0 6px 18px rgb(0 0 0 / 0.18);
+  gap: 2px;
+  padding: 3px;
+  border-radius: 20px;
+  background: var(--glass-tint);
+  box-shadow: var(--glass-ring);
 }
 
 .app-body .ctrl button {
   width: 34px;
-  height: 32px;
+  height: 34px;
   min-height: 0;
   padding: 0;
-  border-radius: 0;
+  border-radius: 17px;
   background: none;
   box-shadow: none;
   font-size: 18px;
   line-height: 1;
   color: var(--label-2);
+  transition: background-color 0.15s;
 }
 
-.app-body .ctrl button + button {
-  border-top: 0.5px solid var(--sep);
+.app-body .ctrl button:hover:not(:disabled) {
+  background: var(--mk-fill-2);
 }
 
 .app-body .ctrl button.sm {
@@ -1837,7 +1846,7 @@ function handTap(x, y) {
 }
 
 .app-body .ctrl button.on {
-  background: var(--mk-ink);
+  background: var(--mk-hot);
 }
 
 .ctrl .home svg {

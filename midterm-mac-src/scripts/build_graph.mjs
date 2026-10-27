@@ -1,5 +1,5 @@
 // 이름 찾기 별자리에 쓸 말별 간판 점을 만든다. 검색 색인(search/)은 두 글자 조각마다 이름 24곳만 담아 별자리가 성기다
-// 사용법: node scripts/build_graph.mjs <signs.tsv> ../midterm/data [점 수=1000]
+// 사용법: node scripts/build_graph.mjs <signs.tsv> ../midterm/data [점 수=4000]
 //   signs.tsv 는 scripts/dump_tiles.mjs 로 지도 타일에서 푼 것(277만 곳 전부)
 // 말 = 간판 문서(words/)에 있는 한글 2~4글자 말. 말마다 간판을 고르게 뽑아(같은 입력이면 같은 표본) 동네·업종·글자 자리로 센다
 // graph/<조각번호>.json: {말: {n: 전체 간판 수, d: "칸 칸 …"}}
@@ -9,7 +9,7 @@ import { createReadStream, mkdirSync, readdirSync, readFileSync, writeFileSync }
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 
-const [src, out, k = '1000'] = process.argv.slice(2)
+const [src, out, k = '4000'] = process.argv.slice(2)
 const K = Number(k)
 const BUCKETS = 1024
 const bucket = (w) => (w.charCodeAt(0) * 31 + w.charCodeAt(1)) % BUCKETS

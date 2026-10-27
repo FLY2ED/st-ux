@@ -4,6 +4,8 @@
 // 손 조작 중엔 웹캠을 거울처럼 깔고 그 위에 그린다: 손끝이 가까운 별을 잡아끌고, 두 손으로 집으면 별자리가 두 손 사이에 걸린다
 // 움직이는 동안엔 별자리가 흐린 사본 몇 장으로 뒤따라온다(겹친 잔상)
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { GESTURES } from '../hand.js'
+import Glass from './Glass.vue'
 
 const props = defineProps({
   word: { type: String, required: true },
@@ -24,9 +26,14 @@ const emit = defineEmits(['town', 'close', 'hand'])
 const FONT = "'Pretendard Variable', Pretendard, sans-serif"
 const HOT = '#ff4f00'
 const MAX_NAMED = 60
-const MAX_DOTS = 1000
+const MAX_DOTS = 4000
 const MAX_HUBS = 30
 const SPOTS = ['딱 그 이름', '앞에', '가운데', '끝에']
+const MOUSE = [
+  ['끌기', '돌리기'],
+  ['휠', '다가가기'],
+  ['점 누르기', '열기'],
+]
 
 const VIEWS = [
   { key: 'town', name: '동네', note: '같은 동네 간판끼리 모였어요. 자리는 실제 지도를 따라요' },
@@ -259,7 +266,7 @@ function drawEchoes(g, tips) {
     const d = Math.hypot(ring.d[a + i * 2] - ring.d[b + i * 2], ring.d[a + i * 2 + 1] - ring.d[b + i * 2 + 1])
     if (d === d) ((move += d), c++)
   }
-  const show = c ? Math.min(1, move / c / 10) : 0
+  const show = c ? Math.min(1, move / c / 6) : 0
   if (show < 0.02) return
   for (let e = ECHOES.length - 1; e >= 0; e--) {
     const [k, a0] = ECHOES[e]
@@ -361,7 +368,7 @@ function draw() {
   const g = cv.value?.getContext('2d')
   if (!g || !W) return
   const now = performance.now()
-  if (now - lastInput > 2500 && !dragging) cam.yaw += 0.0012
+  if (now - lastInput > 2500 && !dragging) cam.yaw += 0.002
   const fit = (Math.min(W, H - SAFE_TOP - SAFE_BOTTOM) * 0.42) / extent
   cam.fit = cam.fit ? cam.fit + (fit - cam.fit) * 0.06 : fit
   const live = props.hand && frame && now - frameAt < 300
@@ -670,19 +677,24 @@ onBeforeUnmount(() => {
       <p v-if="total > signs.length">전국 {{ countText(total) }}곳 중 {{ countText(signs.length) }}곳을 고르게 띄움 · 동네 {{ towns }}곳 · 이름 {{ labeled.length }}곳</p>
       <p v-else>간판 {{ countText(signs.length) }}곳 · 동네 {{ towns }}곳</p>
       <div class="acts">
-        <button :class="{ on: hand }" @click="emit('hand')">✋ {{ hand ? '손 조작 중' : '손으로 다루기' }}</button>
-        <button @click="emit('close')">지도로 ↩</button>
+        <Glass tag="button" class="pill" :class="{ on: hand }" :radius="17" :band="8" :scale="22" @click="emit('hand')">✋ {{ hand ? '손 조작 끄기' : '손으로 다루기' }}</Glass>
+        <Glass tag="button" class="pill" :radius="17" :band="8" :scale="22" @click="emit('close')">지도로</Glass>
       </div>
     </header>
 
     <nav class="views">
-      <button v-for="(v, i) in VIEWS" :key="v.key" :class="{ on: view === v.key }" @click="setView(v.key)">
-        <b>{{ i + 1 }}</b>{{ v.name }}
-      </button>
+      <Glass class="seg" role="tablist" :radius="18" :band="8" :scale="22">
+        <button v-for="(v, i) in VIEWS" :key="v.key" role="tab" :aria-selected="view === v.key" :class="{ on: view === v.key }" @click="setView(v.key)">
+          <b>{{ i + 1 }}</b>{{ v.name }}
+        </button>
+      </Glass>
       <p>{{ viewInfo.note }}</p>
     </nav>
 
-    <p class="how">{{ hand ? '집어 끌어 돌리기 · 가리키면 이름 · 짧게 집었다 놓으면 열기 · 두 손 집어 벌리면 다가가기' : '끌어서 돌리기 · 휠로 다가가기 · 점 누르면 열기' }}</p>
+    <!-- 다루는 법은 한 곳에만. 손 조작 중이면 손 동작, 아니면 마우스 -->
+    <ul class="how">
+      <li v-for="[k, v] in hand ? GESTURES : MOUSE" :key="k"><b>{{ k }}</b>{{ v }}</li>
+    </ul>
 
     <div v-if="hover && hover !== chosen" class="tip" :style="{ transform: `translate(${tip.x + 14}px, ${tip.y + 10}px)` }">
       <b v-if="hover.named">{{ hover.r.parts[0] }}<em>{{ hover.r.parts[1] }}</em>{{ hover.r.parts[2] }}</b>
@@ -690,7 +702,7 @@ onBeforeUnmount(() => {
       <small>{{ hover.named ? `${hover.r.cat} · ${hover.r.short}` : `${hover.r.short} · ‘${word}’ ${SPOTS[hover.spot]} · 이름은 안 담은 점` }}</small>
     </div>
 
-    <article v-if="chosen" class="card">
+    <Glass v-if="chosen" tag="article" class="card" :radius="20" :band="12" :scale="34" :blur="8">
       <span class="k">{{ viewInfo.name }} · {{ chosen.hub?.label }} {{ chosen.hub?.list.length }}곳</span>
       <h3 v-if="chosen.named">{{ chosen.r.parts[0] }}<em>{{ chosen.r.parts[1] }}</em>{{ chosen.r.parts[2] }}</h3>
       <h3 v-else>‘{{ word }}’ 든 {{ chosen.r.cat }}</h3>
@@ -710,7 +722,7 @@ onBeforeUnmount(() => {
         <button class="go" @click="emit('town', chosen.r.region)">지도에서 이 동네 보기</button>
         <button aria-label="닫기" @click="chosen = null">✕</button>
       </div>
-    </article>
+    </Glass>
   </div>
 </template>
 
@@ -725,6 +737,13 @@ onBeforeUnmount(() => {
   font-family: 'Pretendard Variable', Pretendard, sans-serif;
   --lo: 0.15;
   --size: 0.7;
+  /* 별자리 위에 뜨는 리퀴드 글라스 판 */
+  --g-tint: rgb(40 40 46 / 0.28);
+  --g-ring:
+    0 0 0 0.5px rgb(255 255 255 / 0.14),
+    0 10px 30px rgb(0 0 0 / 0.5),
+    inset 1px 1px 0 -0.5px rgb(255 255 255 / 0.38),
+    inset -1px -1px 0 -0.5px rgb(255 255 255 / 0.12);
 }
 
 .graph button {
@@ -779,34 +798,39 @@ canvas:active {
 }
 
 .head p,
-.views p,
-.how {
+.views p {
   margin: 6px 0 0;
-    font-size: 11.5px;
+  font-size: 11.5px;
   color: rgb(255 255 255 / 0.6);
 }
 
 .acts {
   display: flex;
-  gap: 6px;
-  margin-top: 12px;
+  gap: 8px;
+  margin-top: 14px;
   pointer-events: auto;
 }
 
-.app-body .acts button {
-  min-height: 30px;
-  padding: 0 12px;
-  border: 1px solid rgb(255 255 255 / 0.25);
-  border-radius: 999px;
-  background: rgb(0 0 0 / 0.6);
+.app-body .acts .pill {
+  min-height: 34px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 17px;
+  background: var(--g-tint);
+  box-shadow: var(--g-ring);
   color: #fff;
-  font-size: 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: background-color 0.15s;
 }
 
-.app-body .acts button.on {
-  border-color: #fff;
-  background: #fff;
-  color: #000;
+.app-body .acts .pill:hover {
+  background: rgb(255 255 255 / 0.14);
+}
+
+/* 손 조작 중일 때만 강조색 한 군데 */
+.app-body .acts .pill.on {
+  background: rgb(255 79 0 / 0.85);
 }
 
 .views {
@@ -820,40 +844,64 @@ canvas:active {
   max-width: calc(100% - 44px);
 }
 
-.app-body .views button {
-  min-height: 0;
-  padding: 2px 0;
+.views .seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 18px;
+  background: var(--g-tint);
+  box-shadow: var(--g-ring);
+}
+
+.app-body .views .seg button {
+  min-height: 30px;
+  padding: 0 14px;
   border: 0;
-  border-bottom: 1px solid transparent;
-  border-radius: 0;
+  border-radius: 15px;
   background: none;
   box-shadow: none;
-  color: rgb(255 255 255 / 0.5);
-    font-size: 12px;
-  letter-spacing: 0.04em;
+  color: rgb(255 255 255 / 0.6);
+  font-size: 12.5px;
+  transition: background-color 0.15s, color 0.15s;
 }
 
-.views button b {
+.views .seg button b {
   margin-right: 6px;
   font-weight: 500;
+  color: rgb(255 255 255 / 0.35);
 }
 
-.app-body .views button.on {
-  border-bottom-color: #fff;
-  color: #fff;
+.app-body .views .seg button.on {
+  background: rgb(255 255 255 / 0.92);
+  color: #000;
+}
+
+.views .seg button.on b {
+  color: rgb(0 0 0 / 0.4);
 }
 
 .views p {
   flex-basis: 100%;
-  margin: 2px 0 0;
+  margin: 4px 0 0 4px;
 }
 
 .how {
   position: absolute;
   right: 16px;
   bottom: 20px;
+  display: flex;
+  gap: 14px;
   margin: 0;
-  color: rgb(255 255 255 / 0.4);
+  padding: 0;
+  list-style: none;
+  font-size: 11.5px;
+  color: rgb(255 255 255 / 0.45);
+}
+
+.how b {
+  margin-right: 5px;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.85);
 }
 
 .tip {
@@ -862,10 +910,12 @@ canvas:active {
   left: 0;
   display: grid;
   gap: 2px;
-  padding: 6px 9px;
-  border: 1px solid rgb(255 255 255 / 0.18);
-  border-radius: 6px;
-  background: rgb(0 0 0 / 0.92);
+  padding: 7px 11px;
+  border-radius: 12px;
+  background: rgb(28 28 32 / 0.72);
+  -webkit-backdrop-filter: blur(14px) saturate(170%);
+  backdrop-filter: blur(14px) saturate(170%);
+  box-shadow: var(--g-ring);
   font-size: 12px;
   pointer-events: none;
 }
@@ -888,11 +938,25 @@ em {
   position: absolute;
   right: 16px;
   bottom: 52px;
-  width: 260px;
-  padding: 14px 16px;
-  border: 1px solid rgb(255 255 255 / 0.2);
-  border-radius: 10px;
-  background: rgb(0 0 0 / 0.85);
+  width: 270px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: rgb(28 28 32 / 0.5);
+  box-shadow: var(--g-ring);
+  animation: card-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none;
+  }
 }
 
 .card .k {
@@ -931,11 +995,11 @@ em {
 }
 
 .app-body .card .row button {
-  min-height: 30px;
-  padding: 0 10px;
-  border: 1px solid rgb(255 255 255 / 0.25);
-  border-radius: 6px;
-  background: none;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.1);
   box-shadow: none;
   color: #fff;
   font-size: 12px;
@@ -943,7 +1007,6 @@ em {
 
 .app-body .card .row .go {
   flex: 1;
-  border-color: #fff;
   background: #fff;
   color: #000;
   font-weight: 600;

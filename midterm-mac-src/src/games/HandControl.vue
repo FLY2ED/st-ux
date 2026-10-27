@@ -2,10 +2,11 @@
 // 손으로 지구본 다루기. 엄지·검지로 집어서 끌면 돌리고, 짧게 집었다 놓으면 그 자리를 누르고, 두 손으로 집어 벌리면 확대한다
 import { onBeforeUnmount, ref } from 'vue'
 import { closeCamera, openCamera } from '../face.js'
-import { handTracker, span } from '../hand.js'
+import { GESTURES, handTracker, span } from '../hand.js'
 import CameraGate from './CameraGate.vue'
+import Glass from './Glass.vue'
 
-// full: 화면 전체에 웹캠을 까는 곳(이름 별자리)에선 오른쪽 위 작은 카메라 화면을 숨긴다
+// full: 화면 전체에 웹캠을 까는 곳(이름 별자리)에선 카메라 화면·안내·끄기를 별자리 쪽에 맡기고 지금 상태만 작게 띄운다
 defineProps({ full: Boolean })
 // frame: 매 프레임 손끝 자리와 집은 손(화면 좌표). stream: 카메라를 열고 닫을 때
 const emit = defineEmits(['drag', 'zoom', 'tap', 'point', 'off', 'frame', 'stream'])
@@ -231,23 +232,24 @@ onBeforeUnmount(stop)
     </template>
     <i v-for="r in ripples" :key="r.id" class="ripple" :style="{ transform: `translate(${r.x}px, ${r.y}px)` }"></i>
 
-    <div v-if="!gate" class="cam">
-      <div v-if="!full" class="screen">
+    <Glass v-if="!gate && full" class="pill" :class="mode" :radius="16" :band="8" :scale="22">
+      <template v-if="msg">{{ msg }}</template>
+      <template v-else><b>{{ mode ? MODE_LABEL[mode][0] : 'HAND' }}</b> {{ mode ? MODE_LABEL[mode][1] : '손을 보여 주세요' }}</template>
+    </Glass>
+    <Glass v-else-if="!gate" class="cam" :radius="22" :band="12" :scale="34">
+      <div class="screen">
         <canvas ref="preview" width="320" height="240"></canvas>
         <p v-if="mode" class="state" :class="mode"><b>{{ MODE_LABEL[mode][0] }}</b> {{ MODE_LABEL[mode][1] }}</p>
       </div>
-      <p v-else class="state inline" :class="mode"><b>{{ mode ? MODE_LABEL[mode][0] : 'HAND' }}</b> {{ mode ? MODE_LABEL[mode][1] : '손을 보여 주세요' }}</p>
       <div class="cap">
         <p v-if="msg">{{ msg }}</p>
         <template v-else-if="live">
           <p v-if="!seen" class="wait">손을 카메라에 보여 주세요</p>
-          <p><b>집어서 끌기</b> 돌리기</p>
-          <p><b>짧게 집었다 놓기</b> 누르기</p>
-          <p><b>두 손으로 집어 벌리기</b> 확대</p>
+          <p v-for="[k, v] in GESTURES" :key="k"><b>{{ k }}</b> {{ v }}</p>
         </template>
         <button class="off" @click="quit">손 조작 끄기</button>
       </div>
-    </div>
+    </Glass>
   </div>
 </template>
 
@@ -340,19 +342,56 @@ onBeforeUnmount(stop)
 .cam {
   position: absolute;
   top: 66px;
-  right: 10px;
+  right: 12px;
   display: grid;
   overflow: hidden;
-  width: 320px;
-  border-radius: 16px;
-  background: var(--mk-card, rgb(0 0 0 / 0.8));
-  box-shadow: 0 0 0 1px var(--mk-line, rgb(255 255 255 / 0.12)), 0 10px 26px rgb(0 0 0 / 0.25);
+  width: 300px;
+  padding: 6px;
+  border-radius: 22px;
+  background: var(--glass-tint, rgb(40 40 46 / 0.3));
+  box-shadow: var(--glass-ring, 0 10px 30px rgb(0 0 0 / 0.45));
   pointer-events: auto;
 }
 
 .screen {
   position: relative;
+  overflow: hidden;
+  border-radius: 16px;
   background: #000;
+}
+
+/* 별자리 위: 지금 손 상태만 오른쪽 위 작은 알약으로 */
+.pill {
+  position: absolute;
+  top: 66px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 16px;
+  background: rgb(40 40 46 / 0.3);
+  box-shadow:
+    0 0 0 0.5px rgb(255 255 255 / 0.14),
+    0 8px 24px rgb(0 0 0 / 0.45),
+    inset 1px 1px 0 -0.5px rgb(255 255 255 / 0.35),
+    inset -1px -1px 0 -0.5px rgb(255 255 255 / 0.12);
+  color: rgb(255 255 255 / 0.7);
+  font-size: 11.5px;
+}
+
+.pill b {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #fff;
+}
+
+.pill.pinch b,
+.pill.drag b,
+.pill.zoom b {
+  color: #ff4f00;
 }
 
 .cam canvas {
@@ -369,11 +408,6 @@ onBeforeUnmount(stop)
   margin: 0;
   font-size: 11px;
   color: rgb(255 255 255 / 0.7);
-}
-
-.state.inline {
-  position: static;
-  padding: 10px 10px 0;
 }
 
 .state b {
@@ -393,22 +427,18 @@ onBeforeUnmount(stop)
 
 .cap {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 2px 8px;
-  padding: 8px 10px 10px;
-  font-size: 11px;
+  gap: 4px;
+  padding: 10px 8px 4px;
+  font-size: 11.5px;
   color: var(--mk-ink-2, #aaa);
 }
 
+/* 동작 한 줄씩: 왼쪽 손 모양, 오른쪽 하는 일 */
 .cap p {
   margin: 0;
-  display: grid;
-}
-
-.cap .wait,
-.cap .off,
-.cap > p:only-of-type {
-  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .cap b {
@@ -424,8 +454,8 @@ onBeforeUnmount(stop)
 
 .app-body .cap .off {
   margin-top: 6px;
-  min-height: 26px;
-  border-radius: 8px;
+  min-height: 30px;
+  border-radius: 15px;
   font-size: 11.5px;
 }
 </style>
