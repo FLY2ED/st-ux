@@ -103,6 +103,9 @@ const MENU = [
 export default function Intro({ onReady, onStart, release, onDone }) {
   const [reduce] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
   const [stage, setStage] = useState(reduce ? 'title' : 'play')
+  // 전에 한 번 끝까지 봤으면 클릭·키로 빨리 감아 제목까지 건너뛸 수 있다
+  const [seen] = useState(introSeen)
+  const skipRef = useRef(() => {})
   const [sel, setSel] = useState(0)
   const selRef = useRef(0)
   selRef.current = sel
@@ -474,6 +477,11 @@ export default function Intro({ onReady, onStart, release, onDone }) {
       e.preventDefault()
       e.stopPropagation()
       if (fired.has('title')) menuKey.current(e)
+      else skipRef.current()
+    }
+    let ff = false
+    skipRef.current = () => {
+      if (seen && !fired.has('title')) ff = true
     }
     window.addEventListener('keydown', onKey, true)
 
@@ -494,6 +502,7 @@ export default function Intro({ onReady, onStart, release, onDone }) {
       let ts = 1
       if (now < freezeUntil) ts = 0
       else if (slowAt && now < slowAt + 650) ts = lerp(0.3, 1, ease((now - slowAt) / 650))
+      if (ff && !fired.has('title')) ts = 5
       const dt = rdt * ts
       clock += dt
       const t = clock
@@ -1016,7 +1025,15 @@ export default function Intro({ onReady, onStart, release, onDone }) {
   }, [reduce])
 
   return (
-    <div className={`intro s-${stage} ${reduce ? 'reduce' : ''}`} onPointerDown={(e) => e.stopPropagation()} role="dialog" aria-label="간판 수리공 시작 화면">
+    <div
+      className={`intro s-${stage} ${reduce ? 'reduce' : ''}`}
+      onPointerDown={(e) => {
+        e.stopPropagation()
+        if (stage === 'play') skipRef.current()
+      }}
+      role="dialog"
+      aria-label="간판 수리공 시작 화면"
+    >
       <div ref={blackRef} className="intro-black" />
       <div className="intro-title" aria-hidden={stage === 'play'}>
         <div className="it-row">
@@ -1061,6 +1078,7 @@ export default function Intro({ onReady, onStart, release, onDone }) {
         <p className="it-press">↑↓ 고르기 · Enter 시작</p>
       </div>
       <canvas ref={cv} className="intro-cv" />
+      {seen && stage === 'play' && <p className="it-skip">클릭하면 건너뛰기</p>}
     </div>
   )
 }

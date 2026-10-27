@@ -17,7 +17,8 @@ const props = defineProps({
   shopName: { type: String, default: '' },
   shopCat: { type: String, default: '' },
 })
-const ROUNDS = 3
+// 이야기 속 부탁이면 두 판만 닦는다
+const ROUNDS = props.embed ? 2 : 3
 const CELL = 4 // 때 한 칸 = 화면 4px (픽셀 느낌 + 가벼운 계산)
 const CLEAN = 0.9 // 이만큼 닦이면 나머지는 저절로 떨어진다
 const BEST_KEY = 'gp-clean-best'
@@ -311,7 +312,7 @@ async function next() {
 async function begin() {
   phase.value = 'scrub'
   heroPose.value = 'idle'
-  say.value = props.embed ? ASK[round.value % ASK.length] : ''
+  say.value = props.embed ? ASK[round.value + 1 >= ROUNDS ? ASK.length - 1 : round.value] : ''
   sponge.value = { x: 0.5, y: 0.5, on: false }
   await nextTick()
   grime()
