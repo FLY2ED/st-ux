@@ -466,7 +466,7 @@
 }
 
 .mac-win.max {
-  border-radius: 0;
+  border-radius: 0 0 16px 16px;
 }
 
 /* 3D 거리 전체 화면: 둥근 모서리도, 그림자도, Dock 여백도 없다 */
@@ -489,11 +489,6 @@
 .app-body.fill > div > * {
   height: 100%;
   padding: 0;
-}
-
-/* 꽉 채운 창도 Dock 은 위에 떠 있으니 그만큼 비워 둔다 */
-.mac-win.max .app-body {
-  padding-bottom: 72px;
 }
 
 .titlebar {

@@ -19,9 +19,14 @@ function read() {
   }
 }
 
+// 소리를 켜고 끌 때 알림을 받는다(그 자리에서 합성하는 음악이 따라 멈추고 다시 켜지게)
+const muteFns = new Set()
+export const onMuted = (fn) => (muteFns.add(fn), () => muteFns.delete(fn))
+
 export function setMuted(v) {
   sound.muted = v
   if (v) stopBgm()
+  for (const fn of muteFns) fn(v)
   try {
     localStorage.setItem('gp-muted', v ? '1' : '0')
   } catch {
@@ -58,6 +63,12 @@ function audio() {
   } catch {
     return null
   }
+}
+
+// 다른 모듈이 같은 오디오 문맥과 버스에 직접 소리를 잇는다. 꺼져 있으면 null
+export function audioOut(name = 'bgm') {
+  const c = audio()
+  return c ? { c, out: bus[name] } : null
 }
 
 // 첫 클릭·키 입력 때 오디오를 깨우고 음원을 미리 받아 둔다
@@ -160,8 +171,16 @@ function fadeOut(c, cur, sec = 0.6) {
   cur.src.stop(now + sec + 0.05)
 }
 
+// 앱 안에서 곡을 바꿔 끼운다(간판 지도가 별자리를 띄운 동안엔 building → sky)
+// 바꾼 뒤 replayBgm() 을 부르면 지금 앞에 있는 앱 기준으로 다시 고른다
+export const bgmAlias = {}
+let asked = null
+export const replayBgm = () => !sound.muted && playBgm(asked)
+
 // name 이 없으면 멈춘다. 같은 곡이면 그대로 둔다
 export async function playBgm(name) {
+  asked = name || null
+  name = bgmAlias[name] || name
   wanted = name || null
   const c = audio()
   if (!c || !wanted) {

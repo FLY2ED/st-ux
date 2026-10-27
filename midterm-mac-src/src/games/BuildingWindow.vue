@@ -2411,10 +2411,10 @@ function handTap(x, y) {
   background: var(--mk-hot);
 }
 
-/* 창을 최대화하면 메뉴 막대·제목 막대·Dock 여백만 빼고 화면을 다 쓴다 */
+/* 창을 최대화하면 메뉴 막대·제목 막대·Dock 자리(창 밖)만 빼고 화면을 다 쓴다 */
 :global(.mac-win.max) {
   .amap {
-    height: calc(100dvh - 136px);
+    height: calc(100dvh - 138px);
   }
 }
 

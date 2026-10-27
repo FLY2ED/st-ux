@@ -3,8 +3,10 @@
 // 끌면 돌고, 휠·두 손으로 당기면 다가가고, 점을 누르면 그 간판 카드가 열린다
 // 손 조작 중엔 웹캠을 빈 자리에 뜬 작은 유리 창(visionOS 창처럼)에 띄운다: 손끝이 가까운 별을 잡아끌고, 두 손으로 집으면 별자리가 두 손 사이에 걸린다
 // 휠·핀치는 커서가 가리킨 자리로 끝까지(×60) 다가가고, 그 자리를 축으로 돈다
+// 열려 있는 동안 잔잔한 곡(Starfield Romance)이 흐르고, 별에 닿고·고르고·돌리고·다가가는 손짓이 곡과 같은 조의 소리로 얹힌다(skyaudio.js)
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { GESTURES, REACH } from '../hand.js'
+import { sky } from './skyaudio.js'
 import Glass from './Glass.vue'
 
 const props = defineProps({
@@ -242,9 +244,11 @@ const pan = { x: 0, y: 0 }
 
 // 손끝마다 가까운 별 둘에 주황 실을 걸고, 손끝엔 흰 점과 주황 고리. 두 손으로 집으면 그 사이에 점선과 배율
 const near2 = [null, null]
+// 손끝마다 마지막으로 울린 별. 손끝이 새 별에 바짝 닿을 때만 한 번 울린다
+const rang = []
 function drawHands(g, tips, held) {
   g.lineWidth = 1
-  for (const p of tips) {
+  for (const [i, p] of tips.entries()) {
     near2[0] = near2[1] = null
     let d0 = 150 * 150
     let d1 = 150 * 150
@@ -254,6 +258,9 @@ function drawHands(g, tips, held) {
       if (d < d0) ((d1 = d0), (near2[1] = near2[0]), (d0 = d), (near2[0] = s))
       else if (d < d1) ((d1 = d), (near2[1] = s))
     }
+    const touching = d0 < 30 * 30 ? near2[0] : null
+    if (touching && touching !== rang[i]) sky.touch(touching.sy / H, touching.named)
+    rang[i] = touching
     for (const [s, d] of [
       [near2[0], d0],
       [near2[1], d1],
@@ -303,6 +310,20 @@ function drawHands(g, tips, held) {
     g.textAlign = 'start'
   }
 }
+
+// ── 소리 ──
+// 도는 빠르기는 바람으로, 다가간 정도는 잔향 깊이로, 배율이 반 옥타브(√2배) 넘어갈 때마다 한 음
+let heard = { yaw: 0, pitch: 0, step: 0 }
+function hear(held) {
+  const speed = Math.min(1, Math.hypot(cam.yaw - heard.yaw, cam.pitch - heard.pitch) / 0.05)
+  const depth = Math.max(0, Math.log(cam.zoom) / Math.log(ZOOM_MAX))
+  sky.frame(speed, depth, !!held)
+  const step = Math.round(Math.log2(Math.max(1, cam.zoom)) * 2)
+  if (step !== heard.step) sky.step(step)
+  heard = { yaw: cam.yaw, pitch: cam.pitch, step }
+}
+watch(hover, (s) => s && sky.touch(s.sy / H, s.named))
+watch(chosen, (s) => s && sky.chime(s.sy / H))
 
 // ── 그리기 ──
 let raf = 0
@@ -357,6 +378,7 @@ function draw() {
   const live = props.hand && frame && now - frameAt < 300
   const tips = live ? frame.tips : []
   const held = live && frame.held.length === 2 ? frame.held : null
+  hear(held)
   const tx = held ? (held[0].x + held[1].x) / 2 - W / 2 : 0
   const ty = held ? (held[0].y + held[1].y) / 2 - midY() : 0
   pan.x += (tx - pan.x) * (held ? 0.25 : 0.04)
@@ -718,7 +740,7 @@ function setView(k) {
   hover.value = null
   chosen.value = null
 }
-watch(view, () => (layout(), zoomReset()))
+watch(view, () => (layout(), zoomReset(), sky.swell()))
 
 function onKey(e) {
   if (e.target.closest?.('input, textarea')) return
@@ -800,9 +822,11 @@ onMounted(() => {
   ro.observe(wrap.value)
   window.addEventListener('keydown', onKey)
   raf = requestAnimationFrame(draw)
+  sky.on()
 })
 onBeforeUnmount(() => {
   cancelAnimationFrame(raf)
+  sky.off()
   ro?.disconnect()
   window.removeEventListener('keydown', onKey)
 })

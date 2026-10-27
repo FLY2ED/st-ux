@@ -9,5 +9,8 @@ street
 scratch
   "Chiploop"
   https://opengameart.org/content/chiploop
+sky (간판 지도 별자리)
+  Yoiyami, "Starfield Romance" (Yoiyami Blue Series No.3)
+  https://opengameart.org/node/182246
 
 모두 음량을 -18 LUFS 로 맞춰 mp3 로 다시 담았다.
