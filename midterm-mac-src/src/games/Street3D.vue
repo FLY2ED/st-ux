@@ -83,6 +83,9 @@ const dialog = shallowRef(null)
 const chat = shallowRef(null)
 const toast = shallowRef(null)
 const near = shallowRef(null)
+// Shift 로 한 번도 안 뛰어 봤으면 걷는 동안 아래에 Shift 안내를 띄운다
+const ranOnce = ref(localStorage.getItem('gp-3d-run') === '1')
+const walking = ref(false)
 const litCount = ref(0)
 const arrow = ref(0)
 const dist = ref(0)
@@ -1146,17 +1149,10 @@ function talkFolk(f) {
     .sort((a, b) => a.d - b.d)[0]?.p
   story.value = { ...st, folks: st.folks.map((o) => (o === f ? { ...o, done: true } : o)) }
   sfx.click()
-  const stay = { kind: 'folk', name: `f-${f.id}`, h: 2.0, at: f.at }
-  if (!sign) return say(who, [fill(FOLK_IDLE[Math.floor(Math.random() * FOLK_IDLE.length)], vars(null, st.shop))], { stay })
-  const [first, then] = FOLKS[f.id].lines.map((l) => fill(l, { ...vars(null, st.shop), sign: sign.sign.name }))
-  say(who, [first], {
-    stay,
-    then: () => {
-      resume()
-      repair(sign)
-      speak(who, then)
-    },
-  })
+  // 멈춰 세우지 않고 말풍선 한 줄로 끝낸다
+  if (!sign) return speak(who, fill(FOLK_IDLE[Math.floor(Math.random() * FOLK_IDLE.length)], vars(null, st.shop)))
+  repair(sign)
+  speak(who, fill(FOLKS[f.id].line, { ...vars(null, st.shop), sign: sign.sign.name }))
 }
 
 // 보스와 마주치기
@@ -2187,6 +2183,7 @@ function move(dt) {
   if (keys.has('KeyZ')) cam.yaw += dt * 1.8
   if (keys.has('KeyC')) cam.yaw -= dt * 1.8
   player.moving = !!(ax || az)
+  if (walking.value !== player.moving) walking.value = player.moving
   if (!player.moving) return
   const len = Math.hypot(ax, az)
   ax /= len
@@ -2197,6 +2194,10 @@ function move(dt) {
   const wx = ax * c + az * s
   const wz = -ax * s + az * c
   const run = keys.has('ShiftLeft') || keys.has('ShiftRight')
+  if (run && !ranOnce.value) {
+    ranOnce.value = true
+    localStorage.setItem('gp-3d-run', '1')
+  }
   const speed = cab?.phase === 'drive' ? (run ? 34 : 24) : run ? RUN : WALK
   player.face.set(wx, wz)
   const nx = player.pos.x + wx * speed * dt
@@ -2672,6 +2673,7 @@ onBeforeUnmount(() => {
         <small>「{{ fare.name }}」</small>
       </div>
       <div v-if="near && !paused && !touch" class="s3-hint"><kbd>E</kbd>{{ storyOn ? '고치기' : '켜기' }}</div>
+      <div v-else-if="walking && !ranOnce && !paused && !touch && !dialog" class="s3-hint s3-hint-wide"><kbd>Shift</kbd>달리기</div>
       <transition name="s3-pop">
         <div v-if="toast" class="s3-toast" :style="{ '--neon': toast.color }">{{ toast.name }}<small v-if="toast.tag">{{ toast.tag }}</small></div>
       </transition>
@@ -3138,6 +3140,11 @@ onBeforeUnmount(() => {
   font: inherit;
   box-shadow: 0 3px 0 #8a6a10;
   animation: s3-tap 0.8s infinite;
+}
+
+.s3-hint-wide kbd {
+  width: auto;
+  padding: 0 8px;
 }
 
 @keyframes s3-tap {
