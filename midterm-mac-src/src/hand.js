@@ -19,6 +19,13 @@ async function model() {
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y)
 
 // 카메라 가장자리까지 손을 뻗지 않아도 화면 끝에 닿게 가운데 70%만 화면에 펼친다. 웹캠을 배경으로 깔 때도 같은 만큼 잘라 손끝과 겹치게 한다
+// 손 동작 안내는 여기 한 벌만 두고 지도(HandControl)와 별자리(NameGraph)가 같이 쓴다
+export const GESTURES = [
+  ['집어서 끌기', '돌리기'],
+  ['짧게 집었다 놓기', '누르기'],
+  ['두 손으로 집어 벌리기', '확대'],
+]
+
 export const REACH = { lo: 0.15, size: 0.7 }
 export const span = (v) => Math.min(1, Math.max(0, (v - REACH.lo) / REACH.size))
 
