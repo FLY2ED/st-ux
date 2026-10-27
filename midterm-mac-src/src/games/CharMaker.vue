@@ -1,13 +1,14 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { BOTTOMS, DEFAULT_LOOK, EXTRAS, HAIRS, HAIR_STYLES, HATS, SKINS, TOPS, avatarURL, drawAvatar, readLook, saveLook } from '../avatar.js'
 import { sfx } from '../sound.js'
 import hardhat from '../assets/intro/hardhat.webp'
 
-// 수리공 스튜디오: 처음 접속하면 셸이 전체 화면으로 띄운다. 고른 모습은 saveLook 으로 저장하고 done 으로 알린다
+// 수리공 스튜디오: 처음 간판 수리공을 시작하면 셸이 전체 화면으로 띄운다. 고른 모습은 saveLook 으로 저장하고 done 으로 알린다.
+// 나가기(Esc)는 저장하지 않고 exit 로 알린다
 // 간판 수리공 인트로와 같은 검은 무대·픽셀 글자·노란 ▶ 로 꾸민다
 const props = defineProps({ name: { type: String, default: '' } })
-const emit = defineEmits(['done'])
+const emit = defineEmits(['done', 'exit'])
 
 const HAT_COLORS = ['#ffcf3a', '#ff7a2f', '#f4f4f4', '#2f6fff', '#e8483f', '#2fb36a']
 const look = reactive(readLook())
@@ -112,54 +113,61 @@ function goHist(d) {
 
 // 무대 줌: 휠로만
 const zoom = ref(85)
-watch(zoom, (z) => stage.value?.setZoom(z / 100))
+watch(zoom, () => drawStage())
 function onWheel(e) {
   zoom.value = Math.max(60, Math.min(160, zoom.value + (e.deltaY < 0 ? 5 : -5)))
 }
 
-// 3D 무대. WebGL 이 없으면 2D 그림으로 대신 보여 준다
-const glCv = ref(null)
-const flatCv = ref(null)
-const stage = shallowRef(null)
-const flat = ref(false)
-let flatTimer = 0
-let flatTick = 0
-function drawFlat() {
-  const c = flatCv.value
+// 무대: 게임 속 거리와 같은 픽셀 인형 그림(drawAvatar)을 크게 세운다.
+// 제자리걸음으로 앞·옆·뒤·옆을 돌고, 끌면 그쪽으로 돌려 본다
+const stageEl = ref(null)
+const cv = ref(null)
+const DIRS = [0, 3, 1, 2]
+let turn = 0
+let tick = 0
+let timer = 0
+let holdUntil = 0
+function drawStage() {
+  const c = cv.value
   if (!c) return
   const ctx = c.getContext('2d')
   ctx.clearRect(0, 0, c.width, c.height)
-  const dirs = [0, 3, 1, 2]
-  const s = Math.round(10 * (zoom.value / 100))
-  drawAvatar(ctx, { ...look }, c.width / 2, c.height - 30 + (flatTick % 8 < 4 ? 0 : -2), { scale: s, dir: dirs[Math.floor(flatTick / 12) % 4], shadow: true })
+  const s = Math.max(4, Math.round(((c.height * 0.42) / 24) * (zoom.value / 100)))
+  const frame = 1 + (tick % 2)
+  drawAvatar(ctx, { ...look }, Math.round(c.width / 2), Math.round(c.height * 0.72), { scale: s, dir: DIRS[turn], frame, night: true })
 }
+function fit() {
+  const el = stageEl.value
+  const c = cv.value
+  if (!el || !c) return
+  c.width = el.clientWidth
+  c.height = el.clientHeight
+  drawStage()
+}
+let ro = null
 
-async function boot() {
-  try {
-    const { createVoxelStage } = await import('./charmaker/voxelStage.js')
-    const st = glCv.value && createVoxelStage(glCv.value)
-    if (!st) throw new Error('no webgl')
-    st.setLook({ ...look })
-    st.setSpin(true)
-    st.setZoom(zoom.value / 100)
-    stage.value = st
-  } catch {
-    flat.value = true
-    requestAnimationFrame(() => {
-      drawFlat()
-      flatTimer = setInterval(() => {
-        flatTick++
-        drawFlat()
-      }, 1000 / 8)
-    })
-  }
+let dragX = null
+function onDown(e) {
+  dragX = e.clientX
+  e.currentTarget.setPointerCapture?.(e.pointerId)
 }
+function onMove(e) {
+  if (dragX == null) return
+  const d = e.clientX - dragX
+  if (Math.abs(d) < 40) return
+  turn = (turn + (d > 0 ? 1 : 3)) % 4
+  dragX = e.clientX
+  holdUntil = performance.now() + 3000
+  drawStage()
+}
+const onUp = () => (dragX = null)
+
 let rebuild = 0
 watch(
   look,
   () => {
     cancelAnimationFrame(rebuild)
-    rebuild = requestAnimationFrame(() => (stage.value ? stage.value.setLook({ ...look }) : drawFlat()))
+    rebuild = requestAnimationFrame(drawStage)
   },
   { deep: true },
 )
@@ -176,9 +184,20 @@ function finish() {
   leaving.value = true
   setTimeout(() => emit('done', out), 420)
 }
+function exit() {
+  if (leaving.value) return
+  sfx.click?.()
+  leaving.value = true
+  setTimeout(() => emit('exit'), 420)
+}
 
-// 키보드: ↑↓ 부품 옮기기, ←→ 값 바꾸기, Enter 시작, R 무작위
+// 키보드: ↑↓ 부품 옮기기, ←→ 값 바꾸기, Enter 시작, R 무작위, Esc 나가기
 function onKey(e) {
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    e.stopPropagation()
+    return exit()
+  }
   const typing = /INPUT|TEXTAREA/.test(document.activeElement?.tagName)
   if (typing && e.key !== 'Enter' && e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
   if (e.key === 'ArrowLeft') step(part.value, -1)
@@ -195,12 +214,19 @@ function onKey(e) {
 }
 
 onMounted(() => {
-  boot()
+  fit()
+  ro = new ResizeObserver(fit)
+  ro.observe(stageEl.value)
+  timer = setInterval(() => {
+    tick++
+    if (tick % 12 === 0 && performance.now() > holdUntil) turn = (turn + 1) % 4
+    drawStage()
+  }, 1000 / 6)
   window.addEventListener('keydown', onKey, true)
 })
 onBeforeUnmount(() => {
-  stage.value?.dispose()
-  clearInterval(flatTimer)
+  ro?.disconnect()
+  clearInterval(timer)
   cancelAnimationFrame(rebuild)
   window.removeEventListener('keydown', onKey, true)
 })
@@ -208,11 +234,18 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="cm" :class="{ leaving }" role="dialog" aria-label="수리공 스튜디오">
-    <!-- 무대: 화면 전체. 위에서 떨어지는 노란 조명 아래 복셀 인형 -->
-    <section class="cm-stage" @wheel.prevent="onWheel">
+    <!-- 무대: 화면 전체. 위에서 떨어지는 노란 조명 아래 픽셀 인형 -->
+    <section ref="stageEl" class="cm-stage" @wheel.prevent="onWheel">
       <i class="cm-beam" aria-hidden="true" />
-      <canvas v-show="!flat" ref="glCv" class="cm-gl" aria-label="수리공 3D 미리보기 · 끌어서 돌리기" />
-      <canvas v-if="flat" ref="flatCv" class="cm-flat" width="260" height="320" />
+      <canvas
+        ref="cv"
+        class="cm-cv"
+        aria-label="수리공 미리보기 · 끌어서 돌리기"
+        @pointerdown="onDown"
+        @pointermove="onMove"
+        @pointerup="onUp"
+        @pointercancel="onUp"
+      />
     </section>
 
     <header class="cm-top">
@@ -222,6 +255,7 @@ onBeforeUnmount(() => {
       </h1>
       <p>오늘 밤 간판을 고칠 수리공을 꾸며 주세요</p>
     </header>
+    <button class="cm-exit" @click="exit">나가기</button>
 
     <!-- 왼쪽: 부품 메뉴. 고른 줄만 노란색에 ▶ -->
     <nav class="cm-menu" aria-label="부품">
@@ -292,7 +326,7 @@ onBeforeUnmount(() => {
       <button type="submit" class="cm-go">이대로 시작</button>
     </form>
 
-    <p class="cm-press">↑↓ 부품 · ←→ 바꾸기 · R 무작위 · Enter 시작 · 끌어서 돌리기</p>
+    <p class="cm-press">↑↓ 부품 · ←→ 바꾸기 · R 무작위 · Enter 시작 · Esc 나가기 · 끌어서 돌리기</p>
   </div>
 </template>
 
@@ -376,30 +410,24 @@ onBeforeUnmount(() => {
   }
 }
 
-.cm-gl {
+.cm-cv {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+  image-rendering: pixelated;
   cursor: grab;
   touch-action: none;
 }
 
-.cm-gl:active {
+.cm-cv:active {
   cursor: grabbing;
-}
-
-.cm-flat {
-  position: absolute;
-  left: 50%;
-  top: 48%;
-  translate: -50% -50%;
-  image-rendering: pixelated;
 }
 
 /* ── 제목: 인트로의 블록 글자 ── */
 .cm-top {
   grid-column: 1 / -1;
+  grid-row: 1;
   pointer-events: none !important;
   animation: cm-in 0.5s 0.15s both;
 }
@@ -433,6 +461,31 @@ onBeforeUnmount(() => {
   margin: 10px 0 0;
   font-size: 13px;
   color: var(--mute);
+}
+
+/* 오른쪽 위 나가기: 아래 도구 단추와 같은 픽셀 글자 */
+.cm-exit {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  align-self: start;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  font: 700 14px var(--px) !important;
+  letter-spacing: 0.06em;
+  color: var(--mute) !important;
+  animation: cm-in 0.5s 0.15s both;
+}
+
+.cm-exit::before {
+  content: '✕ ';
+}
+
+.cm-exit:hover,
+.cm-exit:focus-visible {
+  outline: none;
+  color: var(--yel) !important;
 }
 
 /* ── 왼쪽 부품 메뉴 ── */
@@ -782,6 +835,12 @@ onBeforeUnmount(() => {
     gap: 14px;
     padding: 16px 16px 48px;
     overflow: auto;
+  }
+
+  .cm > .cm-exit {
+    position: absolute;
+    top: 16px;
+    right: 16px;
   }
 
   .cm-stage {

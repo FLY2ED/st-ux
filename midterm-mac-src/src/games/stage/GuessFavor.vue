@@ -30,7 +30,7 @@ const map = ref(null)
 
 const say = computed(() => {
   if (phase.value === 'loading') return '잠깐만요, 길 잃은 글자를 데려올게요…'
-  if (phase.value === 'guess') return `「${sign.value?.name}」${round.value ? '도' : ''} 자기 동네를 잊어버렸대요. 어디쯤일까요?`
+  if (phase.value === 'guess') return `「${sign.value?.name}」${round.value ? '도' : ''} 어느 동네 간판인지 헷갈린대요. 어디쯤일까요?`
   if (phase.value === 'reveal') return got.value >= 4000 ? '거의 정답! 금방 돌아가겠어요!' : got.value >= 1500 ? '아깝다! 그래도 길은 찾았대요' : '많이 멀었지만… 천천히 걸어가 볼게요'
   return '글자들이 다 집에 갔어요. 고마워요!'
 })
