@@ -173,6 +173,19 @@
   animation: it-fade 0.4s 1.4s both;
 }
 
+.it-skip {
+  position: absolute;
+  right: 24px;
+  bottom: 20px;
+  z-index: 3;
+  margin: 0;
+  font: 700 12px 'Galmuri11 Game', Galmuri11, sans-serif;
+  letter-spacing: 0.08em;
+  color: rgb(255 255 255 / 0.55);
+  pointer-events: none;
+  animation: it-fade 0.4s 1s both;
+}
+
 /* 시작 메뉴: 픽셀 글꼴, 고른 줄만 노란색에 ▶ */
 .it-menu {
   display: flex;

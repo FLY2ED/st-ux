@@ -45,7 +45,7 @@ const QUESTS = {
   open: { title: '내 가게 차리기', comp: defineAsyncComponent(() => import('./BuildingWindow.vue')), mode: 'shop', free: true },
   atlas: { title: '간판 지도', comp: defineAsyncComponent(() => import('./BuildingWindow.vue')), mode: 'name', free: true },
 }
-const BOSS_GOAL = { rain: 12, type: 8, more: 6, map: 5 }
+const BOSS_GOAL = { rain: 6, type: 4, more: 3, map: 3 }
 
 // 인물 그림: c- 길잡이·보스 서 있는 모습, f- 동네 사람·사장님, p- 대화창 얼굴
 const NPC_ART = import.meta.glob('../assets/npc/*.png', { eager: true, import: 'default' })
@@ -258,6 +258,34 @@ function setupScene() {
   composer.addPass(bloom)
   composer.addPass(new OutputPass())
   fx.uNight.value = 1
+  resize()
+}
+
+// 느린 컴퓨터: 2초씩 재서 프레임이 무거우면 그리는 해상도를 한 단계씩 낮춘다(모양은 그대로)
+const QUALITY = [2, 1.5, 1, 0.8, 0.66]
+let quality = 0
+const perf = { ms: 0, n: 0, wait: 3 }
+function tune(ms, dt) {
+  if (perf.wait > 0) return void (perf.wait -= dt)
+  if (ms > 250) return
+  perf.ms += ms
+  perf.n++
+  if (perf.ms < 2000) return
+  const avg = perf.ms / perf.n
+  perf.ms = 0
+  perf.n = 0
+  const cur = Math.min(devicePixelRatio || 1, QUALITY[quality])
+  if (avg > 24 && quality < QUALITY.length - 1) {
+    // 화면 배율이 원래 낮으면 실제로 줄어드는 단계까지 건너뛴다
+    while (quality < QUALITY.length - 1 && QUALITY[quality] >= cur) quality++
+    if (QUALITY[quality] < cur) applyQuality()
+    perf.wait = 1
+  }
+}
+function applyQuality() {
+  const pr = Math.min(devicePixelRatio || 1, QUALITY[quality])
+  renderer.setPixelRatio(pr)
+  composer.setPixelRatio(pr)
   resize()
 }
 
@@ -2235,9 +2263,40 @@ function move(dt) {
   player.step += dt * speed * 1.4
 }
 
+// 건물이 나를 가리면 카메라를 살짝 들어 올리고 당겨서 비켜 본다(조금만, 천천히)
+const LIFT_MAX = 0.4
+let camLift = 0
+function camAt(lift) {
+  const pitch = Math.min(1.4, cam.pitch + lift)
+  const dist = cam.dist * (1 - lift * 0.6)
+  const cp = Math.cos(pitch) * dist
+  return { x: cam.target.x + Math.sin(cam.yaw) * cp, y: cam.target.y + Math.sin(pitch) * dist, z: cam.target.z + Math.cos(cam.yaw) * cp }
+}
+function hidden(lift) {
+  const c = camAt(lift)
+  const y0 = cam.target.y + 1
+  const n = Math.ceil(Math.hypot(c.x - cam.target.x, c.z - cam.target.z) / (B * 0.7))
+  for (let j = 2; j <= n; j++) {
+    const k = j / n
+    const [i, kk] = cellOf(cam.target.x + (c.x - cam.target.x) * k, cam.target.z + (c.z - cam.target.z) * k)
+    if (i < 0 || kk < 0 || i >= grid.N || kk >= grid.N) continue
+    if (grid.height[kk * grid.N + i] * B > y0 + (c.y - y0) * k) return true
+  }
+  return false
+}
+function updateLift(dt) {
+  let want = 0
+  if (grid && !cine && !machine.value) {
+    want = LIFT_MAX
+    for (let l = 0; l <= LIFT_MAX + 1e-6; l += 0.1) if (!hidden(l)) { want = l; break }
+  }
+  // 올라갈 땐 조금 빠르게, 내려올 땐 느긋하게
+  camLift += (want - camLift) * Math.min(1, dt * (want > camLift ? 2.2 : 0.9))
+}
+
 function placeCamera() {
-  const cp = Math.cos(cam.pitch) * cam.dist
-  camera.position.set(cam.target.x + Math.sin(cam.yaw) * cp, cam.target.y + Math.sin(cam.pitch) * cam.dist, cam.target.z + Math.cos(cam.yaw) * cp)
+  const p = camAt(camLift)
+  camera.position.set(p.x, p.y, p.z)
   if (shake > 0) {
     camera.position.x += (Math.random() - 0.5) * shake * 0.8
     camera.position.y += (Math.random() - 0.5) * shake * 0.8
@@ -2248,7 +2307,8 @@ function placeCamera() {
 
 function frame(now) {
   raf = requestAnimationFrame(frame)
-  const dt = Math.min(0.05, (now - last) / 1000 || 0)
+  const ms = now - last
+  const dt = Math.min(0.05, ms / 1000 || 0)
   last = now
   // 놀이 판이 거리를 다 덮은 동안은 그리지 않는다
   if (quest.value && !wipe.value) return
@@ -2266,6 +2326,7 @@ function frame(now) {
     cam.target.set(0, 0, 0)
     cam.dist = world.r * 1.05
     cam.pitch = 0.62
+    camLift = 0
     placeCamera()
     updateSky(dt)
     composer.render()
@@ -2295,6 +2356,7 @@ function frame(now) {
   }
   const follow = cab && cab.phase !== 'drive' && cab.hide ? { x: cab.x, y: 0, z: cab.z } : player.pos
   cam.target.lerp(follow, Math.min(1, dt * 8))
+  updateLift(dt)
   placeCamera()
   updateAim()
 
@@ -2362,6 +2424,7 @@ function frame(now) {
     miniTimer = 0.12
     drawMini(t, g)
   }
+  tune(ms, dt)
   composer.render()
 }
 
@@ -2594,7 +2657,7 @@ onMounted(() => {
   window.addEventListener('keyup', onKeyUp)
   window.addEventListener('look:change', onLook)
   window.addEventListener('game:over', onGameOver)
-  if (import.meta.env.DEV) window.__street3d = { player, cam, repair, signs: () => signPlaced, near, story, quest, dialog, machine, startStory, openQuest, questBack, finishChapter, startBuild, chooseName, finishBuild, placeBlock, voxels, startMachine, hailTaxi, startFare, cab: () => cab, fareRun: () => fareRun, interact, askBoss, setTime, lit: () => litSet, guidePos, nextLine, grid: () => grid, endMachine, town: () => town, others, nextShop, placeFolks, walkField }
+  if (import.meta.env.DEV) window.__street3d = { player, cam, repair, signs: () => signPlaced, near, story, quest, dialog, machine, startStory, openQuest, questBack, finishChapter, startBuild, chooseName, finishBuild, placeBlock, voxels, startMachine, hailTaxi, startFare, cab: () => cab, fareRun: () => fareRun, interact, askBoss, setTime, lit: () => litSet, guidePos, nextLine, grid: () => grid, endMachine, town: () => town, others, nextShop, placeFolks, walkField, lift: () => camLift, pr: () => renderer.getPixelRatio() }
   boot()
   if (props.play) playFromOutside()
 })

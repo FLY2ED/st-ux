@@ -13,8 +13,10 @@ import './pixel.css'
 // 피하는 사람은 캐릭터 만들기에서 고른 내 모습(Hero), 간판 판 색은 이름마다 정해진 파스텔
 const FOODS = ['김밥', '국밥', '짜장', '떡볶이', '치킨', '마라탕', '돈까스', '냉면']
 // 간판 수리공 이야기 안에서 열리면 embed 와 부탁한 사장님·가게 이름을 받는다. 판이 끝나면 game:over 로 알린다
-defineProps({ embed: Boolean, word: { type: String, default: '' }, ownerName: { type: String, default: '' }, ownerArt: { type: String, default: '' }, shopName: { type: String, default: '' } })
+const props = defineProps({ embed: Boolean, word: { type: String, default: '' }, ownerName: { type: String, default: '' }, ownerArt: { type: String, default: '' }, shopName: { type: String, default: '' } })
 const LIVES = 3
+// 이야기 속 부탁이면 그릇 몇 개만 받으면 끝난다
+const EMBED_BOWLS = 3
 const PW = 74
 const PH = 98
 // 배경 한 칸 = 화면 3px
@@ -165,6 +167,7 @@ function tick(now) {
         setTimeout(() => (p.eat = false), 700)
         pop('+50', p.x + PW / 2, 'good')
         sfx.coin()
+        if (props.embed && eaten.value >= EMBED_BOWLS) return over()
         continue
       }
       if (!it.bowl && now < safeUntil) {

@@ -14,7 +14,7 @@ const props = defineProps({
   ownerName: { type: String, default: '' },
   ownerArt: { type: String, default: '' },
 })
-const ROUNDS = 3
+const ROUNDS = 2
 const START = { lng: 127.8, lat: 36.3 }
 
 const phase = ref('loading') // loading | guess | reveal | done
