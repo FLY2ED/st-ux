@@ -105,6 +105,32 @@ const nextCh = computed(() => CHAPTERS.findIndex((c) => !cleared.value.includes(
 const unlocked = (n) => n === 0 || cleared.value.includes(CHAPTERS[n - 1].id)
 const storyOn = computed(() => !!story.value && !story.value.done)
 const building = computed(() => !!story.value?.build && !story.value.build.done && !story.value.done)
+// 왼쪽 위 의뢰 카드: 누가 부탁했는지, 왜 가는지, 할 일 세 줄(끝난 줄·지금 줄·다음 줄)
+const WHY = {
+  scratch: '그을음이 간판 글자를 덮어서 안 보여요',
+  dodge: '떨어지는 간판 때문에 배달을 못 나가요',
+  booth: '도둑이 또 올까 봐 이름 포스터를 붙이고 싶어요',
+  guess: '되찾은 글자가 어느 동네 건지 헷갈려요',
+}
+const card = computed(() => {
+  const st = story.value
+  if (!st || st.done) return null
+  const step = st.ch.steps[st.step]
+  const name = (p) => `「${p.sign.name}」`
+  const prev = st.step > 0 && st.used[st.step - 1]
+  const done = prev ? [`${name(prev)} 불 켜기`] : []
+  if (st.build && !st.build.done) {
+    const who = whoOf(st.ch.npc)
+    return { who: `${who.name} 부탁`, face: who.face, portrait: who.portrait, why: `주인 없는 글자로 ${myName()} 가게를 지어 보자`, items: [...done, `빈터에 블록 쌓기 · ${st.build.count}/${BUILD.need}`], now: done.length }
+  }
+  if (!st.shop || !step) return null
+  const who = step.own ? whoOf(st.ch.npc) : ownerWho(st.shop.sign)
+  const boss = st.boss?.alive && BOSSES[st.boss.id]
+  const why = boss ? `${boss.name} 때문에 간판을 못 켜요` : WHY[step.game] || '간판 도둑이 글자를 뜯어 가서 불이 꺼졌어요'
+  const go = boss ? `${boss.name} 물리치기 · ${boss.fight}` : `${name(st.shop)}로 가기`
+  const fix = step.game && !st.gameDone ? `부탁 들어주기 · ${QUESTS[step.game].title}` : '떨어진 글자 붙여서 불 켜기'
+  return { who: `${who.name} 의뢰`, face: who.face, portrait: who.portrait, why, items: [...done, go, fix], now: done.length }
+})
 const blockIcons = BLOCKS.map((b) => {
   const c = document.createElement('canvas')
   c.width = 16
@@ -424,6 +450,8 @@ function tagSprite(kind) {
 
 // 길잡이는 내 뒤를 따라오다가, 길잡이 가게 차례면 먼저 가서 기다린다
 const guidePos = { x: 0, z: 0, moving: false }
+// 곧 말을 꺼낼 사람: 불이 켜지거나 보스가 진 뒤 대화창이 뜨기 전까지 사라지지 않게 붙잡아 둔다
+let talker = null
 let npcs = []
 function syncNpcs() {
   for (const n of npcs) {
@@ -447,12 +475,16 @@ function syncNpcs() {
   if (st.shop && st.ownerAt && !own && !(st.build && !st.build.done)) add('owner', `f-${spriteOf(st.shop.sign.cat)}`, 2.0, st.ownerAt, st.boss?.alive ? '' : 'owner')
   if (st.boss?.alive) add('boss', `c-${st.boss.id}`, 3.4, st.boss.at, 'boss')
   for (const f of st.folks || []) if (!f.done) add('folk', `f-${f.id}`, 2.0, f.at, 'folk', f)
+  // 말하고 있는 사람은 이야기가 다음으로 넘어갔어도 대화가 끝날 때까지 그 자리에 남는다
+  const stay = dialog.value?.stay || talker
+  if (stay && !npcs.some((n) => n.at === stay.at)) add(stay.kind || 'owner', stay.name, stay.h, stay.at)
 }
 
 function updateGuide(dt) {
   const st = story.value
   if (!st || st.done || !st.guide) return
-  const own = st.ch.steps[st.step]?.own && st.ownerAt
+  // 첫 인사를 마치기 전이나 대화하는 동안에는 먼저 가 버리지 않고 내 옆에 서 있는다
+  const own = st.ch.steps[st.step]?.own && st.ownerAt && st.met && !dialog.value
   const tx = own ? st.ownerAt.x : player.pos.x - player.face.x * 1.8 * B
   const tz = own ? st.ownerAt.z : player.pos.z - player.face.y * 1.8 * B
   const dx = tx - guidePos.x
@@ -848,6 +880,7 @@ function clearFx() {
   dialog.value = null
   chat.value = null
   cine = null
+  talker = null
   showLot(null)
 }
 
@@ -881,7 +914,11 @@ async function startStory(n) {
   const folks = placeFolks(ch.folks)
   story.value = { n, ch, step: 0, goal, lit: 0, shop, used: shop ? [shop] : [], done: false, guide: true, ownerAt: shop && ownerSpot(shop), boss: bossOf(ch.steps[0], shop), folks, gameDone: false, score: null, build: null }
   // 지하철 카드가 걷힌 뒤에 말을 건다
-  setTimeout(() => story.value?.ch === ch && say(whoOf(ch.npc), ch.intro.map((l) => fill(l, vars(null, shop)))), rideLeft + 300)
+  const met = () => {
+    if (story.value?.ch === ch) story.value = { ...story.value, met: true }
+    resume()
+  }
+  setTimeout(() => story.value?.ch === ch && say(whoOf(ch.npc), ch.intro.map((l) => fill(l, vars(null, shop))), { then: met }), rideLeft + 300)
 }
 
 // 동네 사람에게 말 걸기: 근처 꺼진 간판 이름을 소리 내어 읽으면 그 간판에 불이 들어온다
@@ -895,9 +932,11 @@ function talkFolk(f) {
     .sort((a, b) => a.d - b.d)[0]?.p
   story.value = { ...st, folks: st.folks.map((o) => (o === f ? { ...o, done: true } : o)) }
   sfx.click()
-  if (!sign) return say(who, [fill(FOLK_IDLE[Math.floor(Math.random() * FOLK_IDLE.length)], vars(null, st.shop))])
+  const stay = { kind: 'folk', name: `f-${f.id}`, h: 2.0, at: f.at }
+  if (!sign) return say(who, [fill(FOLK_IDLE[Math.floor(Math.random() * FOLK_IDLE.length)], vars(null, st.shop))], { stay })
   const [first, then] = FOLKS[f.id].lines.map((l) => fill(l, { ...vars(null, st.shop), sign: sign.sign.name }))
   say(who, [first], {
+    stay,
     then: () => {
       resume()
       repair(sign)
@@ -928,17 +967,27 @@ function askBoss() {
 function beatBoss(q) {
   const st = story.value
   const at = st.boss?.at
+  // 진 보스는 마지막 말을 다 하고 나서 흩어진다
+  const stay = at && { kind: 'boss', name: `c-${q.boss}`, h: 3.4, at }
+  talker = stay
   story.value = { ...st, gameDone: true, score: q.score ?? 0, boss: st.boss && { ...st.boss, alive: false } }
   sfx.win()
-  if (at) {
-    burst(at.x, 1.6, at.z, 0, 0, new THREE.Color(0xff4d6d), 140)
-    shake = 0.5
-  }
   if (q.boss === 'cloud') weatherFx.set('clear')
   paused.value = true
   setTimeout(() => {
     if (story.value?.ch !== st.ch) return
-    say(q.who, BOSSES[q.boss].win.map((l) => fill(l, vars(q.placed, null))), { tone: 'boss', cut: `${q.boss}-win`, then: () => repair(q.placed) })
+    say(q.who, BOSSES[q.boss].win.map((l) => fill(l, vars(q.placed, null))), {
+      tone: 'boss',
+      cut: `${q.boss}-win`,
+      stay,
+      then: () => {
+        if (at) {
+          burst(at.x, 1.6, at.z, 0, 0, new THREE.Color(0xff4d6d), 140)
+          shake = 0.5
+        }
+        repair(q.placed)
+      },
+    })
   }, 900)
 }
 
@@ -954,6 +1003,7 @@ function say(npc, lines, opts = {}) {
   paused.value = true
   keys.clear()
   const w = 'portrait' in npc ? npc : whoOf(npc)
+  talker = null
   dialog.value = { who: w.name, face: w.face || '', portrait: w.portrait || '', tone: w.tone || 'npc', lines, i: 0, ...opts }
 }
 
@@ -1003,6 +1053,8 @@ function repair(placed) {
   const step = st.ch.steps[st.step]
   const lastStep = st.step + 1 >= st.goal
   const shop = lastStep ? null : nextShop(signAt(placed), st.ch.steps[st.step + 1].want, st.used)
+  const stay = !step.own && st.ownerAt && { name: `f-${spriteOf(placed.sign.cat)}`, h: 2.0, at: st.ownerAt }
+  talker = stay
   story.value = { ...st, lit: litSet.size, step: st.step + 1, shop, used: shop ? [...st.used, shop] : st.used, gameDone: false, score: null, ownerAt: shop && ownerSpot(shop), boss: lastStep ? null : bossOf(st.ch.steps[st.step + 1], shop) }
   if (step.time) setTime(step.time)
   const v = vars(placed, shop, st.score)
@@ -1014,7 +1066,7 @@ function repair(placed) {
   setTimeout(() => {
     if (story.value?.ch !== st.ch) return
     chat.value = null
-    say(step.own ? whoOf(st.ch.npc) : owner, lines, { then: lastStep ? end : resume })
+    say(step.own ? whoOf(st.ch.npc) : owner, lines, { stay, then: lastStep ? end : resume })
   }, 700)
 }
 
@@ -1688,6 +1740,8 @@ function interact() {
 }
 
 // --- 바탕화면 '내 수리공' 위젯에 이야기 진행을 알린다 (2D 와 같은 gp-story-now · story:progress) ---
+watch(() => dialog.value?.stay, () => syncNpcs())
+
 watch([story, timeMode], ([st, tm]) => {
   syncNpcs()
   if (!st) return
@@ -2243,7 +2297,21 @@ onBeforeUnmount(() => {
 
     <!-- HUD: 켠 간판 수·걸음, 작은 지도, 갈 곳 방향 -->
     <template v-if="ready && !onTitle && !machine">
-      <div class="s3-count">
+      <div v-if="card" class="s3-card">
+        <div class="s3-card-from">
+          <span class="s3-card-face"><img v-if="card.portrait" :src="card.portrait" alt="" /><template v-else>{{ card.face }}</template></span>
+          <b>{{ card.who }}</b>
+          <em><Lightbulb class="ic" />{{ litCount }}</em>
+        </div>
+        <p>{{ card.why }}</p>
+        <ol>
+          <li v-for="(t, i) in card.items" :key="t" :class="{ ok: i < card.now, now: i === card.now }">
+            {{ t }}<small v-if="i === card.now && goalKind && !building"> · {{ dist }}m</small>
+          </li>
+        </ol>
+        <span class="s3-pips"><i v-for="n in story.goal" :key="n" :class="{ on: n <= story.step }"></i></span>
+      </div>
+      <div v-else class="s3-count">
         <template v-if="storyOn">
           <Lightbulb class="ic" />{{ litCount }}
           <span class="s3-pips"><i v-for="n in story.goal" :key="n" :class="{ on: n <= story.step }"></i></span>
@@ -2508,6 +2576,128 @@ onBeforeUnmount(() => {
 .s3-count .ic {
   width: 18px;
   height: 18px;
+}
+
+.s3-card {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: 272px;
+  padding: 10px 12px 10px;
+  background: rgb(14 14 22 / 0.9);
+  box-shadow: 0 0 0 2px #000, inset 0 0 0 2px #ffcf3a, 4px 4px 0 2px #000;
+  font-size: 13px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+.s3-card-from {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.s3-card-from b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #ffcf3a;
+}
+
+.s3-card-from em {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-style: normal;
+  font-weight: 700;
+  color: #ffcf3a;
+}
+
+.s3-card-from .ic {
+  width: 14px;
+  height: 14px;
+}
+
+.s3-card-face {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  overflow: hidden;
+  background: #1b1622;
+  font-size: 20px;
+}
+
+.s3-card-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+  image-rendering: pixelated;
+}
+
+.s3-card p {
+  margin: 7px 0 8px;
+  color: #fff;
+}
+
+.s3-card ol {
+  display: grid;
+  gap: 3px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: #8e8ea0;
+}
+
+.s3-card li::before {
+  content: '□ ';
+}
+
+.s3-card li.ok {
+  text-decoration: line-through;
+}
+
+.s3-card li.ok::before {
+  content: '■ ';
+  color: #4ade80;
+}
+
+.s3-card li.now {
+  color: #ffcf3a;
+}
+
+.s3-card li.now::before {
+  content: '▶ ';
+}
+
+.s3-card .s3-pips {
+  margin-left: 0;
+}
+
+@media (max-width: 720px) {
+  .s3-card {
+    width: 200px;
+    padding: 8px 10px;
+  }
+
+  .s3-card p {
+    display: none;
+  }
+
+  .s3-card ol {
+    margin-top: 6px;
+  }
+
+  .s3-card ~ .s3-goal {
+    top: 160px;
+    left: 16px;
+    transform: none;
+  }
 }
 
 .s3-mini {

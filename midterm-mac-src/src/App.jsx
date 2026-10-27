@@ -64,8 +64,9 @@ export default function App() {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
   const [bouncing, setBouncing] = useState(null)
   const [myShops, setMyShops] = useState(readShops)
-  // 처음 온 사람은 로그인 직후 캐릭터 꾸미기부터
+  // 처음 온 사람은 간판 수리공 인트로에서 시작을 고르면 캐릭터 꾸미기부터. 다 꾸미면 고른 것으로 게임을 연다
   const [maker, setMaker] = useState(false)
+  const afterMaker = useRef(null)
   // 게임 인트로: 로그인 뒤 브라우저마다 처음 한 번, 그리고 간판 수리공 창을 새로 열 때마다 먼저 나온다
   const [intro, setIntro] = useState(false)
   // 인트로가 끝나면 열 창(open 에 들어온 그대로)
@@ -322,10 +323,29 @@ export default function App() {
       <WallLights lights={wall.lights} />
       <AnimatePresence>{booting && <Boot key="boot" onDone={() => setBooting(false)} />}</AnimatePresence>
       {/* 잠금 화면은 부팅 화면 뒤에 미리 깔아 둔다: 부팅이 걷히는 동안 바탕화면이 비치지 않게 */}
-      <AnimatePresence>{locked && <Login key="login" ready={!booting} onDone={() => (setLocked(false), setMaker(!hasLook()))} />}</AnimatePresence>
+      <AnimatePresence>{locked && <Login key="login" ready={!booting} onDone={() => setLocked(false)} />}</AnimatePresence>
       {maker && (
         <div className="cm-layer">
-          <VueIsland comp={CharMaker} props={{ name: player()?.name || '' }} on={{ done: () => setMaker(false) }} />
+          <VueIsland
+            comp={CharMaker}
+            props={{ name: player()?.name || '' }}
+            on={{
+              done: () => {
+                setMaker(false)
+                const begin = afterMaker.current
+                afterMaker.current = null
+                if (begin) begin()
+              },
+              exit: () => {
+                setMaker(false)
+                if (!afterMaker.current) return
+                // 게임에 들어가다 나가면 뒤에 띄워 둔 게임 창을 닫고 인트로를 걷어 바탕화면으로 돌아간다
+                afterMaker.current = null
+                setWins((ws) => ws.filter((w) => w.id !== 'street'))
+                setRelease(true)
+              },
+            }}
+          />
         </div>
       )}
 
@@ -432,8 +452,13 @@ export default function App() {
           onReady={() => launch('street', {}, { max: true, quiet: true })}
           onStart={(begin) => {
             const [asked, extra = {}] = afterIntro.current || ['street']
-            launch(asked, { ...extra, begin, beginAt: Date.now() }, { max: true, quiet: true })
-            setHeld(true)
+            const go = () => {
+              launch(asked, { ...extra, begin, beginAt: Date.now() }, { max: true, quiet: true })
+              setHeld(true)
+            }
+            if (hasLook()) return go()
+            afterMaker.current = go
+            setMaker(true)
           }}
           onDone={() => {
             afterIntro.current = null

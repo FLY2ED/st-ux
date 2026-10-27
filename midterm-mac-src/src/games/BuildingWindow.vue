@@ -15,7 +15,7 @@ import PixelShop from './PixelShop.vue'
 const props = defineProps({
   mode: { type: String, default: 'name' },
   word: { type: String, default: '' },
-  // embed: 이야기 안에서 연 '이름 찾기'는 지도 창 대신 잊힘과 맞서는 장면(MapDuel)을 띄운다
+  // embed: 이야기 안에서 연 '이름 찾기'는 지도 창 대신 간판 도둑과 맞서는 장면(MapDuel)을 띄운다
   embed: Boolean,
   goal: { type: Number, default: 5 },
   boss: { type: String, default: '' },
@@ -830,7 +830,7 @@ const home = () => map?.fitBounds(KOREA, { padding: { top: 30, bottom: 30, left:
 </script>
 
 <template>
-  <MapDuel v-if="duel" :goal="props.goal" :word="props.word" :boss="props.boss" :boss-name="props.bossName || '잊힘'" />
+  <MapDuel v-if="duel" :goal="props.goal" :word="props.word" :boss="props.boss" :boss-name="props.bossName || '간판 도둑'" />
   <div v-else class="amap" :class="`tab-${tab}`">
     <div ref="mapEl" class="map"></div>
 
