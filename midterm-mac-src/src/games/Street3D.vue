@@ -2114,6 +2114,26 @@ function findNear() {
 }
 
 // 지금 가야 할 곳: 빈터 · 보스 · 부탁 가게 · 손님이 말한 간판(가까울 때만)
+// 화살표가 가리킬 곳: 목표까지 걸어갈 길에서 몇 칸 앞. 길이 없으면 목표 쪽 곧장
+let goalField = null
+function goalWay(g) {
+  const key = `${g.kind}:${Math.round(g.x)},${Math.round(g.z)}:${voxels.size}`
+  if (goalField?.key !== key) {
+    const at = freeSpot(g.x, g.z)
+    goalField = { key, field: walkField(at.x, at.z, Math.ceil(500 / B)) }
+  }
+  const straight = { x: g.x, z: g.z, m: Math.round(Math.hypot(g.x - player.pos.x, g.z - player.pos.z)) }
+  let p = { x: player.pos.x, z: player.pos.z }
+  for (let n = 0; n < 4; n++) {
+    const c = nextCell(goalField.field, p.x, p.z)
+    if (!c) break
+    p = c
+  }
+  const m = walkMeters(goalField.field, player.pos)
+  if (m < 0 || (p.x === player.pos.x && p.z === player.pos.z)) return straight
+  return { x: p.x, z: p.z, m: Math.max(straight.m, Math.round(m)) }
+}
+
 function goalOf() {
   const f = fareRun
   if (f) return distTo(f.at) < 45 ? { ...signAt(f.p), kind: 'fare' } : null
@@ -2275,11 +2295,13 @@ function frame(now) {
     beacon.position.set(g.x, 40, g.z)
     beacon.material.color.setHex(g.kind === 'boss' ? 0xff4d6d : g.kind === 'fare' ? 0xffa300 : 0xffcf3a)
     beacon.material.opacity = 0.25 + Math.sin(t * 3) * 0.1
-    const dx = g.x - player.pos.x
-    const dz = g.z - player.pos.z
-    dist.value = Math.round(Math.hypot(dx, dz))
-    // 화면 위쪽 = 카메라 앞
-    arrow.value = Math.round(((Math.atan2(dx, -dz) + cam.yaw) * 180) / Math.PI)
+    const way = goalWay(g)
+    const dx = way.x - player.pos.x
+    const dz = way.z - player.pos.z
+    dist.value = way.m
+    // 화면 위쪽 = 카메라 앞. 한 바퀴를 넘어갈 때 거꾸로 돌지 않게 가까운 쪽으로 이어 붙인다
+    const deg = ((Math.atan2(dx, -dz) + cam.yaw) * 180) / Math.PI
+    arrow.value = Math.round(arrow.value + ((((deg - arrow.value) % 360) + 540) % 360) - 180)
   }
   lotFill.opacity = 0.12 + Math.sin(t * 4) * 0.06
 
@@ -2630,7 +2652,18 @@ onBeforeUnmount(() => {
       </div>
       <canvas ref="mini" class="s3-mini" width="132" height="132"></canvas>
       <div v-if="goalKind && !dialog && !quest" class="s3-goal" :class="goalKind">
-        <span class="s3-arrow" :style="{ transform: `rotate(${arrow}deg)` }">▲</span>
+        <span class="s3-arrow" :style="{ transform: `rotate(${arrow}deg)` }">
+          <svg viewBox="0 0 24 40" aria-hidden="true">
+            <defs>
+              <linearGradient id="s3-tail" x1="0" y1="1" x2="0" y2="0">
+                <stop offset="0" stop-color="currentColor" stop-opacity="0" />
+                <stop offset="1" stop-color="currentColor" stop-opacity="0.9" />
+              </linearGradient>
+            </defs>
+            <path class="tail" d="M8 16 H16 L13.5 40 H10.5 Z" fill="url(#s3-tail)" />
+            <path d="M12 1 L23 17 H1 Z" fill="currentColor" />
+          </svg>
+        </span>
         <template v-if="building">{{ story.build.count }}/{{ BUILD.need }}</template>
         <template v-else>{{ dist }}m</template>
       </div>
@@ -3042,8 +3075,43 @@ onBeforeUnmount(() => {
 
 .s3-arrow {
   display: inline-block;
-  font-size: 16px;
+  width: 22px;
+  height: 36px;
+  margin: -6px 0;
   transition: transform 0.12s linear;
+}
+
+.s3-arrow svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 0 4px currentColor);
+  animation: s3-nudge 0.9s ease-in-out infinite;
+}
+
+.s3-arrow .tail {
+  animation: s3-tail 0.9s ease-in-out infinite;
+}
+
+@keyframes s3-nudge {
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes s3-tail {
+  50% {
+    transform: scaleY(1.12);
+    transform-origin: 50% 40%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s3-arrow svg,
+  .s3-arrow .tail {
+    animation: none;
+  }
 }
 
 .s3-hint {
