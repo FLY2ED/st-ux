@@ -14,6 +14,7 @@ import { player as arcadePlayer } from '../arcade.js'
 import { pastelOf } from '../shops.js'
 import { sfx } from '../sound.js'
 import { drawAvatar, readLook } from '../avatar.js'
+import { joinTown } from '../world/presence.js'
 import { loadLM } from '../signlm.js'
 import { B, meshWorld, plantStreetTrees, plantTrees, rasterize } from '../world/build.js'
 import { MAX_LIT, fx, neonOf, patch } from '../world/fx.js'
@@ -300,17 +301,18 @@ function makeAvatar() {
 function onLook() {
   for (const t of frames) t.dispose()
   makeAvatar()
+  townLook = readLook()
+  town?.setLook(townLook)
 }
 
 // 카메라에서 본 방향: 0 앞 · 1 뒤 · 2 왼쪽 · 3 오른쪽
-function avatarDir() {
-  const fx0 = -Math.sin(cam.yaw)
-  const fz0 = -Math.cos(cam.yaw)
-  const ahead = player.face.x * fx0 + player.face.y * fz0
-  const side = player.face.x * Math.cos(cam.yaw) - player.face.y * Math.sin(cam.yaw)
+function viewDir(fx, fz) {
+  const ahead = fx * -Math.sin(cam.yaw) + fz * -Math.cos(cam.yaw)
+  const side = fx * Math.cos(cam.yaw) - fz * Math.sin(cam.yaw)
   if (Math.abs(side) > Math.abs(ahead)) return side > 0 ? 3 : 2
   return ahead > 0 ? 1 : 0
 }
+const avatarDir = () => viewDir(player.face.x, player.face.y)
 
 // 카메라 기준 앞·오른쪽(땅 위)
 function camAxes() {
@@ -449,8 +451,10 @@ function tagSprite(kind) {
   return s
 }
 
-// 길잡이는 내 뒤를 따라오다가, 길잡이 가게 차례면 먼저 가서 기다린다
+// 길잡이는 내 뒤를 따라오다가, 길잡이 가게 차례면 앞장서서 LEAD 만큼 떨어진 채로 데려간다
 const guidePos = { x: 0, z: 0, moving: false }
+const LEAD = 3.2 * B
+let guideWay = null
 // 곧 말을 꺼낼 사람: 불이 켜지거나 보스가 진 뒤 대화창이 뜨기 전까지 사라지지 않게 붙잡아 둔다
 let talker = null
 let npcs = []
@@ -491,16 +495,26 @@ function updateGuide(dt) {
   const dx = tx - guidePos.x
   const dz = tz - guidePos.z
   const d = Math.hypot(dx, dz)
-  if (d > (own ? 70 : 30)) {
-    // 너무 멀어지면 화면 밖에서 따라붙는다
-    Object.assign(guidePos, own ? st.ownerAt : freeSpot(tx, tz))
+  const gap = Math.hypot(player.pos.x - guidePos.x, player.pos.z - guidePos.z)
+  if (gap > 30) {
+    // 택시 등으로 너무 멀어지면 화면 밖에서 내 뒤로 따라붙는다
+    Object.assign(guidePos, freeSpot(player.pos.x - player.face.x * 1.8 * B, player.pos.z - player.face.y * 1.8 * B))
+    guidePos.moving = false
     return
   }
-  guidePos.moving = d > (own ? 0.3 : 1.2)
+  // 앞장설 때는 내가 따라오는 만큼만 걷는다. 가까우면 내 걸음만큼, LEAD 만큼 벌어지면 멈춰 기다린다
+  const speed = own ? Math.min(RUN, Math.max(0, (LEAD - gap) * 4)) : Math.max(5, d * 2.4)
+  guidePos.moving = d > (own ? 0.3 : 1.2) && speed > 0.2
   if (!guidePos.moving) return
-  const v = Math.min(d, (own ? 13 : Math.max(5, d * 2.4)) * dt)
-  const nx = guidePos.x + (dx / d) * v
-  const nz = guidePos.z + (dz / d) * v
+  // 앞장설 때는 건물을 뚫지 않고 내가 따라 걸을 수 있는 길로 돌아간다
+  if (own && guideWay?.to !== st.ownerAt) guideWay = { to: st.ownerAt, field: walkField(st.ownerAt.x, st.ownerAt.z, Math.ceil(400 / B)) }
+  const way = own && nextCell(guideWay.field, guidePos.x, guidePos.z)
+  const wx = way ? way.x - guidePos.x : dx
+  const wz = way ? way.z - guidePos.z : dz
+  const wd = Math.hypot(wx, wz) || 1
+  const v = Math.min(way ? wd : d, speed * dt)
+  const nx = guidePos.x + (wx / wd) * v
+  const nz = guidePos.z + (wz / wd) * v
   if (!blocked(nx, guidePos.z) || own) guidePos.x = nx
   if (!blocked(guidePos.x, nz) || own) guidePos.z = nz
 }
@@ -516,6 +530,131 @@ function updateNpcs(t) {
       n.tag.visible = show
       n.tag.position.set(n.at.x, n.h + 0.45 + Math.sin(t * 5) * 0.08, n.at.z)
     }
+  }
+}
+
+// --- 같은 동네 사람들 ------------------------------------------------------------
+// 같은 지도를 연 사람끼리 한 방. 방 이름·좌표는 2D 거리와 같다(x 동쪽, y 북쪽 미터 = -z).
+// 방향은 세계 기준 0 남 · 1 북 · 2 서 · 3 동으로 주고받고, 그릴 때 카메라 기준으로 바꾼다
+const TOWN_SEE = 70
+const TOWN_MAX = 40
+let townLook = readLook()
+let town = null
+let townKey = ''
+let townTimer = 0
+const others = new Map()
+const FACE_OF = [[0, 1], [0, -1], [-1, 0], [1, 0]]
+const worldDir = () => (Math.abs(player.face.x) > Math.abs(player.face.y) ? (player.face.x < 0 ? 2 : 3) : player.face.y > 0 ? 0 : 1)
+
+function nameTexture(text) {
+  const c = document.createElement('canvas')
+  const g = c.getContext('2d')
+  const font = '700 22px "Galmuri11 Game", Galmuri11, sans-serif'
+  g.font = font
+  c.width = Math.ceil(g.measureText(text).width) + 16
+  c.height = 32
+  g.font = font
+  g.fillStyle = 'rgba(27, 22, 34, 0.82)'
+  g.fillRect(0, 0, c.width, c.height)
+  g.fillStyle = '#fff3b8'
+  g.textAlign = 'center'
+  g.textBaseline = 'middle'
+  g.fillText(text, c.width / 2, 17)
+  const tex = new THREE.CanvasTexture(c)
+  tex.magFilter = THREE.NearestFilter
+  tex.colorSpace = THREE.SRGBColorSpace
+  return { tex, w: c.width / c.height }
+}
+
+function makeOther(p) {
+  const tex = []
+  for (let dir = 0; dir < 4; dir++) {
+    for (let f = 0; f < 3; f++) {
+      const c = document.createElement('canvas')
+      c.width = 18
+      c.height = 26
+      drawAvatar(c.getContext('2d'), p.look || {}, 9, 25, { scale: 1, dir, frame: f, night: true, shadow: false })
+      const t = new THREE.CanvasTexture(c)
+      t.magFilter = THREE.NearestFilter
+      t.minFilter = THREE.NearestFilter
+      t.colorSpace = THREE.SRGBColorSpace
+      tex.push(t)
+    }
+  }
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex[0], fog: false }))
+  sprite.center.set(0.5, 0)
+  sprite.scale.set(1.45, 2.1, 1)
+  const name = nameTexture(p.name || '수리공')
+  const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: name.tex, fog: false, depthTest: false, transparent: true }))
+  tag.center.set(0.5, 0)
+  tag.scale.set(0.42 * name.w, 0.42, 1)
+  tag.renderOrder = 6
+  scene.add(sprite, tag)
+  return { sprite, tag, tex, look: JSON.stringify(p.look || {}), name: p.name, step: 0 }
+}
+
+function dropOther(o) {
+  scene.remove(o.sprite, o.tag)
+  for (const t of o.tex) t.dispose()
+  o.sprite.material.dispose()
+  o.tag.material.map.dispose()
+  o.tag.material.dispose()
+}
+
+function leaveTown() {
+  town?.leave()
+  town = null
+  for (const o of others.values()) dropOther(o)
+  others.clear()
+}
+
+function updateTown(dt) {
+  townTimer -= dt
+  if (townTimer <= 0) {
+    townTimer = 1
+    const key = grid && world && !machine.value && !status.value ? `${world.lat.toFixed(4)}_${world.lng.toFixed(4)}` : ''
+    if (key !== townKey) {
+      leaveTown()
+      townKey = key
+      if (key) {
+        try {
+          town = joinTown({ town: key, look: townLook, name: myName() })
+        } catch {
+          town = null
+        }
+      }
+    }
+  }
+  if (!town) return
+  if (!cab?.hide) town.send(player.pos.x, -player.pos.z, worldDir(), player.moving && !paused.value)
+  town.step(dt)
+  const seen = [...town.others().values()]
+    .filter((p) => !p.hidden)
+    .map((p) => ({ p, d: Math.hypot(p.x - player.pos.x, -p.y - player.pos.z) }))
+    .filter((c) => c.d < TOWN_SEE)
+    .sort((a, b) => a.d - b.d)
+    .slice(0, TOWN_MAX)
+  const keep = new Set()
+  for (const { p } of seen) {
+    keep.add(p.id)
+    let o = others.get(p.id)
+    if (o && (o.look !== JSON.stringify(p.look || {}) || o.name !== p.name)) {
+      dropOther(o)
+      o = null
+    }
+    if (!o) others.set(p.id, (o = makeOther(p)))
+    if (p.m) o.step += dt * 6
+    const [fx, fz] = FACE_OF[p.d & 3] || FACE_OF[0]
+    const f = p.m ? 1 + (Math.floor(o.step) % 2) : 0
+    o.sprite.material.map = o.tex[viewDir(fx, fz) * 3 + f]
+    const bob = p.m ? Math.abs(Math.sin(o.step * Math.PI)) * 0.06 : 0
+    o.sprite.position.set(p.x, bob, -p.y)
+    o.tag.position.set(p.x, 2.3, -p.y)
+  }
+  for (const [id, o] of others) {
+    if (keep.has(id)) continue
+    dropOther(o)
+    others.delete(id)
   }
 }
 
@@ -767,6 +906,60 @@ function signAt(p) {
 
 const distTo = (o) => (o ? Math.hypot(o.x - player.pos.x, o.z - player.pos.z) : 99)
 
+// --- 걸어서 갈 길 ----------------------------------------------------------------
+// (x, z) 칸에서 걸을 수 있는 칸으로 번져 나가며 몇 칸 걸어야 닿는지 적는다. -1 은 못 가는 칸
+function walkField(x, z, maxSteps) {
+  const { N } = grid
+  const field = new Int16Array(N * N).fill(-1)
+  const [si, sk] = cellOf(x, z)
+  if (!cellFree(si, sk)) return field
+  const queue = new Int32Array(N * N)
+  let head = 0
+  let tail = 0
+  field[sk * N + si] = 0
+  queue[tail++] = sk * N + si
+  while (head < tail) {
+    const c = queue[head++]
+    const d = field[c]
+    if (d >= maxSteps) continue
+    const i = c % N
+    const k = (c - i) / N
+    for (const [ni, nk] of [[i + 1, k], [i - 1, k], [i, k + 1], [i, k - 1]]) {
+      const nc = nk * N + ni
+      if (field[nc] !== -1 || !cellFree(ni, nk)) continue
+      field[nc] = d + 1
+      queue[tail++] = nc
+    }
+  }
+  return field
+}
+
+// 그 자리까지 걸어서 몇 미터인지(못 가면 -1)
+function walkMeters(field, at) {
+  const [i, k] = cellOf(at.x, at.z)
+  const steps = field[k * grid.N + i]
+  return steps < 0 ? -1 : steps * B
+}
+
+// 길 위에서 목표 쪽으로 한 칸 더 가까운 옆 칸 가운데. 모서리는 질러가지 않는다
+function nextCell(field, x, z) {
+  const { N } = grid
+  const [i, k] = cellOf(x, z)
+  const here = field[k * N + i]
+  if (here <= 0) return null
+  let best = null
+  for (let dk = -1; dk <= 1; dk++) {
+    for (let di = -1; di <= 1; di++) {
+      if (!di && !dk) continue
+      const d = field[(k + dk) * N + i + di]
+      if (d < 0 || d >= here) continue
+      if (di && dk && (field[k * N + i + di] < 0 || field[(k + dk) * N + i] < 0)) continue
+      if (!best || d < best.d) best = { d, i: i + di, k: k + dk }
+    }
+  }
+  return best && cellMid(best.i, best.k)
+}
+
 // --- 불 켜기 ------------------------------------------------------------------
 // 셰이더가 받는 불빛 자리는 MAX_LIT 개까지. 넘치면 오래된 작은 불빛부터 번짐을 거두고 네온 틀만 남긴다
 function lightUp(placed, R0 = 20) {
@@ -844,35 +1037,55 @@ function bossOf(step, shop) {
   return { id: step.boss, at, alive: true }
 }
 
-// 다음에 갈 가게: 지금 자리에서 30~160m 사이, 아직 꺼진 그 업종 간판. 없으면 가까운 꺼진 아무 간판
-function nextShop(from, want, used) {
-  const cand = signPlaced
-    .filter((p) => !used.includes(p) && !litSet.has(p) && !p.sign.mine)
-    .map((p) => {
-      const s = signAt(p)
-      return { p, d: Math.hypot(s.x - from.x, s.z - from.z) }
-    })
-    .sort((a, b) => a.d - b.d)
-  const far = cand.filter((c) => c.d > 30 && c.d < 160)
-  const pick = far.find((c) => want.test(c.p.sign.cat)) || cand.find((c) => c.d > 30 && want.test(c.p.sign.cat) && c.d < 260) || far[0] || cand[0]
+// 다음에 갈 가게: 걸어서 닿는 꺼진 그 업종 간판.
+// near 면(장 첫 가게·길잡이 가게) 길 따라 20~80m 의 가까운 곳, 아니면 40~150m 중 지금까지 들른 곳에서 먼 쪽을 골라 동네를 고루 돌게 한다
+function nextShop(from, want, used, near = false) {
+  const start = freeSpot(from.x, from.z)
+  const field = walkField(start.x, start.z, Math.ceil(300 / B))
+  const seen = [start, ...used.map(signAt)]
+  const cand = []
+  for (const p of signPlaced) {
+    if (used.includes(p) || litSet.has(p) || p.sign.mine) continue
+    const s = signAt(p)
+    if (Math.hypot(s.x - start.x, s.z - start.z) > 300) continue
+    const d = walkMeters(field, ownerSpot(p))
+    if (d < 0) continue
+    const spread = Math.min(...seen.map((u) => Math.hypot(u.x - s.x, u.z - s.z)))
+    cand.push({ p, d, fits: want.test(p.sign.cat), score: near ? -Math.abs(d - 45) : Math.min(spread, 120) + Math.random() * 30 })
+  }
+  const [lo, hi] = near ? [20, 80] : [40, 150]
+  const best = (list) => list.reduce((a, c) => (!a || c.score > a.score ? c : a), null)
+  const band = cand.filter((c) => c.d >= lo && c.d <= hi)
+  const pick = best(band.filter((c) => c.fits)) || best(cand.filter((c) => c.fits && c.d < 260)) || best(band) || cand.sort((a, b) => a.d - b.d)[0]
   return pick?.p || null
 }
 
-// 동네 사람은 꺼진 간판 근처 길가에 흩어져 선다(서로 24m 넘게 떨어지게)
-function placeFolks(ids = []) {
-  const pool = signPlaced
-    .filter((p) => !litSet.has(p) && !p.sign.mine)
-    .map((p) => ({ p, s: signAt(p) }))
-    .map((c) => ({ ...c, d: Math.hypot(c.s.x - player.pos.x, c.s.z - player.pos.z) }))
-    .filter((c) => c.d > 25 && c.d < 140)
-    .sort(() => Math.random() - 0.5)
-  const out = []
-  for (const id of ids) {
-    if (!FOLKS[id]) continue
-    const c = pool.find((c) => out.every((f) => Math.hypot(f.at.x - c.s.x, f.at.z - c.s.z) > 24))
-    if (!c) break
-    out.push({ id, name: FOLKS[id].name, at: freeSpot(c.s.x + c.s.nx * 2.6 * B, c.s.z + c.s.nz * 2.6 * B), done: false })
+// 동네 사람은 내 둘레를 사람 수만큼 방향으로 나눠, 방향마다 걸어서 40~180m 거리의 꺼진 간판 앞에 선다
+function placeFolks(ids = [], avoid = []) {
+  ids = ids.filter((id) => FOLKS[id])
+  if (!ids.length) return []
+  const field = walkField(player.pos.x, player.pos.z, Math.ceil(200 / B))
+  const pool = []
+  for (const p of signPlaced) {
+    if (litSet.has(p) || p.sign.mine || avoid.includes(p)) continue
+    const s = signAt(p)
+    if (Math.hypot(s.x - player.pos.x, s.z - player.pos.z) > 180) continue
+    const at = freeSpot(s.x + s.nx * 2.6 * B, s.z + s.nz * 2.6 * B)
+    const d = walkMeters(field, at)
+    if (d < 40 || d > 180) continue
+    pool.push({ at, a: Math.atan2(at.z - player.pos.z, at.x - player.pos.x) })
   }
+  const turn = Math.random() * Math.PI * 2
+  const sector = (c) => Math.floor(((((c.a - turn) / (Math.PI * 2)) % 1) + 1) % 1 * ids.length)
+  const out = []
+  ids.forEach((id, n) => {
+    const free = pool.filter((c) => out.every((f) => Math.hypot(f.at.x - c.at.x, f.at.z - c.at.z) > 30))
+    const mine = free.filter((c) => sector(c) === n)
+    // 그쪽에 자리가 없으면 먼저 선 사람들에게서 가장 먼 자리
+    const apart = (c) => Math.min(...out.map((f) => Math.hypot(f.at.x - c.at.x, f.at.z - c.at.z)))
+    const c = mine.length ? mine[Math.floor(Math.random() * mine.length)] : free.reduce((a, c) => (!a || apart(c) > apart(a) ? c : a), null)
+    if (c) out.push({ id, name: FOLKS[id].name, at: c.at, done: false })
+  })
   return out
 }
 
@@ -909,10 +1122,10 @@ async function startStory(n) {
   weatherFx.set(ch.weather)
   cam.dist = 21
   cam.pitch = 0.9
-  const shop = nextShop(player.pos, ch.steps[0].want, [])
+  const shop = nextShop(player.pos, ch.steps[0].want, [], true)
   const goal = Math.min(ch.steps.length, signPlaced.length)
   Object.assign(guidePos, freeSpot(player.pos.x + 1.6 * B, player.pos.z + 0.6 * B), { moving: false })
-  const folks = placeFolks(ch.folks)
+  const folks = placeFolks(ch.folks, shop ? [shop] : [])
   story.value = { n, ch, step: 0, goal, lit: 0, shop, used: shop ? [shop] : [], done: false, guide: true, ownerAt: shop && ownerSpot(shop), boss: bossOf(ch.steps[0], shop), folks, gameDone: false, score: null, build: null }
   // 지하철 카드가 걷힌 뒤에 말을 건다
   const met = () => {
@@ -1053,7 +1266,7 @@ function repair(placed) {
   // 부탁받은 가게에 불이 들어오면 그 사장님이 본 것을 들려주고 다음 가게를 알려 준다
   const step = st.ch.steps[st.step]
   const lastStep = st.step + 1 >= st.goal
-  const shop = lastStep ? null : nextShop(signAt(placed), st.ch.steps[st.step + 1].want, st.used)
+  const shop = lastStep ? null : nextShop(st.ownerAt || signAt(placed), st.ch.steps[st.step + 1].want, st.used, !!st.ch.steps[st.step + 1].own)
   const stay = !step.own && st.ownerAt && { name: `f-${spriteOf(placed.sign.cat)}`, h: 2.0, at: st.ownerAt }
   talker = stay
   story.value = { ...st, lit: litSet.size, step: st.step + 1, shop, used: shop ? [...st.used, shop] : st.used, gameDone: false, score: null, ownerAt: shop && ownerSpot(shop), boss: lastStep ? null : bossOf(st.ch.steps[st.step + 1], shop) }
@@ -2072,6 +2285,7 @@ function frame(now) {
 
   updateGuide(dt)
   updateNpcs(t)
+  updateTown(dt)
   autoTalk()
   if (traffic.update(dt, player.pos) && !paused.value && (wave || fx.uSpreadOn.value < 0.5)) sfx.horn()
   people.update(dt, player.pos, t)
@@ -2317,7 +2531,7 @@ onMounted(() => {
   window.addEventListener('keyup', onKeyUp)
   window.addEventListener('look:change', onLook)
   window.addEventListener('game:over', onGameOver)
-  if (import.meta.env.DEV) window.__street3d = { player, cam, repair, signs: () => signPlaced, near, story, quest, dialog, machine, startStory, openQuest, questBack, finishChapter, startBuild, chooseName, finishBuild, placeBlock, voxels, startMachine, hailTaxi, startFare, cab: () => cab, fareRun: () => fareRun, interact, askBoss, setTime, lit: () => litSet, guidePos, nextLine, grid: () => grid, endMachine }
+  if (import.meta.env.DEV) window.__street3d = { player, cam, repair, signs: () => signPlaced, near, story, quest, dialog, machine, startStory, openQuest, questBack, finishChapter, startBuild, chooseName, finishBuild, placeBlock, voxels, startMachine, hailTaxi, startFare, cab: () => cab, fareRun: () => fareRun, interact, askBoss, setTime, lit: () => litSet, guidePos, nextLine, grid: () => grid, endMachine, town: () => town, others, nextShop, placeFolks, walkField }
   boot()
   if (props.play) playFromOutside()
 })
@@ -2349,6 +2563,7 @@ watch(
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(raf)
+  leaveTown()
   clearTimeout(toastTimer)
   clearTimeout(chatTimer)
   clearTimeout(rideTimer)
