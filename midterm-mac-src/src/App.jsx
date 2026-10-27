@@ -458,6 +458,11 @@ export default function App() {
           release={release}
           onReady={() => launch('street', {}, { max: true, quiet: true })}
           onStart={(begin) => {
+            if (begin === 'exit') {
+              setWins((ws) => ws.filter((w) => w.id !== 'street'))
+              setRelease(true)
+              return
+            }
             const [asked, extra = {}] = afterIntro.current || ['street']
             const go = () => {
               launch(asked, { ...extra, begin, beginAt: Date.now() }, { max: true, quiet: true })

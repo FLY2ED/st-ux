@@ -86,6 +86,9 @@ const near = shallowRef(null)
 // Shift 로 한 번도 안 뛰어 봤으면 걷는 동안 아래에 Shift 안내를 띄운다
 const ranOnce = ref(localStorage.getItem('gp-3d-run') === '1')
 const walking = ref(false)
+// 이야기 대화가 끝나면 위 화살표를 따라가라고 알려 주고, 조금 걸으면 걷는다
+const followHint = ref(false)
+let followFrom = null
 const litCount = ref(0)
 const arrow = ref(0)
 const dist = ref(0)
@@ -2031,6 +2034,11 @@ function interact() {
 
 // --- 바탕화면 '내 수리공' 위젯에 이야기 진행을 알린다 (2D 와 같은 gp-story-now · story:progress) ---
 watch(() => dialog.value?.stay, () => syncNpcs())
+watch(dialog, (d, was) => {
+  if (d || !was || !story.value || story.value.done) return
+  followHint.value = true
+  followFrom = { x: player.pos.x, z: player.pos.z }
+})
 
 watch([story, timeMode], ([st, tm]) => {
   syncNpcs()
@@ -2246,6 +2254,7 @@ function frame(now) {
 
   if (!paused.value) move(dt)
   if (cab) runRide(t)
+  if (followHint.value && (!story.value || Math.hypot(player.pos.x - followFrom.x, player.pos.z - followFrom.z) > 12)) followHint.value = false
 
   // 카메라: 뒤쪽 위에서 비스듬히, 부드럽게 따라간다. 장이 끝나면 높이 올라가 동네를 내려다본다
   if (cine) {
@@ -2673,6 +2682,7 @@ onBeforeUnmount(() => {
         <small>「{{ fare.name }}」</small>
       </div>
       <div v-if="near && !paused && !touch" class="s3-hint"><kbd>E</kbd>{{ storyOn ? '고치기' : '켜기' }}</div>
+      <div v-else-if="followHint && goalKind && !paused && !dialog && !quest" class="s3-hint s3-hint-wide"><kbd>↑</kbd>위 화살표를 따라 이동</div>
       <div v-else-if="walking && !ranOnce && !paused && !touch && !dialog" class="s3-hint s3-hint-wide"><kbd>Shift</kbd>달리기</div>
       <transition name="s3-pop">
         <div v-if="toast" class="s3-toast" :style="{ '--neon': toast.color }">{{ toast.name }}<small v-if="toast.tag">{{ toast.tag }}</small></div>
