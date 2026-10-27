@@ -27,6 +27,8 @@ function TrafficLights({ onClose, onMin, onMax, max }) {
 
 // 메뉴바 높이. 몰입 창(3D 거리 전체 화면)은 이만큼 위로 올라가 메뉴바까지 덮는다
 const MENU_H = 24
+// 꽉 채운 창은 macOS 처럼 Dock 위에서 끝나고, Dock 둘레로는 배경화면이 보인다
+const DOCK_SPACE = 74
 
 export default function Window({ win, active, area, mobile, dockTarget, immersive, fill, unified, ink, onFocus, onClose, onMin, onMax, children }) {
   const width = Math.min(win.width, area.w - 16)
@@ -35,7 +37,7 @@ export default function Window({ win, active, area, mobile, dockTarget, immersiv
 
   const x = max ? 0 : Math.max(8 - width + 120, Math.min(pos.x, area.w - 120))
   const y = immersive ? -MENU_H : max ? 0 : Math.max(0, Math.min(pos.y, area.h - 60))
-  const height = immersive ? area.h + MENU_H : max ? area.h : win.height ? Math.min(win.height, area.h - 16) : 'auto'
+  const height = immersive ? area.h + MENU_H : max ? area.h - DOCK_SPACE : win.height ? Math.min(win.height, area.h - 16) : 'auto'
 
   // 최소화할 때 Dock 아이콘 쪽으로 빨려 들어간다
   const origin = dockTarget ? `${dockTarget.x - x}px ${dockTarget.y - y}px` : '50% 100%'
