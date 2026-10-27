@@ -1032,17 +1032,21 @@ const globe = () => map?.flyTo({ ...WORLD, duration: 1400 })
 const hand = ref(false)
 const handPoint = ref(null)
 const graphRef = ref(null)
+// 그래프는 손 조작이 연 카메라 영상을 배경으로 깔고, 손끝 자리를 매 프레임 받아 그 위에 그린다
+const handStream = ref(null)
+watch(hand, (on) => on || (handStream.value = null))
+const handFrame = (f) => graphRef.value?.feed(f)
 const handDrag = (dx, dy) => (graphOn.value ? graphRef.value?.rotate(dx, dy) : map?.panBy([-dx, -dy], { duration: 0 }))
 function handZoom(dz, x, y) {
   if (graphOn.value) return graphRef.value?.zoomBy(dz)
   if (!map || !dz) return
   map.zoomTo(map.getZoom() + dz, { around: map.unproject([x, y]), duration: 0 })
 }
-// 톡 집기는 그 자리를 마우스로 누른 것과 같게 친다(핀·단추·지도 모두)
+// 짧게 집었다 놓기는 그 자리를 마우스로 누른 것과 같게 친다(핀·단추·지도 모두)
 function handTap(x, y) {
   const el = document.elementFromPoint(x, y)
   if (!el) return
-  if (graphOn.value && el.tagName === 'CANVAS' && graphRef.value) return graphRef.value.choose(x, y)
+  if (graphOn.value && el.tagName === 'CANVAS' && graphRef.value) return graphRef.value.choose(x, y, 36)
   for (const type of ['mousedown', 'mouseup', 'click']) el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 }))
 }
 </script>
@@ -1052,7 +1056,7 @@ function handTap(x, y) {
   <div v-else class="amap" :class="[`tab-${tab}`, { 'has-panel': showPanel }]">
     <div ref="mapEl" class="map"></div>
 
-    <!-- 이름 별자리. 별을 누르면(손으로 톡 집어도) 그 동네 간판을 펼친다 -->
+    <!-- 이름 별자리. 별을 누르면(손으로 짧게 집어도) 그 동네 간판을 펼친다 -->
     <div v-if="tab === 'name' && stars.length" :key="result?.word" class="stars">
       <svg aria-hidden="true">
         <template v-for="([a, b], k) in links" :key="'l' + k">
@@ -1095,6 +1099,7 @@ function handTap(x, y) {
       :total="dots?.n || 0"
       :pointer="hand ? handPoint : null"
       :hand="hand"
+      :stream="hand ? handStream : null"
       @hand="hand = !hand"
       @town="graphTown"
       @close="view = 'map'"
@@ -1295,7 +1300,7 @@ function handTap(x, y) {
       <button aria-label="손으로 조작" title="웹캠 손 조작" class="sm" :class="{ on: hand }" @click="hand = !hand">✋</button>
     </div>
 
-    <HandControl v-if="hand" @drag="handDrag" @zoom="handZoom" @tap="handTap" @point="handPoint = $event" @off="hand = false" />
+    <HandControl v-if="hand" :full="graphOn" @stream="handStream = $event" @frame="handFrame" @drag="handDrag" @zoom="handZoom" @tap="handTap" @point="handPoint = $event" @off="hand = false" />
 
     <Transition name="sheet">
       <div v-if="tab === 'name' && view === 'building' && floors.length" class="bsheet">
