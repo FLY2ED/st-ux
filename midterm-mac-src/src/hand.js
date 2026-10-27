@@ -18,6 +18,10 @@ async function model() {
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y)
 
+// 카메라 가장자리까지 손을 뻗지 않아도 화면 끝에 닿게 가운데 70%만 화면에 펼친다. 웹캠을 배경으로 깔 때도 같은 만큼 잘라 손끝과 겹치게 한다
+export const REACH = { lo: 0.15, size: 0.7 }
+export const span = (v) => Math.min(1, Math.max(0, (v - REACH.lo) / REACH.size))
+
 // 손가락 끝이 둘째 마디보다 손목에서 멀면 편 손가락
 function extended(p, tip, pip) {
   return dist(p[tip], p[0]) > dist(p[pip], p[0]) * 1.12

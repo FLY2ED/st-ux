@@ -1,6 +1,8 @@
 <script setup>
 // 이름 별자리: 찾은 간판을 검은 하늘의 점으로 띄우고, 묶음(동네·업종·글자 자리)마다 실로 잇는다.
 // 끌면 돌고, 휠·두 손으로 당기면 다가가고, 점을 누르면 그 간판 카드가 열린다
+// 손 조작 중엔 웹캠을 거울처럼 깔고 그 위에 그린다: 손끝이 가까운 별을 잡아끌고, 두 손으로 집으면 별자리가 두 손 사이에 걸린다
+// 움직이는 동안엔 별자리가 흐린 사본 몇 장으로 뒤따라온다(겹친 잔상)
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 const props = defineProps({
@@ -14,10 +16,13 @@ const props = defineProps({
   // 손 커서 자리(화면 좌표). 없으면 마우스로 고른다
   pointer: { type: Object, default: null },
   hand: Boolean,
+  // 손 조작 카메라 영상(MediaStream). 있으면 배경에 깐다
+  stream: { type: null, default: null },
 })
 const emit = defineEmits(['town', 'close', 'hand'])
 
 const FONT = "'Pretendard Variable', Pretendard, sans-serif"
+const HOT = '#ff4f00'
 const MAX_NAMED = 60
 const MAX_DOTS = 1000
 const MAX_HUBS = 30
@@ -33,6 +38,7 @@ const viewInfo = computed(() => VIEWS.find((v) => v.key === view.value))
 
 const wrap = ref(null)
 const cv = ref(null)
+const camEl = ref(null)
 const hover = ref(null)
 const chosen = ref(null)
 const tip = ref({ x: 0, y: 0 })
@@ -168,6 +174,10 @@ function mst(pts) {
 }
 
 // ── 카메라 ──
+// 위 검색창과 아래 보기 단추를 피해 그 사이 가운데에 별자리를 놓는다
+const SAFE_TOP = 64
+const SAFE_BOTTOM = 84
+const midY = () => SAFE_TOP + (H - SAFE_TOP - SAFE_BOTTOM) / 2
 const cam = { yaw: -0.35, pitch: 0.28, zoom: 1, fit: 0, f: 900 }
 let W = 0
 let H = 0
@@ -184,8 +194,8 @@ function project(p, o) {
   const y2 = p[1] * cp - z1 * sp
   const z2 = p[1] * sp + z1 * cp
   const s = (cam.f / (cam.f + z2)) * cam.zoom * cam.fit
-  o.sx = W / 2 + x1 * s
-  o.sy = H / 2 + y2 * s
+  o.sx = W / 2 + pan.x + x1 * s
+  o.sy = midY() + pan.y + y2 * s
   o.sz = z2
   o.ss = s
   // 눈앞을 지나쳐 뒤로 넘어간 점은 그리지 않는다
@@ -203,6 +213,145 @@ function resize() {
   cv.value.height = H * dpr
 }
 
+// ── 손과 잔상 ──
+// 손 조작(HandControl)이 매 프레임 넘겨 주는 손끝·집은 손 자리. 잠깐 끊기면 300ms 까지 마지막 것을 쓴다
+let frame = null
+let frameAt = 0
+const feed = (f) => ((frame = f), (frameAt = performance.now()))
+// 두 손으로 집으면 별자리 가운데가 두 손 사이로 옮겨 간다. 놓으면 천천히 제자리로
+const pan = { x: 0, y: 0 }
+
+// 지난 20 프레임의 점 자리를 고리 버퍼에 쌓아 두고, 3·7·12·18 프레임 전 모습을 점점 흐리게 겹친다
+const RING = 20
+const ECHOES = [
+  [3, 0.34],
+  [7, 0.22],
+  [12, 0.13],
+  [18, 0.07],
+]
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+const ring = { d: new Float32Array(RING * signs.length * 2), t: new Float32Array(RING * 20), tn: new Uint8Array(RING), head: -1, count: 0 }
+const slot = (k) => (ring.head - k + RING) % RING
+
+function pushRing(tips) {
+  ring.head = (ring.head + 1) % RING
+  ring.count = Math.min(RING, ring.count + 1)
+  let o = ring.head * signs.length * 2
+  for (const s of signs) {
+    ring.d[o++] = s.vis ? s.sx : NaN
+    ring.d[o++] = s.sy
+  }
+  const n = Math.min(10, tips.length)
+  ring.tn[ring.head] = n
+  o = ring.head * 20
+  for (let i = 0; i < n; i++) ((ring.t[o++] = tips[i].x), (ring.t[o++] = tips[i].y))
+}
+
+function drawEchoes(g, tips) {
+  const n = signs.length
+  if (reduced || ring.count <= 12) return
+  // 얼마나 움직였는지: 12 프레임 전과 지금 사이 평균 거리. 멈춰 있으면 잔상 없이 또렷한 한 장
+  const a = slot(0) * n * 2
+  const b = slot(12) * n * 2
+  let move = 0
+  let c = 0
+  for (let i = 0; i < n; i += 7) {
+    const d = Math.hypot(ring.d[a + i * 2] - ring.d[b + i * 2], ring.d[a + i * 2 + 1] - ring.d[b + i * 2 + 1])
+    if (d === d) ((move += d), c++)
+  }
+  const show = c ? Math.min(1, move / c / 10) : 0
+  if (show < 0.02) return
+  for (let e = ECHOES.length - 1; e >= 0; e--) {
+    const [k, a0] = ECHOES[e]
+    if (k >= ring.count) continue
+    const al = a0 * show
+    const o = slot(k) * n * 2
+    g.fillStyle = `rgb(255 255 255 / ${al})`
+    for (let i = labeled.length; i < n; i++) {
+      const x = ring.d[o + i * 2]
+      if (x === x) g.fillRect(x - 0.8, ring.d[o + i * 2 + 1] - 0.8, 1.6, 1.6)
+    }
+    g.fillStyle = `rgb(255 79 0 / ${Math.min(1, al * 1.6)})`
+    for (let i = 0; i < labeled.length; i++) {
+      const x = ring.d[o + i * 2]
+      if (x === x) g.fillRect(x - 1.5, ring.d[o + i * 2 + 1] - 1.5, 3, 3)
+    }
+    const to = slot(k) * 20
+    if (ring.tn[slot(k)] === tips.length) {
+      g.fillStyle = `rgb(255 79 0 / ${al})`
+      for (let i = 0; i < tips.length; i++) {
+        g.beginPath()
+        g.arc(ring.t[to + i * 2], ring.t[to + i * 2 + 1], 2.5, 0, Math.PI * 2)
+        g.fill()
+      }
+    }
+  }
+}
+
+// 손끝마다 가까운 별 둘에 주황 실을 걸고, 손끝엔 흰 점과 주황 고리. 두 손으로 집으면 그 사이에 점선과 배율
+const near2 = [null, null]
+function drawHands(g, tips, held) {
+  g.lineWidth = 1
+  for (const p of tips) {
+    near2[0] = near2[1] = null
+    let d0 = 150 * 150
+    let d1 = 150 * 150
+    for (const s of signs) {
+      if (!s.vis) continue
+      const d = (s.sx - p.x) ** 2 + (s.sy - p.y) ** 2
+      if (d < d0) ((d1 = d0), (near2[1] = near2[0]), (d0 = d), (near2[0] = s))
+      else if (d < d1) ((d1 = d), (near2[1] = s))
+    }
+    for (const [s, d] of [
+      [near2[0], d0],
+      [near2[1], d1],
+    ]) {
+      if (!s) continue
+      g.strokeStyle = `rgb(255 79 0 / ${1 - Math.sqrt(d) / 150})`
+      g.beginPath()
+      g.moveTo(p.x, p.y)
+      g.lineTo(s.sx, s.sy)
+      g.stroke()
+    }
+  }
+  for (const p of tips) {
+    g.fillStyle = '#fff'
+    g.beginPath()
+    g.arc(p.x, p.y, 3, 0, Math.PI * 2)
+    g.fill()
+    g.strokeStyle = 'rgb(255 79 0 / 0.8)'
+    g.beginPath()
+    g.arc(p.x, p.y, 6, 0, Math.PI * 2)
+    g.stroke()
+  }
+  if (held) {
+    const [a, b] = held
+    g.strokeStyle = HOT
+    g.lineWidth = 1.5
+    g.setLineDash([4, 4])
+    g.beginPath()
+    g.moveTo(a.x, a.y)
+    g.lineTo(b.x, b.y)
+    g.stroke()
+    g.setLineDash([])
+    g.fillStyle = HOT
+    for (const p of held) {
+      g.beginPath()
+      g.arc(p.x, p.y, 6, 0, Math.PI * 2)
+      g.fill()
+    }
+    g.font = `700 13px ${FONT}`
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    g.lineWidth = 3
+    g.strokeStyle = 'rgb(0 0 0 / 0.9)'
+    const t = `× ${cam.zoom.toFixed(1)}`
+    g.strokeText(t, (a.x + b.x) / 2, (a.y + b.y) / 2 + 22)
+    g.fillText(t, (a.x + b.x) / 2, (a.y + b.y) / 2 + 22)
+    g.textAlign = 'start'
+  }
+}
+
 // ── 그리기 ──
 let raf = 0
 const tmp = {}
@@ -213,17 +362,26 @@ function draw() {
   if (!g || !W) return
   const now = performance.now()
   if (now - lastInput > 2500 && !dragging) cam.yaw += 0.0012
-  const fit = (Math.min(W, H) * 0.4) / extent
+  const fit = (Math.min(W, H - SAFE_TOP - SAFE_BOTTOM) * 0.42) / extent
   cam.fit = cam.fit ? cam.fit + (fit - cam.fit) * 0.06 : fit
+  const live = props.hand && frame && now - frameAt < 300
+  const tips = live ? frame.tips : []
+  const held = live && frame.held.length === 2 ? frame.held : null
+  const tx = held ? (held[0].x + held[1].x) / 2 - W / 2 : 0
+  const ty = held ? (held[0].y + held[1].y) / 2 - midY() : 0
+  pan.x += (tx - pan.x) * (held ? 0.25 : 0.04)
+  pan.y += (ty - pan.y) * (held ? 0.25 : 0.04)
 
   for (const s of signs) {
     for (let k = 0; k < 3; k++) s.pos[k] += (s.to[k] - s.pos[k]) * 0.08
     project(s.pos, s)
   }
   for (const h of hubs) project(h.c, h)
+  pushRing(tips)
 
   g.setTransform(dpr, 0, 0, dpr, 0, 0)
   g.clearRect(0, 0, W, H)
+  drawEchoes(g, tips)
   const depth = (z) => Math.max(0.15, Math.min(1, 0.75 - z / 700))
   // 점이 천 개라 투명도를 몇 단계로 묶어 단계마다 한 번에 그린다
   const LEVELS = 6
@@ -289,7 +447,8 @@ function draw() {
       const z = Math.max(1.2, 2.2 * s.ss)
       g.fillRect(s.sx - z / 2, s.sy - z / 2, z, z)
     }
-    g.fillStyle = `rgb(255 255 255 / ${a})`
+    // 이름 아는 간판만 강조색
+    g.fillStyle = `rgb(255 79 0 / ${0.4 + 0.6 * a})`
     for (const s of list) {
       if (!s.named) continue
       const z = Math.max(2.5, 4.5 * s.ss)
@@ -306,6 +465,8 @@ function draw() {
     g.lineWidth = 1
     g.strokeRect(s.sx - z, s.sy - z, z * 2, z * 2)
   }
+
+  if (tips.length || held) drawHands(g, tips, held)
 
   // 허브 고리
   g.lineWidth = 1
@@ -372,13 +533,13 @@ function draw() {
   if (props.pointer) pickAt(props.pointer.x, props.pointer.y)
 }
 
-// 화면 좌표에서 가장 가까운 간판(18px 안)
-function nearest(cx, cy) {
+// 화면 좌표에서 가장 가까운 간판(기본 18px 안, 손은 떨려서 더 넓게)
+function nearest(cx, cy, r = 18) {
   const box = wrap.value.getBoundingClientRect()
   const x = cx - box.left
   const y = cy - box.top
   let best = null
-  let bd = 18 * 18
+  let bd = r * r
   for (const s of signs) {
     if (!s.vis) continue
     // 이름 아는 간판이 점 사이에 묻히지 않게 조금 더 잘 잡히게 한다
@@ -389,7 +550,7 @@ function nearest(cx, cy) {
 }
 
 function pickAt(cx, cy) {
-  const s = nearest(cx, cy)
+  const s = nearest(cx, cy, props.pointer ? 36 : 18)
   hover.value = s
   if (s) {
     const box = wrap.value.getBoundingClientRect()
@@ -436,9 +597,9 @@ function zoomBy(dz) {
   lastInput = performance.now()
   cam.zoom = Math.max(0.45, Math.min(3, cam.zoom * Math.exp(dz)))
 }
-function choose(cx, cy) {
+function choose(cx, cy, r) {
   lastInput = performance.now()
-  chosen.value = nearest(cx, cy)
+  chosen.value = nearest(cx, cy, r)
 }
 
 function setView(k) {
@@ -460,7 +621,18 @@ const towns = new Set(signs.map((s) => s.r.region)).size
 const countText = (n) => n.toLocaleString()
 
 // 손 조작은 바깥(HandControl)에서 이 함수들을 부른다
-defineExpose({ rotate, zoomBy, choose })
+defineExpose({ rotate, zoomBy, choose, feed })
+
+// 카메라 영상은 손 조작이 연 것을 그대로 받아 배경 video 에 건다
+watch(
+  [() => props.stream, camEl],
+  ([s, el]) => {
+    if (!el) return
+    if (el.srcObject !== s) el.srcObject = s
+    if (s) el.play().catch(() => {})
+  },
+  { flush: 'post' },
+)
 
 let ro
 onMounted(() => {
@@ -480,6 +652,10 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="wrap" class="graph">
+    <template v-if="stream">
+      <video ref="camEl" class="cam" muted playsinline autoplay></video>
+      <div class="shade"></div>
+    </template>
     <canvas
       ref="cv"
       @pointerdown="onDown"
@@ -506,7 +682,7 @@ onBeforeUnmount(() => {
       <p>{{ viewInfo.note }}</p>
     </nav>
 
-    <p class="how">{{ hand ? '집어 끌어 돌리기 · 가리키면 이름 · 톡 집으면 열기 · 두 손 벌려 다가가기' : '끌어서 돌리기 · 휠로 다가가기 · 점 누르면 열기' }}</p>
+    <p class="how">{{ hand ? '집어 끌어 돌리기 · 가리키면 이름 · 짧게 집었다 놓으면 열기 · 두 손 집어 벌리면 다가가기' : '끌어서 돌리기 · 휠로 다가가기 · 점 누르면 열기' }}</p>
 
     <div v-if="hover && hover !== chosen" class="tip" :style="{ transform: `translate(${tip.x + 14}px, ${tip.y + 10}px)` }">
       <b v-if="hover.named">{{ hover.r.parts[0] }}<em>{{ hover.r.parts[1] }}</em>{{ hover.r.parts[2] }}</b>
@@ -547,10 +723,32 @@ onBeforeUnmount(() => {
   background: #000;
   color: #fff;
   font-family: 'Pretendard Variable', Pretendard, sans-serif;
+  --lo: 0.15;
+  --size: 0.7;
 }
 
 .graph button {
   font-family: inherit;
+}
+
+/* 손 좌표와 같은 가운데 70%만 화면에 펼쳐(늘여) 손끝 그림이 영상 속 손가락과 겹치게 한다 */
+.cam {
+  position: absolute;
+  top: calc(var(--lo) / var(--size) * -100%);
+  left: calc(var(--lo) / var(--size) * -100%);
+  width: calc(100% / var(--size));
+  height: calc(100% / var(--size));
+  object-fit: fill;
+  transform: scaleX(-1);
+  filter: grayscale(1) brightness(0.32) contrast(1.15);
+  pointer-events: none;
+}
+
+.shade {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(closest-side, transparent 55%, rgb(0 0 0 / 0.7) 140%);
+  pointer-events: none;
 }
 
 canvas {
