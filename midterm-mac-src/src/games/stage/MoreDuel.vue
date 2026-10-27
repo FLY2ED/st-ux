@@ -4,7 +4,7 @@
 // 맞히면 도깨비가 휘청이고 자루에서 글자가 튀어나온다, 틀리면 도깨비가 웃고 목숨이 준다. goal 번 맞히면 이긴다
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { randomNames } from '../../data.js'
-import { pastelOf } from '../../shops.js'
+import { PASTEL, pastelOf } from '../../shops.js'
 import { sfx } from '../../sound.js'
 import Hearts from './Hearts.vue'
 import Hero from './Hero.vue'
@@ -12,6 +12,8 @@ import './stage.css'
 
 const props = defineProps({ goal: { type: Number, default: 6 }, boss: { type: String, default: '' }, bossName: { type: String, default: '숫자 도깨비' } })
 const LIVES = 3
+// 뒤쪽 가게 간판들: 도깨비가 글자를 숫자로 바꿔 놓았다
+const SHOP_NUMS = ['0 0 0', '7 7', '4 0 4', '1 2 3', '9 9 9', '0 1', '8 8 8']
 const ASK = ['자, 어느 간판이 전국에 더 많게?', '이번엔 어렵다! 더 많은 쪽을 골라 봐!', '크크, 숫자는 거짓말을 안 하지. 골라!']
 const LAUGH = ['크하하! 틀렸다! 숫자가 이긴다!', '키키, 그 간판은 생각보다 적다고!', '내 자루가 더 무거워지는구나!']
 const OUCH = ['크윽! 맞혔잖아…!', '으악, 자루가 찢어진다!', '이, 이럴 수가…']
@@ -198,7 +200,7 @@ onBeforeUnmount(() => {
     <div class="md-sky" aria-hidden="true"></div>
     <div class="sg-stars" aria-hidden="true"></div>
     <div class="md-shops" aria-hidden="true">
-      <i v-for="n in 7" :key="n"></i>
+      <i v-for="n in 7" :key="n" :data-n="SHOP_NUMS[n - 1]" :style="{ '--plate': PASTEL[n % PASTEL.length] }"></i>
     </div>
 
     <header class="sg-hud">
@@ -301,11 +303,49 @@ onBeforeUnmount(() => {
 }
 
 .md-shops i {
+  position: relative;
   flex: 1;
   background:
     linear-gradient(#5b2a6e 0 22px, transparent 22px),
     repeating-linear-gradient(#2a1840 0 6px, #3a2456 6px 9px);
   box-shadow: inset 0 -4px 0 #140a24;
+}
+
+/* 셔터 위 간판: 글자를 뺏겨 숫자만 남은 파스텔 판, 하나 걸러 불이 깜박인다 */
+.md-shops i::before {
+  content: attr(data-n);
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  min-width: 64%;
+  padding: 2px 6px;
+  translate: -50% 0;
+  border: 3px solid #140a24;
+  background: var(--plate, #f6a5c0);
+  color: #1d1b2e;
+  font-size: 13px;
+  text-align: center;
+  box-shadow: inset 0 3px rgb(255 255 255 / 0.4), 0 0 14px rgb(255 200 240 / 0.35);
+}
+
+.md-shops i:nth-child(2n)::before {
+  animation: md-flicker 2.6s steps(1) infinite;
+}
+
+.md-shops i:nth-child(3n)::before {
+  animation-delay: 1.1s;
+}
+
+@keyframes md-flicker {
+  0%,
+  60%,
+  64%,
+  100% {
+    opacity: 1;
+  }
+  62% {
+    opacity: 0.35;
+  }
 }
 
 .md-ring {
@@ -324,7 +364,10 @@ onBeforeUnmount(() => {
   inset: auto 0 0;
   z-index: -1;
   height: 26px;
-  background: #241536;
+  /* 보도블록 */
+  background:
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 0.25) 0 3px, transparent 3px 44px),
+    #241536;
   box-shadow: inset 0 4px 0 #3a2456;
 }
 
@@ -349,7 +392,7 @@ onBeforeUnmount(() => {
 
 .md-boss-say {
   position: absolute;
-  top: -50px;
+  top: -68px;
   right: 2%;
   z-index: 4;
   --tail: calc(100% - 50px);
@@ -397,10 +440,17 @@ onBeforeUnmount(() => {
   translate: 0 -6px;
 }
 
+/* 간판판 네 귀퉁이에 나사 */
 .md-plate {
   min-width: 150px;
   max-width: 280px;
-  padding: 14px 18px;
+  padding: 14px 20px;
+  background:
+    radial-gradient(circle, #141b3a 0 40%, transparent 50%) 5px 5px / 5px 5px no-repeat,
+    radial-gradient(circle, #141b3a 0 40%, transparent 50%) calc(100% - 5px) 5px / 5px 5px no-repeat,
+    radial-gradient(circle, #141b3a 0 40%, transparent 50%) 5px calc(100% - 5px) / 5px 5px no-repeat,
+    radial-gradient(circle, #141b3a 0 40%, transparent 50%) calc(100% - 5px) calc(100% - 5px) / 5px 5px no-repeat,
+    var(--plate, #ffd84d);
   font-size: clamp(20px, 2.6cqi, 30px);
   transition: translate 0.1s steps(2);
 }

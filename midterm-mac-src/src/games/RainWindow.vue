@@ -4,10 +4,13 @@ import { randomNames } from '../data.js'
 import { sfx } from '../sound.js'
 import { useCountUp } from './countUp.js'
 import Leaderboard from './Leaderboard.vue'
+import Hero from './stage/Hero.vue'
+import { pastelOf } from '../shops.js'
 import './pixel.css'
 
 // 간판 산성비: 진짜 간판 이름이 비처럼 떨어진다. 이름을 쳐서 부수고, 못 부순 간판은 피한다.
-// 바닥에 떨어진 간판은 잠깐 길을 막는 잔해가 되고, 사람 머리에 떨어지면 목숨이 준다
+// 바닥에 떨어진 간판은 잠깐 길을 막는 잔해가 되고, 사람 머리에 떨어지면 목숨이 준다.
+// 걷는 사람은 캐릭터 만들기에서 고른 내 모습(Hero)
 const ICON = new URL('../assets/mac/rain.webp', import.meta.url).href
 const LIVES = 3
 const BEST_KEY = 'gp-rain-best'
@@ -24,6 +27,18 @@ const RUN = 1.7 // 걷기보다 몇 배 빨리 뛰는지
 const RUN_MAX = 14 // 한 번에 뛰어가는 거리(하늘 폭 %)
 const CHEERS = ['야호!', '좋아!', '나이스!', '최고!', '얏호!']
 const CONFETTI = ['#ffec27', '#ff77a8', '#29adff', '#00e436', '#ffa300', '#fff1e8']
+// 뒤편 건물들: 왼쪽 위치·폭·높이(%)와 창문 불빛 색
+const BUILDINGS = [
+  { x: 0, w: 11, h: 62, lit: '#ffd77a' },
+  { x: 10, w: 8, h: 88, lit: '#9fe8ff' },
+  { x: 19, w: 14, h: 50, lit: '#ffd77a' },
+  { x: 34, w: 9, h: 100, lit: '#c8ff9a' },
+  { x: 44, w: 13, h: 66, lit: '#ffd77a' },
+  { x: 58, w: 8, h: 82, lit: '#9fe8ff' },
+  { x: 67, w: 15, h: 56, lit: '#ffd77a' },
+  { x: 83, w: 9, h: 92, lit: '#c8ff9a' },
+  { x: 92, w: 8, h: 70, lit: '#ffd77a' },
+]
 
 // embed: 거리 이야기 안에서 열린 판. 규칙 화면 없이 바로 시작하고, goal 개를 부수면 이긴다
 const props = defineProps({ embed: Boolean, goal: { type: Number, default: 0 }, boss: { type: String, default: '' }, bossName: { type: String, default: '' } })
@@ -53,6 +68,7 @@ const finalScore = ref(null)
 const hop = ref(0) // 땅에서 뜬 높이(px)
 const cheer = ref(null)
 const confetti = ref([])
+const splashes = ref([])
 
 const size = { w: 720, h: 520 }
 const held = new Set()
@@ -84,6 +100,9 @@ function halfOf(d) {
   const w = Math.max(d.name.length * 20.5, label * 12.5) + 30
   return (w / 2 / size.w) * 100
 }
+
+// 떨어지는 간판 판 색: 이름마다 정해진 파스텔, 노란 간판·하트 간판은 따로
+const plateOf = (d) => (d.gold ? '#ffe45c' : d.heart ? '#ff9fc8' : pastelOf(d.name))
 
 // 단계가 오를수록 더 긴 이름이 더 빨리 내린다
 function nextName() {
@@ -209,6 +228,9 @@ function tick(now) {
 const overPerson = (d) => Math.abs(d.x - px.value) < d.hw + personHalf() * 0.8
 
 function land(d, now) {
+  const sp = { id: `${d.id}-sp`, x: d.x }
+  splashes.value.push(sp)
+  setTimeout(() => (splashes.value = splashes.value.filter((q) => q !== sp)), 450)
   if (overPerson(d)) {
     // 하트는 받으면 목숨 하나
     if (d.heart) {
@@ -232,7 +254,7 @@ function land(d, now) {
   }
   if (d.heart) return
   // 땅에 떨어진 간판은 잠깐 길을 막는다. 이름을 치면 치울 수 있다
-  rubble.value.push({ id: d.id, name: d.name, x: d.x, hw: d.hw, until: now + RUBBLE_MS, tilt: (Math.random() - 0.5) * 14 })
+  rubble.value.push({ id: d.id, name: d.name, plate: plateOf(d), x: d.x, hw: d.hw, until: now + RUBBLE_MS, tilt: (Math.random() - 0.5) * 14 })
   combo.value = 0
   sfx.thud()
 }
@@ -460,10 +482,13 @@ onBeforeUnmount(() => {
 
     <div ref="sky" class="rain-sky" :class="{ shake, resting: phase !== 'play' }" @click="input?.focus()">
       <div class="rain-stars" aria-hidden="true"></div>
-      <div class="rain-moon" aria-hidden="true"></div>
+      <div class="rain-clouds" aria-hidden="true"></div>
       <img v-if="boss" :key="bossHit" class="rain-boss" :class="{ hit: bossHit, gone: phase === 'win' }" :src="boss" alt="" draggable="false" />
       <span v-if="banner" class="rain-banner px-pop">{{ banner }}</span>
-      <div class="rain-city" aria-hidden="true"></div>
+      <div class="rain-city" aria-hidden="true">
+        <i v-for="(b, n) in BUILDINGS" :key="n" :style="{ left: `${b.x}%`, width: `${b.w}%`, height: `${b.h}%`, '--lit': b.lit }"></i>
+      </div>
+      <div class="rain-streaks" aria-hidden="true"></div>
 
       <span v-if="combo > 1 && phase === 'play'" :key="combo" class="rain-combo px-text">{{ combo }} 콤보</span>
 
@@ -481,7 +506,7 @@ onBeforeUnmount(() => {
         :key="d.id"
         class="rain-drop"
         :class="{ aim: d.id === target, gold: d.gold, heart: d.heart }"
-        :style="{ left: `${d.x}%`, top: `${d.y}%` }"
+        :style="{ left: `${d.x}%`, top: `${d.y}%`, '--plate': plateOf(d) }"
       >
         <span>{{ d.name }}</span>
         <small>{{ d.gold ? '전부 지우기' : d.heart ? '♥ 목숨 +1' : `전국 ${d.count}곳` }}</small>
@@ -490,13 +515,14 @@ onBeforeUnmount(() => {
       <div class="rain-ground" aria-hidden="true">
         <span v-for="n in LIVES" :key="n" :class="{ depleted: n > lives }"></span>
       </div>
+      <i v-for="sp in splashes" :key="sp.id" class="rain-splash" :style="{ left: `${sp.x}%` }" aria-hidden="true"></i>
 
       <div
         v-for="r in rubble"
         :key="`r${r.id}`"
         class="rain-rubble"
         :class="{ fading: r.until - clock < 1000 }"
-        :style="{ left: `${r.x}%`, width: `${r.hw * 2}%`, '--tilt': `${r.tilt}deg` }"
+        :style="{ left: `${r.x}%`, width: `${r.hw * 2}%`, '--tilt': `${r.tilt}deg`, '--plate': r.plate }"
       >
         {{ r.name }}
       </div>
@@ -509,24 +535,7 @@ onBeforeUnmount(() => {
       >
         <span v-if="cheer" :key="cheer.id" class="rain-cheer px-outline">{{ cheer.text }}</span>
         <i v-for="b in confetti" :key="b.id" class="rain-confetti" :style="{ background: b.color, '--dx': `${b.dx}px`, '--dy': `${b.dy}px` }"></i>
-        <svg viewBox="0 0 13 20" shape-rendering="crispEdges">
-          <rect x="4" y="0" width="5" height="2" fill="#3a2a1e" />
-          <rect x="3" y="1" width="1" height="3" fill="#3a2a1e" />
-          <rect x="4" y="2" width="5" height="4" fill="#ffd2a6" />
-          <rect x="7" y="3" width="1" height="1" fill="#1d1d1f" />
-          <rect x="3" y="6" width="7" height="6" fill="#0a84ff" />
-          <rect x="5" y="6" width="3" height="1" fill="#fff" />
-          <g class="arm-a"><rect x="2" y="7" width="1" height="4" fill="#ffd2a6" /></g>
-          <g class="arm-b"><rect x="10" y="7" width="1" height="4" fill="#ffd2a6" /></g>
-          <g class="cheer-up">
-            <rect x="2" y="3" width="1" height="4" fill="#ffd2a6" />
-            <rect x="10" y="3" width="1" height="4" fill="#ffd2a6" />
-            <rect x="6" y="5" width="2" height="1" fill="#7e2553" />
-          </g>
-          <rect x="4" y="12" width="5" height="2" fill="#2c3e66" />
-          <g class="leg-a"><rect x="4" y="14" width="2" height="5" fill="#2c3e66" /><rect x="3" y="19" width="3" height="1" fill="#1d1d1f" /></g>
-          <g class="leg-b"><rect x="7" y="14" width="2" height="5" fill="#2c3e66" /><rect x="7" y="19" width="3" height="1" fill="#1d1d1f" /></g>
-        </svg>
+        <Hero :scale="3" :dir="facing < 0 ? 2 : 3" :pose="walking ? 'walk' : 'idle'" />
       </div>
 
       <span v-for="p in pops" :key="`p${p.id}`" class="rain-pop px-text" :style="{ left: `${p.x}%`, top: `${p.y}%` }">{{ p.text }}</span>
@@ -842,7 +851,8 @@ onBeforeUnmount(() => {
   min-height: 320px;
   overflow: hidden;
   border: 2px solid #080817;
-  background: var(--rain-navy);
+  /* 산성비 밤하늘: 위는 짙은 남색, 지평선 쪽은 탁한 초록빛 */
+  background: linear-gradient(#070a1c 0%, #0d1530 45%, #1a2a32 78%, #2b3d2a 100%);
   box-shadow: 0 0 0 1px #808080, 1px 1px 0 1px #fff;
   touch-action: none;
 }
@@ -871,30 +881,47 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
-.rain-moon {
+.rain-clouds {
   position: absolute;
-  top: 24px;
-  right: 24px;
-  width: 24px;
-  height: 28px;
-  border: solid #a2aed3;
-  border-width: 0 0 4px 8px;
-  box-shadow: -4px -4px 0 -2px #a2aed3;
-  opacity: 0.45;
+  inset: -20px -10% auto;
+  height: 22%;
+  background:
+    radial-gradient(closest-side, #39452f 70%, transparent 71%) 0 0 / 120px 70px,
+    radial-gradient(closest-side, #2c3727 70%, transparent 71%) 60px 18px / 150px 80px,
+    linear-gradient(#222b22, #222b2200);
+  opacity: 0.85;
+  animation: rain-clouds 30s linear infinite;
   pointer-events: none;
 }
 
 .rain-city {
   position: absolute;
   inset: auto 0 10%;
-  height: 17%;
+  height: 30%;
+  pointer-events: none;
+}
+
+/* 건물마다 창이 격자로 나 있고 몇 줄은 불이 켜져 있다. 옥상에는 젖은 녹색 얼룩 */
+.rain-city i {
+  position: absolute;
+  bottom: 0;
   background:
-    linear-gradient(#141845, #141845) 2% 100% / 12% 65% no-repeat,
-    linear-gradient(#171c4d, #171c4d) 19% 100% / 9% 95% no-repeat,
-    linear-gradient(#141845, #141845) 33% 100% / 16% 55% no-repeat,
-    linear-gradient(#171c4d, #171c4d) 59% 100% / 13% 80% no-repeat,
-    linear-gradient(#141845, #141845) 78% 100% / 12% 60% no-repeat,
-    linear-gradient(#171c4d, #171c4d) 98% 100% / 8% 100% no-repeat;
+    repeating-linear-gradient(90deg, #121a2c 0 7px, transparent 7px 15px),
+    repeating-linear-gradient(#121a2c 0 10px, transparent 10px 19px),
+    linear-gradient(transparent 0 30%, color-mix(in srgb, var(--lit) 70%, #121a2c) 30% 42%, #26304a 42% 70%, color-mix(in srgb, var(--lit) 45%, #121a2c) 70% 80%, #26304a 80%);
+  box-shadow: inset 0 4px #3b5a33, inset 3px 0 #1c2740;
+}
+
+/* 비스듬히 쏟아지는 초록 산성비 */
+.rain-streaks {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    repeating-linear-gradient(103deg, transparent 0 22px, rgb(160 255 120 / 0.32) 22px 24px, transparent 24px 61px),
+    repeating-linear-gradient(97deg, transparent 0 37px, rgb(200 255 170 / 0.18) 37px 38px, transparent 38px 83px);
+  background-size: 100% 140px, 100% 110px;
+  animation: rain-fall 0.45s linear infinite;
   pointer-events: none;
 }
 
@@ -910,17 +937,15 @@ onBeforeUnmount(() => {
   animation: rain-bump 0.25s steps(2);
 }
 
-/* 글자만 떨어지는 산성비: 굵은 픽셀 글꼴에 2px 검은 외곽선, 아래로 한 칸 그늘 */
+/* 떨어지는 간판: 파스텔 판에 나사 네 개, 아래로 산성비가 녹여 낸 초록 얼룩. 아래에는 전국 개수 꼬리표 */
 .rain-drop {
   position: absolute;
   z-index: 2;
   display: grid;
   justify-items: center;
-  gap: 0;
+  gap: 3px;
   max-width: calc(100% - 8px);
   min-height: 46px;
-  padding: 0 14px;
-  color: var(--rain-cyan);
   font-family: var(--game-font);
   text-align: center;
   -webkit-font-smoothing: none;
@@ -929,42 +954,69 @@ onBeforeUnmount(() => {
 }
 
 .rain-drop span {
+  position: relative;
+  padding: 2px 12px 1px;
+  border: 3px solid #1d1b2e;
+  color: #1d1b2e;
+  background:
+    radial-gradient(circle, #1d1b2e 0 1.5px, transparent 2px) 3px 3px / 4px 4px no-repeat,
+    radial-gradient(circle, #1d1b2e 0 1.5px, transparent 2px) calc(100% - 3px) 3px / 4px 4px no-repeat,
+    radial-gradient(circle, #1d1b2e 0 1.5px, transparent 2px) 3px calc(100% - 3px) / 4px 4px no-repeat,
+    radial-gradient(circle, #1d1b2e 0 1.5px, transparent 2px) calc(100% - 3px) calc(100% - 3px) / 4px 4px no-repeat,
+    var(--plate);
+  box-shadow: inset 0 3px rgb(255 255 255 / 0.5), inset 0 -3px rgb(0 0 0 / 0.16), 0 4px 0 rgb(0 0 0 / 0.45);
   font-size: 20px;
-  line-height: 28px;
+  line-height: 26px;
   letter-spacing: 0;
   white-space: nowrap;
-  text-shadow:
-    2px 0 0 #000, -2px 0 0 #000, 0 2px 0 #000, 0 -2px 0 #000,
-    2px 2px 0 #000, -2px 2px 0 #000, 2px -2px 0 #000, -2px -2px 0 #000,
-    0 4px 0 #000;
+  animation: rain-sway 1.6s ease-in-out infinite alternate;
+}
+
+/* 산성비에 녹아 흘러내리는 자국 */
+.rain-drop span::after {
+  content: '';
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 18%;
+  width: 64%;
+  height: 7px;
+  background:
+    linear-gradient(#8ee05a, #8ee05a) 0 0 / 3px 7px no-repeat,
+    linear-gradient(#8ee05a, #8ee05a) 40% 0 / 3px 4px no-repeat,
+    linear-gradient(#8ee05a, #8ee05a) 100% 0 / 3px 5px no-repeat;
+  opacity: 0.85;
 }
 
 .rain-drop small {
-  font-size: 12px;
-  line-height: 16px;
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 15px;
   color: #d6ddff;
+  background: rgb(8 11 30 / 0.7);
   overflow-wrap: anywhere;
-  text-shadow: 1px 0 0 #000, -1px 0 0 #000, 0 1px 0 #000, 0 -1px 0 #000, 1px 1px 0 #000;
 }
 
-.rain-drop.gold,
+.rain-drop.gold span {
+  box-shadow: inset 0 3px rgb(255 255 255 / 0.6), 0 4px 0 rgb(0 0 0 / 0.45), 0 0 18px 4px rgb(255 228 92 / 0.7);
+}
+
 .rain-drop.gold small {
   color: var(--rain-yellow);
 }
 
-.rain-drop.heart,
 .rain-drop.heart small {
   color: var(--rain-pink);
 }
 
-.rain-drop.aim span {
-  text-decoration: underline;
-  text-decoration-thickness: 3px;
-  text-underline-offset: 6px;
+.rain-drop.heart span::before {
+  content: '♥ ';
+  color: #c2185b;
 }
 
-.rain-drop.aim:not(.gold):not(.heart) span {
-  color: #fff;
+.rain-drop.aim span {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+  animation: none;
 }
 
 .rain-shadow {
@@ -985,7 +1037,7 @@ onBeforeUnmount(() => {
   background: var(--rain-pink);
 }
 
-/* 잔디 세 칸은 남은 목숨과 함께 어두워진다 */
+/* 젖은 보도블록 세 칸은 남은 목숨과 함께 금이 가고 어두워진다. 물웅덩이에 초록빛이 비친다 */
 .rain-ground {
   position: absolute;
   inset: auto 0 0;
@@ -995,13 +1047,15 @@ onBeforeUnmount(() => {
 
 .rain-ground span {
   flex: 1;
-  border-top: 4px solid #78cf60;
-  border-right: 2px solid #080b36;
+  border-top: 4px solid #8a93a6;
+  border-right: 2px solid #1b1f2e;
   background:
-    repeating-linear-gradient(0deg, transparent 0 13px, #322448 13px 15px),
-    repeating-linear-gradient(90deg, transparent 0 30px, #322448 30px 32px),
-    #765044;
-  box-shadow: inset 0 4px #367d48;
+    radial-gradient(ellipse 40px 5px at 30% 55%, rgb(150 255 120 / 0.35) 60%, transparent 62%),
+    radial-gradient(ellipse 26px 4px at 78% 30%, rgb(150 255 120 / 0.25) 60%, transparent 62%),
+    repeating-linear-gradient(0deg, transparent 0 13px, #2a2f40 13px 15px),
+    repeating-linear-gradient(90deg, transparent 0 38px, #2a2f40 38px 40px),
+    #4b5266;
+  box-shadow: inset 0 4px #b6bfd0;
 }
 
 .rain-ground span:last-child {
@@ -1009,9 +1063,31 @@ onBeforeUnmount(() => {
 }
 
 .rain-ground span.depleted {
-  border-top-color: #4d5864;
-  background-color: #38394b;
-  box-shadow: inset 0 4px #292e44;
+  border-top-color: #3b3f4c;
+  background:
+    linear-gradient(115deg, transparent 47%, #14161f 47% 50%, transparent 50%),
+    linear-gradient(60deg, transparent 60%, #14161f 60% 62%, transparent 62%),
+    repeating-linear-gradient(0deg, transparent 0 13px, #1b1e2a 13px 15px),
+    #2b2f3c;
+  box-shadow: inset 0 4px #4a4f5e;
+}
+
+/* 간판이 떨어진 자리에 튀는 물보라 */
+.rain-splash {
+  position: absolute;
+  bottom: 10%;
+  z-index: 2;
+  width: 44px;
+  height: 14px;
+  translate: -50% 0;
+  background:
+    linear-gradient(#a8ff7a, #a8ff7a) 0 100% / 4px 4px no-repeat,
+    linear-gradient(#a8ff7a, #a8ff7a) 25% 30% / 4px 4px no-repeat,
+    linear-gradient(#a8ff7a, #a8ff7a) 75% 30% / 4px 4px no-repeat,
+    linear-gradient(#a8ff7a, #a8ff7a) 100% 100% / 4px 4px no-repeat,
+    linear-gradient(#a8ff7a, #a8ff7a) 50% 0 / 4px 4px no-repeat;
+  animation: rain-splash 0.45s steps(4) forwards;
+  pointer-events: none;
 }
 
 .rain-rubble {
@@ -1020,12 +1096,16 @@ onBeforeUnmount(() => {
   z-index: 2;
   display: grid;
   place-items: center;
-  height: 22px;
+  height: 24px;
   padding: 0 6px;
   overflow: hidden;
-  border: 1px solid #8d90aa;
-  color: #e0e2ef;
-  background: repeating-linear-gradient(135deg, #363953 0 6px, #252940 6px 12px);
+  border: 3px solid #1d1b2e;
+  color: #1d1b2e;
+  background:
+    linear-gradient(100deg, transparent 46%, #1d1b2e 46% 49%, transparent 49%),
+    linear-gradient(#5d8f3c, #5d8f3c) 0 100% / 100% 4px no-repeat,
+    var(--plate);
+  filter: saturate(0.45) brightness(0.8);
   font-family: var(--game-font);
   font-size: 13px;
   white-space: nowrap;
@@ -1043,62 +1123,31 @@ onBeforeUnmount(() => {
   position: absolute;
   bottom: 10%;
   z-index: 3;
-  width: 44px;
-  height: 68px;
+  width: 56px;
+  height: 78px;
   transform: translateX(-50%);
+  translate: 0 var(--hop, 0);
 }
 
-.rain-person svg {
+.rain-person :deep(canvas) {
   display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.rain-person.left svg {
-  scale: -1 1;
-}
-
-.rain-person.walking svg {
-  animation: rain-step 0.32s steps(2) infinite;
-}
-
-.rain-person.walking .leg-a,
-.rain-person.walking .arm-b {
-  animation: rain-step 0.32s steps(1) infinite;
-}
-
-.rain-person.walking .leg-b,
-.rain-person.walking .arm-a {
-  animation: rain-step 0.32s steps(1) infinite reverse;
+  margin-bottom: -4px;
 }
 
 .rain-person.hurt {
   animation: rain-blink 0.14s steps(1) infinite;
 }
 
-/* 신날 때: 두 팔을 번쩍, 공중에서는 살짝 기울어진다 */
-.rain-person {
-  translate: 0 var(--hop, 0);
+.rain-person.hurt :deep(canvas) {
+  filter: drop-shadow(2px 0 #ff6666) drop-shadow(-2px 0 #ff6666);
 }
 
-.rain-person .cheer-up {
-  display: none;
-}
-
-.rain-person.party .cheer-up {
-  display: inline;
-}
-
-.rain-person.party .arm-a,
-.rain-person.party .arm-b {
-  display: none;
-}
-
-.rain-person.air svg {
+/* 신날 때 공중에서 살짝 기울어진다 */
+.rain-person.air :deep(canvas) {
   rotate: 8deg;
 }
 
-.rain-person.air.left svg {
+.rain-person.air.left :deep(canvas) {
   rotate: -8deg;
 }
 
@@ -1121,10 +1170,6 @@ onBeforeUnmount(() => {
   width: 6px;
   height: 6px;
   animation: rain-confetti 0.8s cubic-bezier(0.2, 0.7, 0.4, 1) forwards;
-}
-
-.rain-person.hurt svg {
-  filter: drop-shadow(2px 0 #ff6666) drop-shadow(-2px 0 #ff6666);
 }
 
 .rain-pop {
@@ -1687,6 +1732,37 @@ onBeforeUnmount(() => {
 @keyframes rain-confetti {
   to {
     transform: translate(var(--dx), var(--dy)) rotate(180deg);
+    opacity: 0;
+  }
+}
+
+@keyframes rain-clouds {
+  to {
+    background-position: 120px 0, 210px 18px, 0 0;
+  }
+}
+
+@keyframes rain-fall {
+  to {
+    background-position: -30px 140px, -14px 110px;
+  }
+}
+
+@keyframes rain-sway {
+  from {
+    rotate: -3deg;
+  }
+  to {
+    rotate: 3deg;
+  }
+}
+
+@keyframes rain-splash {
+  from {
+    transform: scale(0.4, 0.4);
+  }
+  to {
+    transform: scale(1.3, 1.6) translateY(-6px);
     opacity: 0;
   }
 }

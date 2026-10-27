@@ -214,45 +214,12 @@
 }
 
 .ph-photo {
-  position: relative;
-  width: 196px;
-  height: 132px;
-  overflow: hidden;
+  display: block;
+  width: 212px;
+  aspect-ratio: 4 / 3;
   border-radius: 16px;
+  object-fit: cover;
   background: #05060f;
-}
-
-.ph-photo img {
-  position: absolute;
-  bottom: 14px;
-  width: 76px;
-  image-rendering: pixelated;
-  filter: brightness(0.17) saturate(0.2);
-}
-
-.ph-photo img:nth-of-type(1) {
-  left: 10px;
-}
-
-.ph-photo img:nth-of-type(2) {
-  left: 92px;
-  filter: brightness(0.12) saturate(0.2);
-}
-
-.ph-photo .floor {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 16px;
-  background: #0d0c1c;
-}
-
-.ph-photo span {
-  position: absolute;
-  bottom: 9px;
-  font: 700 10px 'Galmuri11 Game', Galmuri11, monospace;
-  color: rgba(255, 230, 160, 0.4);
 }
 
 .ph-typing {

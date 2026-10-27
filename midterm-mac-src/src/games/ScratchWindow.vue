@@ -9,9 +9,10 @@ const props = defineProps({
   ownerName: { type: String, default: '' },
   ownerArt: { type: String, default: '' },
   shopName: { type: String, default: '' },
+  shopCat: { type: String, default: '' },
 })
 </script>
 
 <template>
-  <SignClean :embed="props.embed" :owner-name="props.ownerName" :owner-art="props.ownerArt" :shop-name="props.shopName" />
+  <SignClean :embed="props.embed" :owner-name="props.ownerName" :owner-art="props.ownerArt" :shop-name="props.shopName" :shop-cat="props.shopCat" />
 </template>
