@@ -1069,6 +1069,7 @@ function onKey(e) {
   height: 34px;
   border-radius: 50%;
   background: rgb(255 255 255 / 0.28);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 

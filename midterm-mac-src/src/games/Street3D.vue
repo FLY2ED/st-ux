@@ -95,7 +95,7 @@ const machine = shallowRef(null)
 const timeMode = ref('midnight')
 const cleared = ref(readCleared())
 const dex = ref(readDex())
-const slot = ref(0)
+const slot = ref(-1)
 const touch = matchMedia('(pointer: coarse)').matches
 const ready = computed(() => !status.value)
 const dexSet = computed(() => new Set(dex.value))
@@ -212,6 +212,7 @@ function setupScene() {
   makeMarks()
   makeSparks()
   makeTaxi()
+  makeAimBox()
 
   composer = new EffectComposer(renderer)
   composer.addPass(new RenderPass(scene, camera))
@@ -1156,7 +1157,7 @@ function chooseName(name) {
   showLot(lot)
   checkBuild()
   const v = { ...vars(null, null), shop: name }
-  say(whoOf(st.ch.npc), [fill(BUILD.start[0], v), touch ? '블록 12개면 충분해. 놓기 단추로 쌓아 봐!' : '블록 12개면 충분해. Q 로 쌓고, X 로 빼고, 1~5 로 블록을 골라!'])
+  say(whoOf(st.ch.npc), [fill(BUILD.start[0], v), touch ? '블록 12개면 충분해. 아래에서 블록을 고르고 빈터를 톡톡 눌러 쌓아 봐!' : '블록 12개면 충분해. 아래에서 블록을 고르고 빈터를 클릭해 쌓아! 오른쪽 클릭이나 지우개로 빼고.'])
 }
 
 // 내 옆 12칸 안에서 4×4 가 모두 빈 땅인 자리. 찻길은 덜 고른다
@@ -1238,8 +1239,9 @@ function frontCell() {
   return null
 }
 
-function placeBlock() {
-  const c = frontCell()
+// 빈손이면 Q 는 첫 블록을 쥐고 놓는다
+function placeBlock(c = frontCell()) {
+  if (slot.value < 0 || slot.value === ERASER) slot.value = 0
   if (!c || !groundFree(...c)) return sfx.tick()
   const key = vkey(...c)
   const col = voxels.get(key) || []
@@ -1257,8 +1259,7 @@ function placeBlock() {
   checkBuild()
 }
 
-function breakBlock() {
-  const c = frontCell()
+function breakBlock(c = frontCell()) {
   const key = c && vkey(...c)
   const col = key && voxels.get(key)
   if (!col) return sfx.tick()
@@ -1267,6 +1268,86 @@ function breakBlock() {
   drawBlocks()
   checkBuild()
 }
+
+// --- 화면을 눌러 짓기 -------------------------------------------------------------
+// 화면의 한 점에서 시선을 따라 걸으며 처음 닿는 쌓은 블록·땅 칸을 찾는다. 건물에 막히면 없음
+const aimRay = new THREE.Raycaster()
+const aimNdc = new THREE.Vector2()
+const aimP = new THREE.Vector3()
+function pickCell(clientX, clientY) {
+  if (!grid) return null
+  const r = renderer.domElement.getBoundingClientRect()
+  aimNdc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1)
+  aimRay.setFromCamera(aimNdc, camera)
+  const { origin, direction } = aimRay.ray
+  const { N, height } = grid
+  let prev = null
+  for (let t = 0; t < 260; t += B / 6) {
+    aimP.copy(origin).addScaledVector(direction, t)
+    const c = cellOf(aimP.x, aimP.z)
+    const h = c[0] >= 0 && c[1] >= 0 && c[0] < N && c[1] < N ? height[c[1] * N + c[0]] : 0
+    if (h && aimP.y < h * B) return null
+    const col = voxels.get(vkey(...c))
+    if (col && aimP.y < col.length * B) {
+      // 옆면에 닿았으면 놓을 곳은 바로 앞 칸, 윗면이면 그 칸 위
+      const side = prev && (prev[0] !== c[0] || prev[1] !== c[1])
+      return { cell: c, put: side ? prev : c }
+    }
+    if (aimP.y <= 0) return { cell: c, put: c }
+    prev = c
+  }
+  return null
+}
+
+// 쥔 것: 빈손(-1) · 블록(0~4) · 지우개
+const ERASER = BLOCKS.length
+const holding = computed(() => building.value && slot.value >= 0)
+let aimBox = null
+let aimAt = null
+function makeAimBox() {
+  aimBox = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(B * 1.02, B * 1.02, B * 1.02)), new THREE.LineBasicMaterial({ color: 0xffcf3a, transparent: true, opacity: 0.9, depthTest: false }))
+  aimBox.renderOrder = 10
+  aimBox.visible = false
+  scene.add(aimBox)
+}
+
+// 누른 곳 칸: 블록을 쥐었으면 그 위(옆)에 놓고, 지우개면 맨 위 블록을 뺀다
+function aimTarget(x, y, erase) {
+  const hit = pickCell(x, y)
+  if (!hit) return null
+  if (erase) return voxels.has(vkey(...hit.cell)) ? { cell: hit.cell, erase: true } : null
+  return groundFree(...hit.put) ? { cell: hit.put, erase: false } : null
+}
+
+function updateAim() {
+  if (!aimBox) return
+  const t = holding.value && aimAt && !drag && !paused.value ? aimTarget(aimAt.x, aimAt.y, slot.value === ERASER) : null
+  aimBox.visible = !!t
+  if (!t) return
+  const n = voxels.get(vkey(...t.cell))?.length || 0
+  const { x, z } = cellMid(...t.cell)
+  aimBox.position.set(x, (t.erase ? n - 0.5 : n + 0.5) * B, z)
+  aimBox.material.color.set(t.erase ? 0xff5a5a : 0xffcf3a)
+}
+
+function clickBuild(x, y, erase) {
+  const t = aimTarget(x, y, erase)
+  if (!t) return sfx.tick()
+  t.erase ? breakBlock(t.cell) : placeBlock(t.cell)
+}
+
+function pickSlot(i) {
+  sfx.click()
+  slot.value = slot.value === i ? -1 : i
+}
+
+watch(building, (on) => {
+  if (!on) slot.value = -1
+})
+
+watch(holding, (on) => {
+  if (renderer) renderer.domElement.style.cursor = on ? 'crosshair' : ''
+})
 
 // 빈터 안 블록 수. 다 쌓으면 바로 간판을 단다
 function checkBuild() {
@@ -1888,6 +1969,7 @@ function frame(now) {
   const follow = cab && cab.phase !== 'drive' && cab.hide ? { x: cab.x, y: 0, z: cab.z } : player.pos
   cam.target.lerp(follow, Math.min(1, dt * 8))
   placeCamera()
+  updateAim()
 
   // 인형: 걸을 때 1·2 장을 번갈아, 살짝 통통 튄다. 택시에 탄 동안은 숨긴다
   const f = player.moving ? 1 + (Math.floor(player.step) % 2) : 0
@@ -2045,7 +2127,8 @@ function onKeyDown(e) {
   }
   if (e.code === 'KeyQ') placeBlock()
   if (e.code === 'KeyX') breakBlock()
-  if (/^Digit[1-5]$/.test(e.code)) slot.value = Number(e.code.slice(5)) - 1
+  // 1~5 블록 · 6 지우개 · 같은 번호를 다시 누르면 빈손
+  if (building.value && /^Digit[1-6]$/.test(e.code)) pickSlot(Number(e.code.slice(5)) - 1)
   if (e.code === 'KeyT') hailTaxi()
   if (e.code === 'KeyM') openQuest('atlas')
 }
@@ -2060,18 +2143,29 @@ function hold(code, on) {
 
 function onPointerDown(e) {
   if (e.button !== 0 && e.button !== 2) return
-  drag = { x: e.clientX, yaw: cam.yaw, y: e.clientY, pitch: cam.pitch }
+  drag = { x: e.clientX, yaw: cam.yaw, y: e.clientY, pitch: cam.pitch, button: e.button, moved: false }
   e.currentTarget.setPointerCapture?.(e.pointerId)
 }
 
 function onPointerMove(e) {
+  aimAt = { x: e.clientX, y: e.clientY }
   if (!drag || cine) return
+  if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 6) drag.moved = true
+  if (!drag.moved) return
   cam.yaw = drag.yaw - (e.clientX - drag.x) * 0.006
   cam.pitch = Math.max(0.45, Math.min(1.35, drag.pitch + (e.clientY - drag.y) * 0.004))
 }
 
-function onPointerUp() {
+// 끌지 않고 눌렀다 떼면 짓기: 쥔 블록을 놓고, 지우개·오른쪽 클릭이면 뺀다
+function onPointerUp(e) {
+  const d = drag
   drag = null
+  if (!d || d.moved || e.type !== 'pointerup' || !holding.value || paused.value || cine) return
+  clickBuild(e.clientX, e.clientY, slot.value === ERASER || d.button === 2)
+}
+
+function onPointerLeave() {
+  aimAt = null
 }
 
 function onWheel(e) {
@@ -2155,6 +2249,7 @@ async function boot() {
   el.addEventListener('pointermove', onPointerMove)
   el.addEventListener('pointerup', onPointerUp)
   el.addEventListener('pointercancel', onPointerUp)
+  el.addEventListener('pointerleave', onPointerLeave)
   el.addEventListener('wheel', onWheel, { passive: false })
   raf = requestAnimationFrame(frame)
   // 이야기는 늘 서울과기대(공릉)에서 시작한다
@@ -2273,10 +2368,12 @@ onBeforeUnmount(() => {
 
     <!-- 블록: 내 가게 짓는 동안 -->
     <div v-if="ready && building && !dialog && !quest && !menu" class="s3-hotbar">
-      <button v-for="(b, i) in blockIcons" :key="b.id" :class="{ on: slot === i }" :title="b.label" @click="slot = i">
+      <button class="hand" :class="{ on: slot < 0 }" title="빈손" @click="slot = -1">✋</button>
+      <button v-for="(b, i) in blockIcons" :key="b.id" :class="{ on: slot === i }" :title="b.label" @click="pickSlot(i)">
         <img :src="b.icon" alt="" width="32" height="32" />
         <span>{{ i + 1 }}</span>
       </button>
+      <button class="erase" :class="{ on: slot === ERASER }" title="지우개" @click="pickSlot(ERASER)">✕<span>{{ ERASER + 1 }}</span></button>
     </div>
 
     <!-- 터치 조작 -->
@@ -2286,8 +2383,8 @@ onBeforeUnmount(() => {
       </div>
       <div class="s3-acts">
         <button @click="interact">{{ storyOn ? '말걸기' : '켜기' }}</button>
-        <button v-if="building" @click="placeBlock">놓기</button>
-        <button v-if="building" @click="breakBlock">빼기</button>
+        <button v-if="building" @click="placeBlock()">놓기</button>
+        <button v-if="building" @click="breakBlock()">빼기</button>
         <button @click="hailTaxi">택시</button>
         <button @click="openMenu">메뉴</button>
       </div>
@@ -2386,8 +2483,9 @@ onBeforeUnmount(() => {
             <dt>WASD · 방향키</dt><dd>걷기</dd>
             <dt>Shift</dt><dd>달리기</dd>
             <dt>E · Space</dt><dd>말 걸기 · 고치기</dd>
-            <dt>Q · X</dt><dd>블록 놓기 · 빼기</dd>
-            <dt>1 ~ 5</dt><dd>블록 고르기</dd>
+            <dt>1 ~ 5 · 6</dt><dd>블록 · 지우개 쥐기 (다시 누르면 빈손)</dd>
+            <dt>클릭 · 오른쪽 클릭</dt><dd>블록 놓기 · 빼기</dd>
+            <dt>Q · X</dt><dd>내 앞에 놓기 · 빼기</dd>
             <dt>T</dt><dd>택시</dd>
             <dt>M</dt><dd>간판 지도</dd>
             <dt>끌기 · Z C</dt><dd>시점 돌리기</dd>
@@ -2861,6 +2959,16 @@ onBeforeUnmount(() => {
 
 .s3-hotbar img {
   image-rendering: pixelated;
+}
+
+.s3-hotbar .hand,
+.s3-hotbar .erase {
+  font-size: 20px;
+  color: #f4f1ea;
+}
+
+.s3-hotbar .erase {
+  color: #ff5a5a;
 }
 
 .s3-hotbar span {
