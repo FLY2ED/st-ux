@@ -1,10 +1,10 @@
 <script setup>
 // 이름 별자리: 찾은 간판을 검은 하늘의 점으로 띄우고, 묶음(동네·업종·글자 자리)마다 실로 잇는다.
 // 끌면 돌고, 휠·두 손으로 당기면 다가가고, 점을 누르면 그 간판 카드가 열린다
-// 손 조작 중엔 웹캠을 거울처럼 깔고 그 위에 그린다: 손끝이 가까운 별을 잡아끌고, 두 손으로 집으면 별자리가 두 손 사이에 걸린다
+// 손 조작 중엔 웹캠을 빈 자리에 뜬 작은 유리 창(visionOS 창처럼)에 띄운다: 손끝이 가까운 별을 잡아끌고, 두 손으로 집으면 별자리가 두 손 사이에 걸린다
 // 휠·핀치는 커서가 가리킨 자리로 끝까지(×60) 다가가고, 그 자리를 축으로 돈다
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { GESTURES } from '../hand.js'
+import { GESTURES, REACH } from '../hand.js'
 import Glass from './Glass.vue'
 
 const props = defineProps({
@@ -506,6 +506,7 @@ function draw() {
   }
 
   if (tips.length || held) drawHands(g, tips, held)
+  if (props.stream) drawPreview(tips, held)
 
   // 허브: 가운데가 빈 작은 고리
   g.lineWidth = 1
@@ -736,7 +737,7 @@ const countText = (n) => n.toLocaleString()
 // 손 조작은 바깥(HandControl)에서 이 함수들을 부른다
 defineExpose({ rotate, zoomBy, choose, feed })
 
-// 카메라 영상은 손 조작이 연 것을 그대로 받아 배경 video 에 건다
+// 카메라 영상은 손 조작이 연 것을 그대로 받아 떠 있는 창의 video 에 건다
 watch(
   [() => props.stream, camEl],
   ([s, el]) => {
@@ -746,6 +747,50 @@ watch(
   },
   { flush: 'post' },
 )
+
+// 카메라 창 자리와 영상 비율. 창은 아래 막대를 끌어 옮기고, 별자리 화면 밖으로는 못 나간다
+const win = ref({ x: 22, y: 252 })
+const camAspect = ref('4 / 3')
+const onMeta = (e) => (camAspect.value = `${e.target.videoWidth} / ${e.target.videoHeight}`)
+let winAt = null
+function winDown(e) {
+  winAt = { x: e.clientX - win.value.x, y: e.clientY - win.value.y }
+  e.target.setPointerCapture(e.pointerId)
+}
+function winMove(e) {
+  if (!winAt) return
+  win.value = { x: Math.max(8, Math.min(W - 248, e.clientX - winAt.x)), y: Math.max(60, Math.min(H - 120, e.clientY - winAt.y)) }
+}
+const winUp = () => (winAt = null)
+
+// 창 속 영상 위에 손끝을 찍는다. 손끝 화면 좌표는 영상 가운데 70%(REACH)를 화면에 펼친 것이라 거꾸로 되돌린다
+const pv = ref(null)
+function drawPreview(tips, held) {
+  const c = pv.value
+  if (!c) return
+  const w = c.clientWidth
+  const h = c.clientHeight
+  if (c.width !== w * dpr) ((c.width = w * dpr), (c.height = h * dpr))
+  const g = c.getContext('2d')
+  g.setTransform(dpr, 0, 0, dpr, 0, 0)
+  g.clearRect(0, 0, w, h)
+  const at = (p) => [(REACH.lo + (REACH.size * p.x) / W) * w, (REACH.lo + (REACH.size * p.y) / H) * h]
+  for (const p of tips) {
+    const [x, y] = at(p)
+    g.fillStyle = '#fff'
+    g.beginPath()
+    g.arc(x, y, 2.5, 0, Math.PI * 2)
+    g.fill()
+  }
+  for (const p of held || []) {
+    const [x, y] = at(p)
+    g.strokeStyle = HOT
+    g.lineWidth = 1.5
+    g.beginPath()
+    g.arc(x, y, 6, 0, Math.PI * 2)
+    g.stroke()
+  }
+}
 
 let ro
 onMounted(() => {
@@ -765,10 +810,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="wrap" class="graph">
-    <template v-if="stream">
-      <video ref="camEl" class="cam" muted playsinline autoplay></video>
-      <div class="shade"></div>
-    </template>
     <canvas
       ref="cv"
       @pointerdown="onDown"
@@ -778,6 +819,18 @@ onBeforeUnmount(() => {
       @wheel.prevent="onWheel"
       @dblclick="onDbl"
     ></canvas>
+
+    <!-- 손 조작 카메라: 별자리를 가리지 않게 빈 자리에 뜬 작은 유리 창(아래 막대를 끌어 옮긴다) -->
+    <div v-if="stream" class="vis" :style="{ left: `${win.x}px`, top: `${win.y}px` }">
+      <Glass class="vis-pane" :radius="26" :band="10" :scale="28">
+        <div class="vis-view" :style="{ aspectRatio: camAspect }">
+          <video ref="camEl" muted playsinline autoplay @loadedmetadata="onMeta"></video>
+          <i class="vis-reach"></i>
+          <canvas ref="pv"></canvas>
+        </div>
+      </Glass>
+      <span class="vis-bar" title="끌어서 옮기기" @pointerdown="winDown" @pointermove="winMove" @pointerup="winUp"></span>
+    </div>
 
     <!-- 확대 단추: 지도 앱처럼 오른쪽에 세로로 -->
     <Glass class="zoom" :radius="18" :band="8" :scale="22">
@@ -851,8 +904,6 @@ onBeforeUnmount(() => {
   background: radial-gradient(120% 90% at 50% 42%, #17171c 0%, #0a0a0d 55%, #000 100%);
   color: #fff;
   font-family: 'Pretendard Variable', Pretendard, sans-serif;
-  --lo: 0.15;
-  --size: 0.7;
   /* 별자리 위에 뜨는 리퀴드 글라스 판 */
   --g-tint: rgb(40 40 46 / 0.28);
   --g-ring:
@@ -866,27 +917,89 @@ onBeforeUnmount(() => {
   font-family: inherit;
 }
 
-/* 손 좌표와 같은 가운데 70%만 화면에 펼쳐(늘여) 손끝 그림이 영상 속 손가락과 겹치게 한다 */
-.cam {
+/* visionOS 창처럼: 두꺼운 유리 테 안에 둥근 영상, 아래엔 옮기는 막대 */
+.vis {
   position: absolute;
-  top: calc(var(--lo) / var(--size) * -100%);
-  left: calc(var(--lo) / var(--size) * -100%);
-  width: calc(100% / var(--size));
-  height: calc(100% / var(--size));
-  object-fit: fill;
-  transform: scaleX(-1);
-  filter: grayscale(1) brightness(0.32) contrast(1.15);
-  pointer-events: none;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: 240px;
+  animation: vis-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.shade {
+@keyframes vis-in {
+  from {
+    opacity: 0;
+    scale: 0.94;
+  }
+}
+
+.vis-pane {
+  width: 100%;
+  padding: 6px;
+  border-radius: 26px;
+  background: var(--g-tint);
+  box-shadow: var(--g-ring);
+}
+
+.vis-view {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #111;
+}
+
+.vis-view video,
+.vis-view canvas {
+  pointer-events: none;
   position: absolute;
   inset: 0;
-  background: radial-gradient(closest-side, transparent 55%, rgb(0 0 0 / 0.7) 140%);
+  width: 100%;
+  height: 100%;
+}
+
+.vis-view video {
+  object-fit: fill;
+  transform: scaleX(-1);
+  filter: grayscale(1) contrast(1.05);
+}
+
+/* 손이 닿는 범위(가운데 70%). 이 안에서 움직인 만큼 화면 끝까지 닿는다 */
+.vis-reach {
+  position: absolute;
+  inset: 15%;
+  border: 1px solid rgb(255 255 255 / 0.28);
+  border-radius: 10px;
   pointer-events: none;
 }
 
-canvas {
+.vis-bar {
+  width: 64px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.32);
+  cursor: grab;
+  touch-action: none;
+  transition: background-color 0.15s, width 0.2s;
+}
+
+.vis-bar:hover {
+  width: 76px;
+  background: rgb(255 255 255 / 0.6);
+}
+
+.vis-bar:active {
+  cursor: grabbing;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vis {
+    animation: none;
+  }
+}
+
+.graph > canvas {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -895,7 +1008,7 @@ canvas {
   touch-action: none;
 }
 
-canvas:active {
+.graph > canvas:active {
   cursor: grabbing;
 }
 
