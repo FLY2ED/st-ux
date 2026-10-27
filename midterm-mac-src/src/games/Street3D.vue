@@ -45,7 +45,7 @@ const QUESTS = {
   open: { title: '내 가게 차리기', comp: defineAsyncComponent(() => import('./BuildingWindow.vue')), mode: 'shop', free: true },
   atlas: { title: '간판 지도', comp: defineAsyncComponent(() => import('./BuildingWindow.vue')), mode: 'name', free: true },
 }
-const BOSS_GOAL = { rain: 6, type: 4, more: 3, map: 3 }
+const BOSS_GOAL = { rain: 6, type: 4, more: 2, map: 3 }
 
 // 인물 그림: c- 길잡이·보스 서 있는 모습, f- 동네 사람·사장님, p- 대화창 얼굴
 const NPC_ART = import.meta.glob('../assets/npc/*.png', { eager: true, import: 'default' })
@@ -1389,6 +1389,23 @@ function onGameOver(e) {
   if (q.placed) setTimeout(() => quest.value === done && questBack(), 2200)
 }
 
+// 이야기 속 놀이 중에 '봐주세요'·'살려주세요'를 치면 봐준다. 한글 입력기가 켜져 있어도 되게 자판 위치(두벌식)로 읽는다
+const PLEAS = ['qhkwntpdy', 'tkffuwntpdy']
+let plea = ''
+function onPlea(e) {
+  const q = quest.value
+  if (!q || !q.placed || q.done || wipe.value) return void (plea = '')
+  const m = /^Key([A-Z])$/.exec(e.code)
+  if (!m) return
+  plea = (plea + m[1].toLowerCase()).slice(-12)
+  if (!PLEAS.some((w) => plea.endsWith(w))) return
+  plea = ''
+  const done = { ...q, done: true, begged: true, score: q.score ?? 1 }
+  quest.value = done
+  sfx.click()
+  setTimeout(() => quest.value === done && questBack(), 1600)
+}
+
 function questBack(skipped = false) {
   const q = quest.value
   if (!q || wipe.value) return
@@ -2654,6 +2671,7 @@ async function boot() {
 
 onMounted(() => {
   window.addEventListener('keydown', onKeyDown)
+  window.addEventListener('keydown', onPlea, true)
   window.addEventListener('keyup', onKeyUp)
   window.addEventListener('look:change', onLook)
   window.addEventListener('game:over', onGameOver)
@@ -2697,6 +2715,7 @@ onBeforeUnmount(() => {
   clearTimeout(noticeTimer)
   observer?.disconnect()
   window.removeEventListener('keydown', onKeyDown)
+  window.removeEventListener('keydown', onPlea, true)
   window.removeEventListener('keyup', onKeyUp)
   window.removeEventListener('look:change', onLook)
   window.removeEventListener('game:over', onGameOver)
@@ -2848,7 +2867,7 @@ onBeforeUnmount(() => {
         <img v-if="quest.who?.portrait" class="s3-stage-face" :src="quest.who.portrait" alt="" />
         <span v-if="quest.who" class="s3-stage-who">{{ quest.boss ? `VS ${quest.who.name}` : `${quest.who.name}의 부탁` }}</span>
         <b>{{ quest.title }}</b>
-        <span v-if="quest.placed" class="s3-stage-state" :class="{ ok: quest.done }">{{ quest.done ? (quest.boss ? '이겼다!' : '해냈다!') : quest.boss ? '이기면 길이 열린다' : '끝내면 불이 들어온다' }}</span>
+        <span v-if="quest.placed" class="s3-stage-state" :class="{ ok: quest.done }">{{ quest.done ? (quest.begged ? '이번만 봐줄게…' : quest.boss ? '이겼다!' : '해냈다!') : quest.boss ? '이기면 길이 열린다' : '끝내면 불이 들어온다' }}</span>
         <span class="s3-stage-acts">
           <button v-if="quest.skip && quest.placed && !quest.done" @click="questBack(true)">넘어가기</button>
           <button v-if="quest.done" class="primary" @click="questBack()">거리로 ▶</button>
