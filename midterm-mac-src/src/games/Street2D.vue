@@ -2185,15 +2185,9 @@ function talkFolk(f) {
     .sort((a, b) => a.d - b.d)[0]?.p
   story.value = { ...st, folks: st.folks.map((o) => (o === f ? { ...o, done: true } : o)) }
   sfx.click()
-  if (!sign) return say(who, [fill(FOLK_IDLE[Math.floor(Math.random() * FOLK_IDLE.length)], vars(null, st.shop))])
-  const [first, then] = FOLKS[f.id].lines.map((l) => fill(l, { ...vars(null, st.shop), sign: sign.sign.name }))
-  say(who, [first], {
-    then: () => {
-      resume()
-      repair(sign)
-      speak(who, then)
-    },
-  })
+  if (!sign) return speak(who, fill(FOLK_IDLE[Math.floor(Math.random() * FOLK_IDLE.length)], vars(null, st.shop)))
+  repair(sign)
+  speak(who, fill(FOLKS[f.id].line, { ...vars(null, st.shop), sign: sign.sign.name }))
 }
 
 // 보스와 마주치기

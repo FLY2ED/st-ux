@@ -83,6 +83,16 @@ const dialog = shallowRef(null)
 const chat = shallowRef(null)
 const toast = shallowRef(null)
 const near = shallowRef(null)
+// Shift 로 한 번도 안 뛰어 봤으면 걷는 동안 아래에 Shift 안내를 띄운다
+const ranOnce = ref(localStorage.getItem('gp-3d-run') === '1')
+const walking = ref(false)
+// 이야기 대화가 끝나면 위 화살표를 따라가라고 알려 주고, 조금 걸으면 걷는다
+const followHint = ref(false)
+let followFrom = null
+// 가야 할 곳이 100m 넘게 멀어지면 잠깐 T 택시 안내를 띄운다
+const taxiHint = ref(false)
+let taxiFar = false
+let taxiTimer = 0
 const litCount = ref(0)
 const arrow = ref(0)
 const dist = ref(0)
@@ -691,6 +701,22 @@ function burst(x, y, z, nx, nz, color, n = 70) {
   col.needsUpdate = true
 }
 
+// 꺼진 간판은 가끔 지지직 불꽃을 튀겨 제 색을 내비친다
+let sputterAt = 0
+function sputter(t) {
+  if (t < sputterAt) return
+  sputterAt = t + 0.5 + Math.random() * 0.7
+  const near = []
+  for (const p of signPlaced) {
+    if (litSet.has(p) || p.sign.mine) continue
+    const s = signAt(p)
+    if (Math.abs(s.x - player.pos.x) + Math.abs(s.z - player.pos.z) < 60) near.push([p, s])
+  }
+  const [p, s] = near[Math.floor(Math.random() * near.length)] || []
+  if (!p) return
+  burst(s.x + s.nx * 0.2, s.y + (Math.random() - 0.4) * 0.6, s.z + s.nz * 0.2, s.nx * 0.4, s.nz * 0.4, neonOf(pastelOf(p.sign.cat)), 10 + Math.floor(Math.random() * 10))
+}
+
 function updateSparks(dt) {
   const pos = sparks.geometry.attributes.position
   let any = false
@@ -1146,17 +1172,10 @@ function talkFolk(f) {
     .sort((a, b) => a.d - b.d)[0]?.p
   story.value = { ...st, folks: st.folks.map((o) => (o === f ? { ...o, done: true } : o)) }
   sfx.click()
-  const stay = { kind: 'folk', name: `f-${f.id}`, h: 2.0, at: f.at }
-  if (!sign) return say(who, [fill(FOLK_IDLE[Math.floor(Math.random() * FOLK_IDLE.length)], vars(null, st.shop))], { stay })
-  const [first, then] = FOLKS[f.id].lines.map((l) => fill(l, { ...vars(null, st.shop), sign: sign.sign.name }))
-  say(who, [first], {
-    stay,
-    then: () => {
-      resume()
-      repair(sign)
-      speak(who, then)
-    },
-  })
+  // 멈춰 세우지 않고 말풍선 한 줄로 끝낸다
+  if (!sign) return speak(who, fill(FOLK_IDLE[Math.floor(Math.random() * FOLK_IDLE.length)], vars(null, st.shop)))
+  repair(sign)
+  speak(who, fill(FOLKS[f.id].line, { ...vars(null, st.shop), sign: sign.sign.name }))
 }
 
 // 보스와 마주치기
@@ -2035,6 +2054,11 @@ function interact() {
 
 // --- 바탕화면 '내 수리공' 위젯에 이야기 진행을 알린다 (2D 와 같은 gp-story-now · story:progress) ---
 watch(() => dialog.value?.stay, () => syncNpcs())
+watch(dialog, (d, was) => {
+  if (d || !was || !story.value || story.value.done) return
+  followHint.value = true
+  followFrom = { x: player.pos.x, z: player.pos.z }
+})
 
 watch([story, timeMode], ([st, tm]) => {
   syncNpcs()
@@ -2187,6 +2211,7 @@ function move(dt) {
   if (keys.has('KeyZ')) cam.yaw += dt * 1.8
   if (keys.has('KeyC')) cam.yaw -= dt * 1.8
   player.moving = !!(ax || az)
+  if (walking.value !== player.moving) walking.value = player.moving
   if (!player.moving) return
   const len = Math.hypot(ax, az)
   ax /= len
@@ -2197,6 +2222,10 @@ function move(dt) {
   const wx = ax * c + az * s
   const wz = -ax * s + az * c
   const run = keys.has('ShiftLeft') || keys.has('ShiftRight')
+  if (run && !ranOnce.value) {
+    ranOnce.value = true
+    localStorage.setItem('gp-3d-run', '1')
+  }
   const speed = cab?.phase === 'drive' ? (run ? 34 : 24) : run ? RUN : WALK
   player.face.set(wx, wz)
   const nx = player.pos.x + wx * speed * dt
@@ -2245,6 +2274,17 @@ function frame(now) {
 
   if (!paused.value) move(dt)
   if (cab) runRide(t)
+  const far = !!goalKind.value && dist.value > 100 && !cab
+  if (far && !taxiFar) {
+    taxiFar = true
+    taxiHint.value = true
+    clearTimeout(taxiTimer)
+    taxiTimer = setTimeout(() => (taxiHint.value = false), 5000)
+  } else if (!far && taxiFar && (cab || dist.value < 80)) {
+    taxiFar = false
+    taxiHint.value = false
+  }
+  if (followHint.value && (!story.value || Math.hypot(player.pos.x - followFrom.x, player.pos.z - followFrom.z) > 12)) followHint.value = false
 
   // 카메라: 뒤쪽 위에서 비스듬히, 부드럽게 따라간다. 장이 끝나면 높이 올라가 동네를 내려다본다
   if (cine) {
@@ -2314,6 +2354,7 @@ function frame(now) {
   weatherFx.update(dt, camera.position)
   updateSpread(t)
   updateZone(dt)
+  if (!paused.value && !cine) sputter(t)
   updateSparks(dt)
   updateSky(dt)
   miniTimer -= dt
@@ -2588,6 +2629,7 @@ onBeforeUnmount(() => {
   leaveTown()
   clearTimeout(toastTimer)
   clearTimeout(chatTimer)
+  clearTimeout(taxiTimer)
   clearTimeout(rideTimer)
   clearTimeout(noticeTimer)
   observer?.disconnect()
@@ -2672,6 +2714,9 @@ onBeforeUnmount(() => {
         <small>「{{ fare.name }}」</small>
       </div>
       <div v-if="near && !paused && !touch" class="s3-hint"><kbd>E</kbd>{{ storyOn ? '고치기' : '켜기' }}</div>
+      <div v-else-if="followHint && goalKind && !paused && !dialog && !quest" class="s3-hint s3-hint-wide"><kbd>↑</kbd>위 화살표를 따라 이동</div>
+      <div v-else-if="taxiHint && !paused && !dialog && !quest && !touch" class="s3-hint s3-hint-wide"><kbd>T</kbd>택시 부르기</div>
+      <div v-else-if="walking && !ranOnce && !paused && !touch && !dialog" class="s3-hint s3-hint-wide"><kbd>Shift</kbd>달리기</div>
       <transition name="s3-pop">
         <div v-if="toast" class="s3-toast" :style="{ '--neon': toast.color }">{{ toast.name }}<small v-if="toast.tag">{{ toast.tag }}</small></div>
       </transition>
@@ -3138,6 +3183,11 @@ onBeforeUnmount(() => {
   font: inherit;
   box-shadow: 0 3px 0 #8a6a10;
   animation: s3-tap 0.8s infinite;
+}
+
+.s3-hint-wide kbd {
+  width: auto;
+  padding: 0 8px;
 }
 
 @keyframes s3-tap {
