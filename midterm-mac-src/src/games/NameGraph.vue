@@ -2,7 +2,7 @@
 // 이름 별자리: 찾은 간판을 검은 하늘의 점으로 띄우고, 묶음(동네·업종·글자 자리)마다 실로 잇는다.
 // 끌면 돌고, 휠·두 손으로 당기면 다가가고, 점을 누르면 그 간판 카드가 열린다
 // 손 조작 중엔 웹캠을 거울처럼 깔고 그 위에 그린다: 손끝이 가까운 별을 잡아끌고, 두 손으로 집으면 별자리가 두 손 사이에 걸린다
-// 움직이는 동안엔 별자리가 흐린 사본 몇 장으로 뒤따라온다(겹친 잔상)
+// 휠·핀치는 커서가 가리킨 자리로 끝까지(×60) 다가가고, 그 자리를 축으로 돈다
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { GESTURES } from '../hand.js'
 import Glass from './Glass.vue'
@@ -31,7 +31,7 @@ const MAX_HUBS = 30
 const SPOTS = ['딱 그 이름', '앞에', '가운데', '끝에']
 const MOUSE = [
   ['끌기', '돌리기'],
-  ['휠', '다가가기'],
+  ['휠·핀치', '가리킨 곳으로 확대'],
   ['점 누르기', '열기'],
 ]
 
@@ -87,6 +87,11 @@ for (const s of signs) {
   s.pos = [(rand(s.key, 1) - 0.5) * 900, (rand(s.key, 2) - 0.5) * 900, (rand(s.key, 3) - 0.5) * 900]
 }
 const labeled = signs.filter((s) => s.named)
+const commonCat = (() => {
+  const n = new Map()
+  for (const s of signs) n.set(s.r.cat, (n.get(s.r.cat) || 0) + 1)
+  return [...n.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+})()
 
 let hubs = []
 let hubLinks = []
@@ -185,7 +190,11 @@ function mst(pts) {
 const SAFE_TOP = 64
 const SAFE_BOTTOM = 84
 const midY = () => SAFE_TOP + (H - SAFE_TOP - SAFE_BOTTOM) / 2
-const cam = { yaw: -0.35, pitch: 0.28, zoom: 1, fit: 0, f: 900 }
+// t 는 도는 축(화면 가운데에 오는 점). 배율과 축은 목표(zoomTo·tTo)를 향해 부드럽게 따라간다
+const ZOOM_MIN = 0.5
+const ZOOM_MAX = 60
+const cam = { yaw: -0.35, pitch: 0.28, zoom: 1, zoomTo: 1, t: [0, 0, 0], tTo: [0, 0, 0], fit: 0, f: 900 }
+const zoomShown = ref(1)
 let W = 0
 let H = 0
 let dpr = 1
@@ -196,10 +205,13 @@ function project(p, o) {
   const sy = Math.sin(cam.yaw)
   const cp = Math.cos(cam.pitch)
   const sp = Math.sin(cam.pitch)
-  const x1 = p[0] * cy + p[2] * sy
-  const z1 = -p[0] * sy + p[2] * cy
-  const y2 = p[1] * cp - z1 * sp
-  const z2 = p[1] * sp + z1 * cp
+  const px = p[0] - cam.t[0]
+  const py = p[1] - cam.t[1]
+  const pz = p[2] - cam.t[2]
+  const x1 = px * cy + pz * sy
+  const z1 = -px * sy + pz * cy
+  const y2 = py * cp - z1 * sp
+  const z2 = py * sp + z1 * cp
   const s = (cam.f / (cam.f + z2)) * cam.zoom * cam.fit
   o.sx = W / 2 + pan.x + x1 * s
   o.sy = midY() + pan.y + y2 * s
@@ -220,80 +232,13 @@ function resize() {
   cv.value.height = H * dpr
 }
 
-// ── 손과 잔상 ──
+// ── 손 ──
 // 손 조작(HandControl)이 매 프레임 넘겨 주는 손끝·집은 손 자리. 잠깐 끊기면 300ms 까지 마지막 것을 쓴다
 let frame = null
 let frameAt = 0
 const feed = (f) => ((frame = f), (frameAt = performance.now()))
 // 두 손으로 집으면 별자리 가운데가 두 손 사이로 옮겨 간다. 놓으면 천천히 제자리로
 const pan = { x: 0, y: 0 }
-
-// 지난 20 프레임의 점 자리를 고리 버퍼에 쌓아 두고, 3·7·12·18 프레임 전 모습을 점점 흐리게 겹친다
-const RING = 20
-const ECHOES = [
-  [3, 0.34],
-  [7, 0.22],
-  [12, 0.13],
-  [18, 0.07],
-]
-const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-const ring = { d: new Float32Array(RING * signs.length * 2), t: new Float32Array(RING * 20), tn: new Uint8Array(RING), head: -1, count: 0 }
-const slot = (k) => (ring.head - k + RING) % RING
-
-function pushRing(tips) {
-  ring.head = (ring.head + 1) % RING
-  ring.count = Math.min(RING, ring.count + 1)
-  let o = ring.head * signs.length * 2
-  for (const s of signs) {
-    ring.d[o++] = s.vis ? s.sx : NaN
-    ring.d[o++] = s.sy
-  }
-  const n = Math.min(10, tips.length)
-  ring.tn[ring.head] = n
-  o = ring.head * 20
-  for (let i = 0; i < n; i++) ((ring.t[o++] = tips[i].x), (ring.t[o++] = tips[i].y))
-}
-
-function drawEchoes(g, tips) {
-  const n = signs.length
-  if (reduced || ring.count <= 12) return
-  // 얼마나 움직였는지: 12 프레임 전과 지금 사이 평균 거리. 멈춰 있으면 잔상 없이 또렷한 한 장
-  const a = slot(0) * n * 2
-  const b = slot(12) * n * 2
-  let move = 0
-  let c = 0
-  for (let i = 0; i < n; i += 7) {
-    const d = Math.hypot(ring.d[a + i * 2] - ring.d[b + i * 2], ring.d[a + i * 2 + 1] - ring.d[b + i * 2 + 1])
-    if (d === d) ((move += d), c++)
-  }
-  const show = c ? Math.min(1, move / c / 6) : 0
-  if (show < 0.02) return
-  for (let e = ECHOES.length - 1; e >= 0; e--) {
-    const [k, a0] = ECHOES[e]
-    if (k >= ring.count) continue
-    const al = a0 * show
-    const o = slot(k) * n * 2
-    g.fillStyle = `rgb(255 255 255 / ${al})`
-    for (let i = labeled.length; i < n; i++) {
-      const x = ring.d[o + i * 2]
-      if (x === x) g.fillRect(x - 0.8, ring.d[o + i * 2 + 1] - 0.8, 1.6, 1.6)
-    }
-    g.fillStyle = `rgb(255 79 0 / ${Math.min(1, al * 1.6)})`
-    for (let i = 0; i < labeled.length; i++) {
-      const x = ring.d[o + i * 2]
-      if (x === x) g.fillRect(x - 1.5, ring.d[o + i * 2 + 1] - 1.5, 3, 3)
-    }
-    const to = slot(k) * 20
-    if (ring.tn[slot(k)] === tips.length) {
-      g.fillStyle = `rgb(255 79 0 / ${al})`
-      for (let i = 0; i < tips.length; i++) {
-        g.beginPath()
-        g.arc(ring.t[to + i * 2], ring.t[to + i * 2 + 1], 2.5, 0, Math.PI * 2)
-        g.fill()
-      }
-    }
-  }
-}
 
 // 손끝마다 가까운 별 둘에 주황 실을 걸고, 손끝엔 흰 점과 주황 고리. 두 손으로 집으면 그 사이에 점선과 배율
 const near2 = [null, null]
@@ -363,14 +308,52 @@ function drawHands(g, tips, held) {
 let raf = 0
 const tmp = {}
 
+// 이름 아는 간판 둘레의 주황 번짐. 한 번 그려 두고 찍는다
+const glow = document.createElement('canvas')
+glow.width = glow.height = 64
+{
+  const c = glow.getContext('2d')
+  const gr = c.createRadialGradient(32, 32, 0, 32, 32, 32)
+  gr.addColorStop(0, 'rgb(255 79 0 / 0.55)')
+  gr.addColorStop(0.35, 'rgb(255 79 0 / 0.16)')
+  gr.addColorStop(1, 'rgb(255 79 0 / 0)')
+  c.fillStyle = gr
+  c.fillRect(0, 0, 64, 64)
+}
+
+// 둥근 캡슐(허브 이름표). 유리판처럼 어두운 반투명 바탕에 윗변만 밝은 테
+function capsule(g, x, y, w, h) {
+  const r = h / 2
+  g.beginPath()
+  g.roundRect(x, y, w, h, r)
+  g.fillStyle = 'rgb(36 36 42 / 0.62)'
+  g.fill()
+  g.lineWidth = 0.5
+  g.strokeStyle = 'rgb(255 255 255 / 0.16)'
+  g.stroke()
+  g.beginPath()
+  g.roundRect(x + 0.5, y + 0.5, w - 1, h - 1, r)
+  g.strokeStyle = 'rgb(255 255 255 / 0.1)'
+  g.stroke()
+}
+
 function draw() {
   raf = requestAnimationFrame(draw)
   const g = cv.value?.getContext('2d')
   if (!g || !W) return
   const now = performance.now()
-  if (now - lastInput > 2500 && !dragging) cam.yaw += 0.002
+  // 놓은 뒤엔 미끄러지듯 조금 더 돌고, 오래 가만히 두면(멀리서 볼 때만) 천천히 돈다
+  if (!dragging && (Math.abs(spin.x) > 0.05 || Math.abs(spin.y) > 0.05)) {
+    turn(spin.x, spin.y)
+    spin.x *= 0.93
+    spin.y *= 0.93
+  } else if (now - lastInput > 2500 && !dragging && cam.zoomTo < 1.5) cam.yaw += 0.0016
   const fit = (Math.min(W, H - SAFE_TOP - SAFE_BOTTOM) * 0.42) / extent
   cam.fit = cam.fit ? cam.fit + (fit - cam.fit) * 0.06 : fit
+  // 배율은 로그로, 축은 그대로 같은 빠르기로 따라가야 가리킨 자리가 덜 밀린다
+  cam.zoom = Math.exp(Math.log(cam.zoom) + (Math.log(cam.zoomTo) - Math.log(cam.zoom)) * 0.18)
+  for (let k = 0; k < 3; k++) cam.t[k] += (cam.tTo[k] - cam.t[k]) * 0.18
+  if (Math.abs(zoomShown.value - cam.zoom) / cam.zoom > 0.02) zoomShown.value = cam.zoom
   const live = props.hand && frame && now - frameAt < 300
   const tips = live ? frame.tips : []
   const held = live && frame.held.length === 2 ? frame.held : null
@@ -382,22 +365,26 @@ function draw() {
   for (const s of signs) {
     for (let k = 0; k < 3; k++) s.pos[k] += (s.to[k] - s.pos[k]) * 0.08
     project(s.pos, s)
+    // 화면 밖 점은 그리지도 고르지도 않는다(가까이 다가가면 대부분이 밖)
+    if (s.vis && (s.sx < -40 || s.sx > W + 40 || s.sy < -40 || s.sy > H + 40)) s.vis = false
   }
   for (const h of hubs) project(h.c, h)
-  pushRing(tips)
 
   g.setTransform(dpr, 0, 0, dpr, 0, 0)
   g.clearRect(0, 0, W, H)
-  drawEchoes(g, tips)
   const depth = (z) => Math.max(0.15, Math.min(1, 0.75 - z / 700))
-  // 점이 천 개라 투명도를 몇 단계로 묶어 단계마다 한 번에 그린다
+  // 점이 수천 개라 투명도를 몇 단계로 묶어 단계마다 한 번에 그린다
   const LEVELS = 6
   const level = (z) => Math.min(LEVELS - 1, Math.floor(depth(z) * LEVELS))
   const alphaOf = (l) => (l + 0.5) / LEVELS
   const near = hover.value || chosen.value
+  // 다가갈수록 점은 커지지만 끝없이 커지진 않게 제곱근으로 누르고 상한을 둔다
+  const dotR = (s) => Math.min(4.5, 0.45 + 0.8 * Math.sqrt(s.ss))
+  const namedR = (s) => Math.min(7, 1.6 + 1.1 * Math.sqrt(s.ss))
 
   // 허브끼리: 바깥으로 휘는 가는 곡선
-  g.lineWidth = 0.8
+  g.lineWidth = 0.75
+  g.lineCap = 'round'
   for (const [a, b] of hubLinks) {
     const A = hubs[a]
     const B = hubs[b]
@@ -407,7 +394,7 @@ function draw() {
     const ml = Math.hypot(...m) || 1
     const bend = Math.hypot(A.c[0] - B.c[0], A.c[1] - B.c[1], A.c[2] - B.c[2]) * 0.18
     project([m[0] + (m[0] / ml) * bend, m[1] + (m[1] / ml) * bend, m[2] + (m[2] / ml) * bend], tmp)
-    g.strokeStyle = `rgb(255 255 255 / ${0.3 * depth((A.sz + B.sz) / 2)})`
+    g.strokeStyle = `rgb(255 255 255 / ${0.22 * depth((A.sz + B.sz) / 2)})`
     g.beginPath()
     g.moveTo(A.sx, A.sy)
     g.quadraticCurveTo(tmp.sx, tmp.sy, B.sx, B.sy)
@@ -426,7 +413,7 @@ function draw() {
   g.lineWidth = 0.5
   lines.forEach((list, l) => {
     if (!list.length) return
-    g.strokeStyle = `rgb(255 255 255 / ${0.07 * alphaOf(l)})`
+    g.strokeStyle = `rgb(255 255 255 / ${0.06 * alphaOf(l)})`
     g.beginPath()
     for (const s of list) {
       g.moveTo(s.sx, s.sy)
@@ -435,7 +422,7 @@ function draw() {
     g.stroke()
   })
   if (near?.hub?.vis) {
-    g.strokeStyle = 'rgb(255 255 255 / 0.4)'
+    g.strokeStyle = 'rgb(255 255 255 / 0.35)'
     g.beginPath()
     for (const s of near.hub.list) {
       if (!s.vis) continue
@@ -444,55 +431,100 @@ function draw() {
     }
     g.stroke()
   }
+
+  // 이름 없는 점: 둥근 빛 알갱이. 겹치면 더해져 빽빽한 곳이 은하처럼 밝아진다
+  g.globalCompositeOperation = 'lighter'
   marks.forEach((list, l) => {
     if (!list.length) return
-    const a = alphaOf(l)
-    // 이름 없는 점은 작고 흐리게, 이름 아는 간판은 크고 또렷하게
-    g.fillStyle = `rgb(255 255 255 / ${0.55 * a})`
+    g.fillStyle = `rgb(235 238 255 / ${0.6 * alphaOf(l)})`
+    g.beginPath()
     for (const s of list) {
       if (s.named) continue
-      const z = Math.max(1.2, 2.2 * s.ss)
-      g.fillRect(s.sx - z / 2, s.sy - z / 2, z, z)
+      const r = dotR(s)
+      g.moveTo(s.sx + r, s.sy)
+      g.arc(s.sx, s.sy, r, 0, Math.PI * 2)
     }
-    // 이름 아는 간판만 강조색
-    g.fillStyle = `rgb(255 79 0 / ${0.4 + 0.6 * a})`
-    for (const s of list) {
-      if (!s.named) continue
-      const z = Math.max(2.5, 4.5 * s.ss)
-      g.fillRect(s.sx - z / 2, s.sy - z / 2, z, z)
-    }
+    g.fill()
   })
-  // 가리키거나 고른 간판: 흰 네모 + 둘레 고리
+  // 이름 아는 간판 둘레 번짐
+  for (const s of labeled) {
+    if (!s.vis) continue
+    const r = namedR(s) * 4.5
+    g.globalAlpha = 0.35 + 0.65 * depth(s.sz)
+    g.drawImage(glow, s.sx - r, s.sy - r, r * 2, r * 2)
+  }
+  g.globalAlpha = 1
+  g.globalCompositeOperation = 'source-over'
+
+  // 아주 가까이 오면 이름 없는 점도 유리 구슬처럼 가는 테를 두른다
+  g.lineWidth = 0.75
+  g.strokeStyle = 'rgb(255 255 255 / 0.35)'
+  g.beginPath()
+  for (const s of signs) {
+    if (!s.vis || s.named || s.ss < 9) continue
+    const r = dotR(s)
+    g.moveTo(s.sx + r, s.sy)
+    g.arc(s.sx, s.sy, r, 0, Math.PI * 2)
+  }
+  g.stroke()
+
+  // 이름 아는 간판: 주황 유리 구슬(바탕 + 왼쪽 위 반사광 + 흰 테)
+  for (const s of labeled) {
+    if (!s.vis) continue
+    const r = namedR(s)
+    const a = 0.45 + 0.55 * depth(s.sz)
+    g.fillStyle = `rgb(255 79 0 / ${a})`
+    g.beginPath()
+    g.arc(s.sx, s.sy, r, 0, Math.PI * 2)
+    g.fill()
+    g.lineWidth = 0.75
+    g.strokeStyle = `rgb(255 255 255 / ${0.5 * a})`
+    g.stroke()
+    g.fillStyle = `rgb(255 255 255 / ${0.55 * a})`
+    g.beginPath()
+    g.arc(s.sx - r * 0.32, s.sy - r * 0.36, r * 0.32, 0, Math.PI * 2)
+    g.fill()
+  }
+
+  // 가리키거나 고른 간판: 흰 고리. 고른 것은 숨 쉬듯 천천히 커졌다 작아진다
   for (const s of [hover.value, chosen.value]) {
     if (!s?.vis) continue
-    const z = Math.max(4, 6 * s.ss)
-    g.fillStyle = '#fff'
-    g.fillRect(s.sx - z / 2, s.sy - z / 2, z, z)
-    g.strokeStyle = 'rgb(255 255 255 / 0.6)'
-    g.lineWidth = 1
-    g.strokeRect(s.sx - z, s.sy - z, z * 2, z * 2)
+    const r = (s.named ? namedR(s) : dotR(s)) + 5 + (s === chosen.value ? Math.sin(now / 420) * 1.5 : 0)
+    g.fillStyle = 'rgb(255 255 255 / 0.12)'
+    g.beginPath()
+    g.arc(s.sx, s.sy, r, 0, Math.PI * 2)
+    g.fill()
+    g.lineWidth = 1.25
+    g.strokeStyle = 'rgb(255 255 255 / 0.9)'
+    g.stroke()
+    if (!s.named) {
+      g.fillStyle = '#fff'
+      g.beginPath()
+      g.arc(s.sx, s.sy, dotR(s) + 0.5, 0, Math.PI * 2)
+      g.fill()
+    }
   }
 
   if (tips.length || held) drawHands(g, tips, held)
 
-  // 허브 고리
+  // 허브: 가운데가 빈 작은 고리
   g.lineWidth = 1
   for (const h of hubs) {
     if (!h.vis) continue
-    g.strokeStyle = `rgb(255 255 255 / ${depth(h.sz)})`
+    g.strokeStyle = `rgb(255 255 255 / ${0.8 * depth(h.sz)})`
     g.beginPath()
-    g.arc(h.sx, h.sy, Math.min(3.5, 1.5 + Math.sqrt(h.list.length) * 0.4), 0, Math.PI * 2)
+    g.arc(h.sx, h.sy, Math.min(3.5, 1.5 + Math.sqrt(h.list.length) * 0.4) * Math.min(2, Math.sqrt(cam.zoom)), 0, Math.PI * 2)
     g.stroke()
   }
 
-  // 글자: 큰 묶음 이름 → 가까운 간판 이름 → 남은 묶음 이름 순으로, 겹치지 않는 것만 단다. 찾은 글자는 굵게
+  // 글자: 큰 묶음 이름(캡슐) → 가까운 간판 이름 → 남은 묶음 이름 → 아주 가까이선 이름 없는 점의 업종 순으로, 겹치지 않는 것만 단다
   const boxes = []
   const free = (b) => b[0] >= 0 && b[2] <= W && b[1] >= 0 && b[3] <= H && !boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1])
-  // 글자 뒤에 검은 테를 둘러 점·실 위에서도 읽히게 한다
+  // 글자 뒤에 옅은 검은 테를 둘러 점·실 위에서도 읽히게 한다
   const say = (t, x, y, weight, size, alpha) => {
     if (!t) return 0
     g.font = `${weight} ${size}px ${FONT}`
-    g.strokeStyle = 'rgb(0 0 0 / 0.9)'
+    g.strokeStyle = 'rgb(0 0 0 / 0.7)'
     g.lineWidth = 3
     g.strokeText(t, x, y)
     g.fillStyle = `rgb(255 255 255 / ${alpha})`
@@ -505,36 +537,63 @@ function draw() {
   }
   g.textBaseline = 'middle'
   g.lineJoin = 'round'
-  const hubLabel = (h) => {
+  const hubLabel = (h, pill) => {
     if (!h.vis) return
     const count = ` ${h.list.length}`
     const w = width(h.label, 600, 12)
-    const b = [h.sx + 6, h.sy - 9, h.sx + 11 + w + width(count, 400, 11), h.sy + 9]
+    const wc = width(count, 500, 11)
+    const x = h.sx + 9
+    const b = pill ? [x, h.sy - 11, x + w + wc + 20, h.sy + 11] : [x - 2, h.sy - 9, x + 3 + w + wc, h.sy + 9]
     if (!free(b)) return
     boxes.push(b)
     const a = depth(h.sz)
-    say(h.label, h.sx + 8, h.sy, 600, 12, 0.45 + 0.55 * a)
-    say(count, h.sx + 8 + w, h.sy, 400, 11, 0.15 + 0.3 * a)
+    if (pill) {
+      g.globalAlpha = 0.55 + 0.45 * a
+      capsule(g, b[0], b[1], b[2] - b[0], b[3] - b[1])
+      g.globalAlpha = 1
+      say(h.label, x + 10, h.sy + 0.5, 600, 12, 0.95)
+      say(count, x + 10 + w, h.sy + 0.5, 500, 11, 0.5)
+    } else {
+      say(h.label, x, h.sy, 600, 12, 0.45 + 0.5 * a)
+      say(count, x + w, h.sy, 400, 11, 0.15 + 0.3 * a)
+    }
   }
   const signLabel = (s) => {
     const [pre, mid, post] = s.r.parts
-    const w0 = width(pre, 400, 11)
-    const w1 = width(mid, 700, 11)
-    const b = [s.sx + 5, s.sy - 7, s.sx + 10 + w0 + w1 + width(post, 400, 11), s.sy + 7]
+    const w0 = width(pre, 400, 11.5)
+    const w1 = width(mid, 700, 11.5)
+    const x = s.sx + namedR(s) + 5
+    const b = [x - 2, s.sy - 8, x + 3 + w0 + w1 + width(post, 400, 11.5), s.sy + 8]
     if (!free(b)) return false
     boxes.push(b)
     const a = depth(s.sz)
-    const x = s.sx + 7
-    say(pre, x, s.sy, 400, 11, 0.35 + 0.4 * a)
-    say(mid, x + w0, s.sy, 700, 11, 0.6 + 0.4 * a)
-    say(post, x + w0 + w1, s.sy, 400, 11, 0.35 + 0.4 * a)
+    say(pre, x, s.sy, 400, 11.5, 0.45 + 0.4 * a)
+    say(mid, x + w0, s.sy, 700, 11.5, 0.7 + 0.3 * a)
+    say(post, x + w0 + w1, s.sy, 400, 11.5, 0.45 + 0.4 * a)
     return true
   }
   const TOP = 12
-  hubs.slice(0, TOP).forEach(hubLabel)
+  hubs.slice(0, TOP).forEach((h) => hubLabel(h, true))
   let shown = 0
   for (const s of labeled.filter((s) => s.vis).sort((a, b) => a.sz - b.sz)) if (shown < 40 && signLabel(s)) shown++
-  hubs.slice(TOP).forEach(hubLabel)
+  hubs.slice(TOP).forEach((h) => hubLabel(h, false))
+  // 점 사이가 벌어질 만큼 다가가면 이름 없는 점에도 업종을 단다. 가장 흔한 업종(커피면 카페)은 빼고, 화면 가운데에 가까운 것부터
+  if (cam.zoom > 5) {
+    const cx = W / 2 + pan.x
+    const cy = midY() + pan.y
+    const near = signs.filter((s) => s.vis && !s.named && s.ss > 4 && s.r.cat !== commonCat).sort((a, b) => (a.sx - cx) ** 2 + (a.sy - cy) ** 2 - (b.sx - cx) ** 2 - (b.sy - cy) ** 2)
+    let n = 0
+    for (const s of near) {
+      if (n >= 90) break
+      const t = s.r.cat || '기타'
+      const x = s.sx + dotR(s) + 4
+      const b = [x - 2, s.sy - 7, x + 2 + width(t, 400, 10.5), s.sy + 7]
+      if (!free(b)) continue
+      boxes.push(b)
+      say(t, x, s.sy, 400, 10.5, 0.62)
+      n++
+    }
+  }
 
   // 손 커서가 있으면 그 자리로 고른다
   if (props.pointer) pickAt(props.pointer.x, props.pointer.y)
@@ -568,10 +627,13 @@ function pickAt(cx, cy) {
 // ── 마우스 ──
 let dragging = false
 let downAt = null
+// 놓을 때의 끄는 빠르기. 놓은 뒤에도 이만큼 미끄러지다 멈춘다
+const spin = { x: 0, y: 0 }
 
 function onDown(e) {
   dragging = true
-  downAt = { x: e.clientX, y: e.clientY, moved: 0 }
+  spin.x = spin.y = 0
+  downAt = { x: e.clientX, y: e.clientY, moved: 0, at: performance.now() }
   cv.value.setPointerCapture(e.pointerId)
 }
 function onMove(e) {
@@ -582,27 +644,68 @@ function onMove(e) {
     downAt.moved += Math.hypot(dx, dy)
     downAt.x = e.clientX
     downAt.y = e.clientY
-    rotate(dx, dy)
+    downAt.at = lastInput
+    spin.x = spin.x * 0.5 + dx * 0.5
+    spin.y = spin.y * 0.5 + dy * 0.5
+    turn(dx, dy)
   } else if (!props.pointer) pickAt(e.clientX, e.clientY)
 }
 function onUp(e) {
   dragging = false
   if (downAt && downAt.moved < 5) choose(e.clientX, e.clientY)
+  // 멈췄다가 놓으면 미끄러지지 않는다
+  if (!downAt || performance.now() - downAt.at > 80) spin.x = spin.y = 0
   downAt = null
 }
+// 마우스 휠은 한 칸에 15% 쯤, 트랙패드 핀치(ctrlKey)는 손가락 벌린 만큼
 function onWheel(e) {
-  lastInput = performance.now()
-  zoomBy(-e.deltaY * 0.0015)
+  const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY
+  zoomBy(-d * (e.ctrlKey ? 0.012 : 0.0016), e.clientX, e.clientY)
+}
+// 두 번 누르면 그 자리로 세 배 다가간다
+function onDbl(e) {
+  zoomBy(Math.log(3), e.clientX, e.clientY)
 }
 
-function rotate(dx, dy) {
-  lastInput = performance.now()
+function turn(dx, dy) {
   cam.yaw += dx * 0.006
   cam.pitch = Math.max(-1.3, Math.min(1.3, cam.pitch + dy * 0.006))
 }
-function zoomBy(dz) {
+function rotate(dx, dy) {
   lastInput = performance.now()
-  cam.zoom = Math.max(0.45, Math.min(3, cam.zoom * Math.exp(dz)))
+  turn(dx, dy)
+}
+// 화면 (cx, cy)(창 좌표)가 가리키는 자리가 그대로 남도록 축을 그쪽으로 옮기며 배율을 바꾼다.
+// 자리를 안 주면(손 조작) 화면 가운데를 기준으로
+function zoomBy(dz, cx, cy) {
+  lastInput = performance.now()
+  const z0 = cam.zoomTo
+  const z1 = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z0 * Math.exp(dz)))
+  cam.zoomTo = z1
+  if (cx === undefined || !wrap.value || z1 === z0) return
+  const box = wrap.value.getBoundingClientRect()
+  const S = z0 * cam.fit
+  const k = 1 - z0 / z1
+  // 축 평면 위에서 가리킨 자리까지(카메라 기준) → 그만큼 축을 옮길 양을 세상 좌표로 되돌린다
+  const x1 = ((cx - box.left - W / 2 - pan.x) / S) * k
+  const y2 = ((cy - box.top - midY() - pan.y) / S) * k
+  const cyw = Math.cos(cam.yaw)
+  const syw = Math.sin(cam.yaw)
+  const cp = Math.cos(cam.pitch)
+  const sp = Math.sin(cam.pitch)
+  const z1c = -y2 * sp
+  cam.tTo[0] += x1 * cyw - z1c * syw
+  cam.tTo[1] += y2 * cp
+  cam.tTo[2] += x1 * syw + z1c * cyw
+}
+// 처음 모습으로
+function zoomReset() {
+  lastInput = performance.now()
+  cam.zoomTo = 1
+  cam.tTo = [0, 0, 0]
+}
+function zoomStep(dz) {
+  zoomBy(dz, W / 2 + pan.x + wrap.value.getBoundingClientRect().left, midY() + pan.y + wrap.value.getBoundingClientRect().top)
 }
 function choose(cx, cy, r) {
   lastInput = performance.now()
@@ -614,12 +717,15 @@ function setView(k) {
   hover.value = null
   chosen.value = null
 }
-watch(view, layout)
+watch(view, () => (layout(), zoomReset()))
 
 function onKey(e) {
   if (e.target.closest?.('input, textarea')) return
   const i = ['1', '2', '3'].indexOf(e.key)
   if (i >= 0) setView(VIEWS[i].key)
+  if (e.key === '+' || e.key === '=') zoomStep(Math.log(2))
+  if (e.key === '-') zoomStep(-Math.log(2))
+  if (e.key === '0') zoomReset()
   if (e.key === 'Escape') chosen.value ? (chosen.value = null) : emit('close')
 }
 
@@ -670,7 +776,16 @@ onBeforeUnmount(() => {
       @pointerup="onUp"
       @pointerleave="!pointer && (hover = null)"
       @wheel.prevent="onWheel"
+      @dblclick="onDbl"
     ></canvas>
+
+    <!-- 확대 단추: 지도 앱처럼 오른쪽에 세로로 -->
+    <Glass class="zoom" :radius="18" :band="8" :scale="22">
+      <button aria-label="확대" @click="zoomStep(Math.log(2))">+</button>
+      <span>×{{ zoomShown < 10 ? zoomShown.toFixed(1) : Math.round(zoomShown) }}</span>
+      <button aria-label="축소" @click="zoomStep(-Math.log(2))">−</button>
+      <button aria-label="전체 보기" class="all" :disabled="zoomShown < 1.05 && zoomShown > 0.95" @click="zoomReset">전체</button>
+    </Glass>
 
     <header class="head">
       <h2>‘{{ word }}’의 별자리</h2>
@@ -732,7 +847,8 @@ onBeforeUnmount(() => {
   inset: 0;
   z-index: 3;
   overflow: hidden;
-  background: #000;
+  /* 한가운데가 아주 조금 밝은 흑연빛 하늘 */
+  background: radial-gradient(120% 90% at 50% 42%, #17171c 0%, #0a0a0d 55%, #000 100%);
   color: #fff;
   font-family: 'Pretendard Variable', Pretendard, sans-serif;
   --lo: 0.15;
@@ -902,6 +1018,59 @@ canvas:active {
   margin-right: 5px;
   font-weight: 600;
   color: rgb(255 255 255 / 0.85);
+}
+
+.zoom {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: 44px;
+  padding: 4px;
+  border-radius: 22px;
+  background: var(--g-tint);
+  box-shadow: var(--g-ring);
+  translate: 0 -50%;
+}
+
+.app-body .zoom button {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 18px;
+  background: none;
+  box-shadow: none;
+  color: #fff;
+  font-size: 19px;
+  font-weight: 300;
+  line-height: 1;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+
+.app-body .zoom button:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.14);
+}
+
+.app-body .zoom button.all {
+  height: 28px;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.85);
+}
+
+.app-body .zoom button:disabled {
+  opacity: 0.3;
+}
+
+.zoom span {
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgb(255 255 255 / 0.55);
 }
 
 .tip {
