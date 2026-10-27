@@ -71,6 +71,7 @@ export default function App() {
   const [intro, setIntro] = useState(false)
   // 인트로가 끝나면 열 창(open 에 들어온 그대로)
   const afterIntro = useRef(null)
+  const afterPhone = useRef(null)
   // 시작 화면에서 고르면 held: 무너진 바탕 위로 게임이 전체 화면. 게임을 닫거나 내리면 release 로 바탕을 되돌린다
   const [held, setHeld] = useState(false)
   const [release, setRelease] = useState(false)
@@ -155,15 +156,21 @@ export default function App() {
     [area.w],
   )
 
-  // 간판 수리공이 아직 안 열려 있으면 인트로부터 틀고, 끝나면 그 창을 연다
+  // 간판 수리공이 아직 안 열려 있으면 인트로부터 틀고, 끝나면 그 창을 연다.
+  // 첫 문자를 아직 안 봤으면 문자부터 보여 주고, 문자 끝 버튼을 누르면 인트로로 간다
   const open = useCallback(
     (asked, extra = {}) => {
       const alias = appOf(asked)
       if ((alias?.to || asked) === 'street' && !winsRef.current.some((w) => w.id === 'street')) {
-        afterIntro.current = [asked, extra]
         setPad(false)
         setSpot(false)
         setNotice(null)
+        if (!phoneSeen('start')) {
+          afterPhone.current = [asked, extra]
+          setPhone('start')
+          return
+        }
+        afterIntro.current = [asked, extra]
         setIntro(true)
         return
       }
@@ -432,9 +439,13 @@ export default function App() {
             onGo={() => {
               markPhone(phone)
               setPhone(null)
-              open('street')
+              open(...(afterPhone.current || ['street']))
+              afterPhone.current = null
             }}
-            onClose={() => setPhone(null)}
+            onClose={() => {
+              afterPhone.current = null
+              setPhone(null)
+            }}
           />
         )}
       </AnimatePresence>
