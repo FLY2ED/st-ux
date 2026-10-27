@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 
-// 꺼진 간판의 도시: 불 켠 간판 둘레만 색이 돌아오고 나머지는 잿빛인 셰이더.
+// 꺼진 간판의 도시: 불 켠 간판 둘레만 색이 환히 돌아오고 나머지는 어둡고 빛바랜 셰이더.
 // 서울 타임머신: 건물이 사용승인 연도 순서로 땅에서 솟아오르는 셰이더.
 // 모든 재질이 같은 유니폼을 나눠 써서 값만 바꾸면 한꺼번에 바뀐다
 export const MAX_LIT = 48
@@ -88,10 +88,12 @@ if (uSpreadOn > 0.5) {
   vec3 c = gl_FragColor.rgb;
   float grey = dot(c, vec3(0.299, 0.587, 0.114));
 #ifdef FX_SIGN
-  vec3 off = vec3(grey * 0.18 + 0.015);
+  // 꺼진 간판도 제 색이 어렴풋이 비친다
+  vec3 off = mix(vec3(grey), c, 0.75) * 0.45 + 0.015;
   gl_FragColor.rgb = mix(off, c * 1.2, lit);
 #else
-  vec3 dead = vec3(grey * 0.42) + vec3(0.0, 0.004, 0.012);
+  // 꺼진 곳도 잿빛만은 아니게, 색을 반쯤 남겨 어둡게
+  vec3 dead = mix(vec3(grey), c, 0.65) * 0.62 + vec3(0.0, 0.004, 0.012);
   // 불이 돌아온 곳은 색을 더 진하고 밝게
   vec3 alive = mix(vec3(grey), c, 1.25);
   // 빛 번짐(블룸)은 간판 네온에만 걸리도록 벽·창은 문턱 아래로 묶는다

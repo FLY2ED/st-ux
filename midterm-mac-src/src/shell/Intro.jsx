@@ -90,11 +90,12 @@ function voxel(x, gx, gy, cell, a = 1) {
   x.globalAlpha = 1
 }
 
-// 시작 화면 메뉴. 고르면 무너진 바탕 그대로 게임이 전체 화면으로 열린다
+// 시작 화면 메뉴. 고르면 무너진 바탕 그대로 게임이 전체 화면으로 열린다. 나가기는 바탕화면을 되돌린다
 const MENU = [
   { id: 'play', label: '게임 시작' },
   { id: 'story', label: '장 고르기' },
   { id: 'keys', label: '조작법' },
+  { id: 'exit', label: '나가기' },
 ]
 
 // onReady: 제목이 뜨면 게임을 뒤에 미리 띄운다 · onStart(메뉴): 고른 것으로 게임 시작
