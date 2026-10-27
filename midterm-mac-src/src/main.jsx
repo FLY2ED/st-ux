@@ -11,4 +11,13 @@ document.documentElement.classList.toggle('apple', apple)
 // 처음엔 다크 모드. 보기 메뉴에서 바꾸면 기억한다
 document.documentElement.classList.toggle('dark', localStorage.getItem('gp-theme') !== 'light')
 
+// 새로 배포하면 옛 조각 파일이 사라진다. 열려 있던 페이지가 그걸 찾다 실패하면 한 번만 새로고침해 새 판을 받는다
+window.addEventListener('vite:preloadError', (e) => {
+  if (sessionStorage.getItem('gp-reloaded')) return
+  e.preventDefault()
+  sessionStorage.setItem('gp-reloaded', '1')
+  location.reload()
+})
+setTimeout(() => sessionStorage.removeItem('gp-reloaded'), 10000)
+
 createRoot(document.getElementById('root')).render(<App />)
