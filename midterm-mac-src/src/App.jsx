@@ -15,7 +15,7 @@ import Widgets from './shell/Widgets.jsx'
 import Desktop from './shell/Desktop.jsx'
 import Notice from './shell/Notice.jsx'
 import About from './shell/About.jsx'
-import Intro, { introSeen } from './shell/Intro.jsx'
+import Intro from './shell/Intro.jsx'
 import { usePixelWall, WallLights } from './shell/PixelWall.jsx'
 import Phone from './shell/Phone.jsx'
 import { FACES, MSG_ICON, PHONE_STORIES, markPhone, phoneSeen } from './shell/phone-story.js'
@@ -67,7 +67,7 @@ export default function App() {
   // 처음 온 사람은 간판 수리공 인트로에서 시작을 고르면 캐릭터 꾸미기부터. 다 꾸미면 고른 것으로 게임을 연다
   const [maker, setMaker] = useState(false)
   const afterMaker = useRef(null)
-  // 게임 인트로: 로그인 뒤 브라우저마다 처음 한 번, 그리고 간판 수리공 창을 새로 열 때마다 먼저 나온다
+  // 게임 인트로: 로그인하면 바탕화면부터. 간판 수리공 창을 새로 열 때마다 먼저 나온다
   const [intro, setIntro] = useState(false)
   // 인트로가 끝나면 열 창(open 에 들어온 그대로)
   const afterIntro = useRef(null)
@@ -85,10 +85,6 @@ export default function App() {
   useEffect(() => {
     load('meta.json').then(setMeta).catch(() => {})
   }, [])
-
-  useEffect(() => {
-    if (!booting && !locked && !maker && !introSeen()) setIntro(true)
-  }, [booting, locked, maker])
 
   // 켜지고 조금 뒤에 문자가 온다. 처음엔 간판 스티커 번호를 보고 연락한 모르는 번호,
   // 이야기를 시작한 뒤로는 분식 사장님이 이어서 와 달라고 한다
