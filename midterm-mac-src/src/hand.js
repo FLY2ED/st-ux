@@ -62,7 +62,8 @@ export async function handTracker(video) {
     read() {
       if (video.readyState < 2) return hands
       const t = performance.now()
-      if (t - last < 28) return hands
+      // 손 읽기는 GPU 에서 결과를 되받느라 화면 그리기를 붙잡는다. 초당 25번이면 손 따라가기에 충분하다
+      if (t - last < 40) return hands
       last = t
       const out = lm.detectForVideo(video, t)
       hands = (out.landmarks || []).map(readHand)
