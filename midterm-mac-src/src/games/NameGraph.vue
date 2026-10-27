@@ -18,7 +18,6 @@ const props = defineProps({
   // 그 말이 든 전국 간판 수
   total: { type: Number, default: 0 },
   // 손 커서 자리(화면 좌표). 없으면 마우스로 고른다
-  pointer: { type: Object, default: null },
   hand: Boolean,
   // 손 조작 카메라 영상(MediaStream). 있으면 배경에 깐다
   stream: { type: null, default: null },
@@ -227,7 +226,10 @@ function project(p, o) {
 function resize() {
   const el = wrap.value
   if (!el || !cv.value) return
-  dpr = Math.min(2, window.devicePixelRatio || 1)
+  // 점 수천 개를 레티나 두 배로 그리면 무겁다. 1.5배면 충분히 또렷하다
+  const d = Math.min(1.5, window.devicePixelRatio || 1)
+  if (d !== dpr) sprites.clear()
+  dpr = d
   W = el.clientWidth
   H = el.clientHeight
   cv.value.width = W * dpr
@@ -327,6 +329,38 @@ watch(chosen, (s) => s && sky.chime(s.sy / H))
 
 // ── 그리기 ──
 let raf = 0
+
+// 글자 조각: 검은 테를 두른 흰 글자를 화면 배율로 한 번 그려 두고 투명도만 바꿔 찍는다
+const PAD = 3
+const sprites = new Map()
+function textSprite(t, weight, size) {
+  const key = `${weight}|${size}|${t}`
+  let sp = sprites.get(key)
+  if (sp) return sp
+  if (sprites.size > 4000) sprites.clear()
+  const m = document.createElement('canvas').getContext('2d')
+  m.font = `${weight} ${size}px ${FONT}`
+  const w = m.measureText(t).width
+  const h = Math.ceil(size * 1.5 + PAD * 2)
+  const c = document.createElement('canvas')
+  c.width = Math.ceil((w + PAD * 2) * dpr)
+  c.height = Math.ceil(h * dpr)
+  const x = c.getContext('2d')
+  x.scale(dpr, dpr)
+  x.font = m.font
+  x.textBaseline = 'middle'
+  x.lineJoin = 'round'
+  x.strokeStyle = 'rgb(0 0 0 / 0.7)'
+  x.lineWidth = 3
+  x.strokeText(t, PAD, h / 2)
+  x.fillStyle = '#fff'
+  x.fillText(t, PAD, h / 2)
+  sp = { c, w, h }
+  sprites.set(key, sp)
+  return sp
+}
+// 글꼴이 늦게 도착하면 대체 글꼴로 그려 둔 조각을 버린다
+document.fonts?.addEventListener('loadingdone', () => sprites.clear())
 const tmp = {}
 
 // 이름 아는 간판 둘레의 주황 번짐. 한 번 그려 두고 찍는다
@@ -456,6 +490,7 @@ function draw() {
 
   // 이름 없는 점: 둥근 빛 알갱이. 겹치면 더해져 빽빽한 곳이 은하처럼 밝아진다
   g.globalCompositeOperation = 'lighter'
+  // 2px 도 안 되는 점은 원 대신 같은 넓이의 네모로 찍는다(원은 수천 개면 무겁고, 이 크기에선 눈으로 구별이 안 된다)
   marks.forEach((list, l) => {
     if (!list.length) return
     g.fillStyle = `rgb(235 238 255 / ${0.6 * alphaOf(l)})`
@@ -463,8 +498,13 @@ function draw() {
     for (const s of list) {
       if (s.named) continue
       const r = dotR(s)
-      g.moveTo(s.sx + r, s.sy)
-      g.arc(s.sx, s.sy, r, 0, Math.PI * 2)
+      if (r < 1.6) {
+        const a = r * 1.77
+        g.rect(s.sx - a / 2, s.sy - a / 2, a, a)
+      } else {
+        g.moveTo(s.sx + r, s.sy)
+        g.arc(s.sx, s.sy, r, 0, Math.PI * 2)
+      }
     }
     g.fill()
   })
@@ -544,20 +584,16 @@ function draw() {
   const boxes = []
   const free = (b) => b[0] >= 0 && b[2] <= W && b[1] >= 0 && b[3] <= H && !boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1])
   // 글자 뒤에 옅은 검은 테를 둘러 점·실 위에서도 읽히게 한다
+  // 글자는 매번 새로 그리면 무거워서, 한 번 그려 둔 조각(textSprite)을 찍는다
   const say = (t, x, y, weight, size, alpha) => {
     if (!t) return 0
-    g.font = `${weight} ${size}px ${FONT}`
-    g.strokeStyle = 'rgb(0 0 0 / 0.7)'
-    g.lineWidth = 3
-    g.strokeText(t, x, y)
-    g.fillStyle = `rgb(255 255 255 / ${alpha})`
-    g.fillText(t, x, y)
-    return g.measureText(t).width
+    const sp = textSprite(t, weight, size)
+    g.globalAlpha = alpha
+    g.drawImage(sp.c, x - PAD, y - sp.h / 2, sp.w + PAD * 2, sp.h)
+    g.globalAlpha = 1
+    return sp.w
   }
-  const width = (t, weight, size) => {
-    g.font = `${weight} ${size}px ${FONT}`
-    return t ? g.measureText(t).width : 0
-  }
+  const width = (t, weight, size) => (t ? textSprite(t, weight, size).w : 0)
   g.textBaseline = 'middle'
   g.lineJoin = 'round'
   const hubLabel = (h, pill) => {
@@ -619,7 +655,7 @@ function draw() {
   }
 
   // 손 커서가 있으면 그 자리로 고른다
-  if (props.pointer) pickAt(props.pointer.x, props.pointer.y)
+  if (pointer) pickAt(pointer.x, pointer.y)
 }
 
 // 화면 좌표에서 가장 가까운 간판(기본 18px 안, 손은 떨려서 더 넓게)
@@ -639,7 +675,7 @@ function nearest(cx, cy, r = 18) {
 }
 
 function pickAt(cx, cy) {
-  const s = nearest(cx, cy, props.pointer ? 36 : 18)
+  const s = nearest(cx, cy, pointer ? 36 : 18)
   hover.value = s
   if (s) {
     const box = wrap.value.getBoundingClientRect()
@@ -671,7 +707,7 @@ function onMove(e) {
     spin.x = spin.x * 0.5 + dx * 0.5
     spin.y = spin.y * 0.5 + dy * 0.5
     turn(dx, dy)
-  } else if (!props.pointer) pickAt(e.clientX, e.clientY)
+  } else if (!pointer) pickAt(e.clientX, e.clientY)
 }
 function onUp(e) {
   dragging = false
@@ -757,7 +793,14 @@ const towns = new Set(signs.map((s) => s.r.region)).size
 const countText = (n) => n.toLocaleString()
 
 // 손 조작은 바깥(HandControl)에서 이 함수들을 부른다
-defineExpose({ rotate, zoomBy, choose, feed })
+// 손 커서 자리(화면 좌표)도 prop 대신 함수로 받는다. 매 프레임 바뀌어 prop 이면 바깥 창 전체가 다시 그려진다
+let pointer = null
+const point = (p) => (pointer = props.hand ? p : null)
+watch(
+  () => props.hand,
+  (on) => on || ((pointer = null), (hover.value = null)),
+)
+defineExpose({ rotate, zoomBy, choose, feed, point })
 
 // 카메라 영상은 손 조작이 연 것을 그대로 받아 떠 있는 창의 video 에 건다
 watch(

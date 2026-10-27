@@ -1030,8 +1030,9 @@ const globe = () => map?.flyTo({ ...WORLD, duration: 1400 })
 
 // 손 조작: 집어 끌면 지구본이 손을 따라 돌고, 두 손으로 벌리면 그 사이를 중심으로 당겨진다
 const hand = ref(false)
-const handPoint = ref(null)
 const graphRef = ref(null)
+// 손 커서는 매 프레임 바뀌니 반응형 값으로 두지 않고 그래프에 바로 건넨다(창 전체가 다시 그려지지 않게)
+const handPoint = (p) => graphRef.value?.point(p)
 // 그래프는 손 조작이 연 카메라 영상을 배경으로 깔고, 손끝 자리를 매 프레임 받아 그 위에 그린다
 const handStream = ref(null)
 watch(hand, (on) => on || (handStream.value = null))
@@ -1097,7 +1098,6 @@ function handTap(x, y) {
       :rows="listed"
       :dots="dots?.dots || []"
       :total="dots?.n || 0"
-      :pointer="hand ? handPoint : null"
       :hand="hand"
       :stream="hand ? handStream : null"
       @hand="hand = !hand"
@@ -1300,7 +1300,7 @@ function handTap(x, y) {
       <button aria-label="손으로 조작" title="웹캠 손 조작" class="sm" :class="{ on: hand }" @click="hand = !hand">✋</button>
     </Glass>
 
-    <HandControl v-if="hand" :full="graphOn" @stream="handStream = $event" @frame="handFrame" @drag="handDrag" @zoom="handZoom" @tap="handTap" @point="handPoint = $event" @off="hand = false" />
+    <HandControl v-if="hand" :full="graphOn" @stream="handStream = $event" @frame="handFrame" @drag="handDrag" @zoom="handZoom" @tap="handTap" @point="handPoint" @off="hand = false" />
 
     <Transition name="sheet">
       <div v-if="tab === 'name' && view === 'building' && floors.length" class="bsheet">
