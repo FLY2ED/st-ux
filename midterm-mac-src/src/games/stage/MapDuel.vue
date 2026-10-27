@@ -1,7 +1,7 @@
 <script setup>
-// 이야기 속 '이름 찾기': 잊힘이 도시의 간판을 안개로 지우고 있다.
-// 안개 속에서 간판 세 개가 떠오르면, 내 이름 글자가 들어간 간판만 골라 읽는다(1·2·3 또는 누르기).
-// 읽은 간판은 지도에 불이 켜지고 잊힘이 흐려진다. 엉뚱한 간판을 읽거나 내 이름 간판이 안개에 묻히면 목숨이 준다
+// 이야기 속 '이름 찾기': 간판 도둑이 연막을 피워 도시의 간판을 훔쳐 가고 있다.
+// 연막 속에서 간판 세 개가 떠오르면, 내 이름 글자가 들어간 간판만 골라 읽는다(1·2·3 또는 누르기).
+// 읽은 간판은 지도에 불이 켜지고 도둑이 흐려진다. 엉뚱한 간판을 읽거나 내 이름 간판을 도둑맞으면 목숨이 준다
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { search, signPool } from '../../data.js'
 import { pastelOf } from '../../shops.js'
@@ -15,12 +15,12 @@ const props = defineProps({
   goal: { type: Number, default: 5 },
   word: { type: String, default: '' },
   boss: { type: String, default: '' },
-  bossName: { type: String, default: '잊힘' },
+  bossName: { type: String, default: '간판 도둑' },
 })
 const LIVES = 3
 const SLOTS = 3
-const TAUNT = ['그 이름은 이제 아무도 안 읽어…', '안개 속에 두면 금방 잊혀', '네 이름도 곧 지워질 거야']
-const OUCH = ['으윽, 누가 그 이름을 읽었지…?', '불이… 다시 켜진다…', '안 돼, 기억나 버렸어…']
+const TAUNT = ['아무도 안 읽는 간판은 내 거야!', '연막 속에 숨기면 아무도 못 찾지', '네 이름 글자도 곧 내 자루에 들어간다']
+const OUCH = ['으윽, 누가 그 이름을 읽었지…?', '불이… 다시 켜진다…', '안 돼, 읽힌 간판은 못 훔쳐…']
 
 const phase = ref('loading') // loading | play | win | over | none
 const name = ref('') // 실제로 찾는 글자
@@ -129,7 +129,7 @@ function expire(i) {
   if (phase.value !== 'play' || !s || s.state) return
   s.state = 'gone'
   slots.value = [...slots.value]
-  if (s.real) hurt('내 이름 간판이 안개에 묻혔다', i)
+  if (s.real) hurt('내 이름 간판을 도둑맞았다', i)
   clear(i, 200)
 }
 
@@ -177,7 +177,7 @@ async function start() {
   }
   // 이름 간판이 모자라면 같은 간판이 다시 떠오른다
   reals = rows.length >= props.goal * 2 ? rows : [...rows, ...rows, ...rows]
-  line.value = `「${name.value}」? 그런 이름은 벌써 잊혔어`
+  line.value = `「${name.value}」? 그 글자는 벌써 내 자루에 있지`
   phase.value = 'play'
   for (let i = 0; i < SLOTS; i++) later(() => spawn(i), 500 + i * 700)
 }
@@ -226,7 +226,7 @@ onBeforeUnmount(() => {
         <p class="mp-map-foot">불 켜진 곳 <b>{{ found.length }}</b></p>
       </section>
 
-      <!-- 오른쪽: 안개 낀 거리, 잊힘이 떠 있고 간판 셋이 떠오른다 -->
+      <!-- 오른쪽: 연막 낀 거리, 간판 도둑이 떠 있고 간판 셋이 떠오른다 -->
       <section class="mp-street">
         <div class="mp-fog" aria-hidden="true"></div>
         <div class="mp-boss">
@@ -266,11 +266,11 @@ onBeforeUnmount(() => {
     </div>
 
     <div v-if="phase === 'win'" class="sg-end">
-      <h1 class="px-pop">잊힘이 흩어졌다!</h1>
+      <h1 class="px-pop">간판 도둑을 물리쳤다!</h1>
       <p>전국 간판 <b>{{ total.toLocaleString() }}곳</b>에 「{{ name }}」 글자가 남아 있었어요</p>
     </div>
     <div v-else-if="phase === 'over'" class="sg-end lost">
-      <h1 class="px-shake">안개가 이름을 삼켰다…</h1>
+      <h1 class="px-shake">도둑이 이름을 훔쳐 갔다…</h1>
       <p>간판 <b>{{ Math.max(0, goal - hits) }}개</b>만 더 읽으면 돼요</p>
       <button class="sg-btn go" @click="start">다시 찾기 ▶</button>
     </div>
@@ -335,7 +335,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-/* 잊힘의 안개: 천천히 흘러가는 흰 띠 */
+/* 도둑의 연막: 천천히 흘러가는 흰 띠 */
 .mp-fog {
   position: absolute;
   inset: 0;

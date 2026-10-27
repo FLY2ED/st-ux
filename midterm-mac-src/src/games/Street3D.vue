@@ -424,6 +424,8 @@ function tagSprite(kind) {
 
 // 길잡이는 내 뒤를 따라오다가, 길잡이 가게 차례면 먼저 가서 기다린다
 const guidePos = { x: 0, z: 0, moving: false }
+// 곧 말을 꺼낼 사람: 불이 켜지거나 보스가 진 뒤 대화창이 뜨기 전까지 사라지지 않게 붙잡아 둔다
+let talker = null
 let npcs = []
 function syncNpcs() {
   for (const n of npcs) {
@@ -447,12 +449,16 @@ function syncNpcs() {
   if (st.shop && st.ownerAt && !own && !(st.build && !st.build.done)) add('owner', `f-${spriteOf(st.shop.sign.cat)}`, 2.0, st.ownerAt, st.boss?.alive ? '' : 'owner')
   if (st.boss?.alive) add('boss', `c-${st.boss.id}`, 3.4, st.boss.at, 'boss')
   for (const f of st.folks || []) if (!f.done) add('folk', `f-${f.id}`, 2.0, f.at, 'folk', f)
+  // 말하고 있는 사람은 이야기가 다음으로 넘어갔어도 대화가 끝날 때까지 그 자리에 남는다
+  const stay = dialog.value?.stay || talker
+  if (stay && !npcs.some((n) => n.at === stay.at)) add(stay.kind || 'owner', stay.name, stay.h, stay.at)
 }
 
 function updateGuide(dt) {
   const st = story.value
   if (!st || st.done || !st.guide) return
-  const own = st.ch.steps[st.step]?.own && st.ownerAt
+  // 첫 인사를 마치기 전이나 대화하는 동안에는 먼저 가 버리지 않고 내 옆에 서 있는다
+  const own = st.ch.steps[st.step]?.own && st.ownerAt && st.met && !dialog.value
   const tx = own ? st.ownerAt.x : player.pos.x - player.face.x * 1.8 * B
   const tz = own ? st.ownerAt.z : player.pos.z - player.face.y * 1.8 * B
   const dx = tx - guidePos.x
@@ -848,6 +854,7 @@ function clearFx() {
   dialog.value = null
   chat.value = null
   cine = null
+  talker = null
   showLot(null)
 }
 
@@ -881,7 +888,11 @@ async function startStory(n) {
   const folks = placeFolks(ch.folks)
   story.value = { n, ch, step: 0, goal, lit: 0, shop, used: shop ? [shop] : [], done: false, guide: true, ownerAt: shop && ownerSpot(shop), boss: bossOf(ch.steps[0], shop), folks, gameDone: false, score: null, build: null }
   // 지하철 카드가 걷힌 뒤에 말을 건다
-  setTimeout(() => story.value?.ch === ch && say(whoOf(ch.npc), ch.intro.map((l) => fill(l, vars(null, shop)))), rideLeft + 300)
+  const met = () => {
+    if (story.value?.ch === ch) story.value = { ...story.value, met: true }
+    resume()
+  }
+  setTimeout(() => story.value?.ch === ch && say(whoOf(ch.npc), ch.intro.map((l) => fill(l, vars(null, shop))), { then: met }), rideLeft + 300)
 }
 
 // 동네 사람에게 말 걸기: 근처 꺼진 간판 이름을 소리 내어 읽으면 그 간판에 불이 들어온다
@@ -895,9 +906,11 @@ function talkFolk(f) {
     .sort((a, b) => a.d - b.d)[0]?.p
   story.value = { ...st, folks: st.folks.map((o) => (o === f ? { ...o, done: true } : o)) }
   sfx.click()
-  if (!sign) return say(who, [fill(FOLK_IDLE[Math.floor(Math.random() * FOLK_IDLE.length)], vars(null, st.shop))])
+  const stay = { kind: 'folk', name: `f-${f.id}`, h: 2.0, at: f.at }
+  if (!sign) return say(who, [fill(FOLK_IDLE[Math.floor(Math.random() * FOLK_IDLE.length)], vars(null, st.shop))], { stay })
   const [first, then] = FOLKS[f.id].lines.map((l) => fill(l, { ...vars(null, st.shop), sign: sign.sign.name }))
   say(who, [first], {
+    stay,
     then: () => {
       resume()
       repair(sign)
@@ -928,17 +941,27 @@ function askBoss() {
 function beatBoss(q) {
   const st = story.value
   const at = st.boss?.at
+  // 진 보스는 마지막 말을 다 하고 나서 흩어진다
+  const stay = at && { kind: 'boss', name: `c-${q.boss}`, h: 3.4, at }
+  talker = stay
   story.value = { ...st, gameDone: true, score: q.score ?? 0, boss: st.boss && { ...st.boss, alive: false } }
   sfx.win()
-  if (at) {
-    burst(at.x, 1.6, at.z, 0, 0, new THREE.Color(0xff4d6d), 140)
-    shake = 0.5
-  }
   if (q.boss === 'cloud') weatherFx.set('clear')
   paused.value = true
   setTimeout(() => {
     if (story.value?.ch !== st.ch) return
-    say(q.who, BOSSES[q.boss].win.map((l) => fill(l, vars(q.placed, null))), { tone: 'boss', cut: `${q.boss}-win`, then: () => repair(q.placed) })
+    say(q.who, BOSSES[q.boss].win.map((l) => fill(l, vars(q.placed, null))), {
+      tone: 'boss',
+      cut: `${q.boss}-win`,
+      stay,
+      then: () => {
+        if (at) {
+          burst(at.x, 1.6, at.z, 0, 0, new THREE.Color(0xff4d6d), 140)
+          shake = 0.5
+        }
+        repair(q.placed)
+      },
+    })
   }, 900)
 }
 
@@ -954,6 +977,7 @@ function say(npc, lines, opts = {}) {
   paused.value = true
   keys.clear()
   const w = 'portrait' in npc ? npc : whoOf(npc)
+  talker = null
   dialog.value = { who: w.name, face: w.face || '', portrait: w.portrait || '', tone: w.tone || 'npc', lines, i: 0, ...opts }
 }
 
@@ -1003,6 +1027,8 @@ function repair(placed) {
   const step = st.ch.steps[st.step]
   const lastStep = st.step + 1 >= st.goal
   const shop = lastStep ? null : nextShop(signAt(placed), st.ch.steps[st.step + 1].want, st.used)
+  const stay = !step.own && st.ownerAt && { name: `f-${spriteOf(placed.sign.cat)}`, h: 2.0, at: st.ownerAt }
+  talker = stay
   story.value = { ...st, lit: litSet.size, step: st.step + 1, shop, used: shop ? [...st.used, shop] : st.used, gameDone: false, score: null, ownerAt: shop && ownerSpot(shop), boss: lastStep ? null : bossOf(st.ch.steps[st.step + 1], shop) }
   if (step.time) setTime(step.time)
   const v = vars(placed, shop, st.score)
@@ -1014,7 +1040,7 @@ function repair(placed) {
   setTimeout(() => {
     if (story.value?.ch !== st.ch) return
     chat.value = null
-    say(step.own ? whoOf(st.ch.npc) : owner, lines, { then: lastStep ? end : resume })
+    say(step.own ? whoOf(st.ch.npc) : owner, lines, { stay, then: lastStep ? end : resume })
   }, 700)
 }
 
@@ -1688,6 +1714,8 @@ function interact() {
 }
 
 // --- 바탕화면 '내 수리공' 위젯에 이야기 진행을 알린다 (2D 와 같은 gp-story-now · story:progress) ---
+watch(() => dialog.value?.stay, () => syncNpcs())
+
 watch([story, timeMode], ([st, tm]) => {
   syncNpcs()
   if (!st) return
