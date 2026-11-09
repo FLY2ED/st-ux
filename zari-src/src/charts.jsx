@@ -28,7 +28,7 @@ export function Line({ data, fmt = v => v }) {
         <polyline points={pts.map(p => p.join(',')).join(' ')} fill="none" stroke="#fff" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
       </svg>
       {pts.map(([x, y], i) => (
-        <b key={i} className={i === pts.length - 1 ? 'last' : ''} style={{ left: (x / W) * 100 + '%', top: (y / H) * 100 + '%' }}>
+        <b key={i} style={{ '--d': i / (pts.length - 1), left: (x / W) * 100 + '%', top: (y / H) * 100 + '%' }} className={i === pts.length - 1 ? 'last' : ''}>
           {i === pts.length - 1 && <em className="m">{fmt(vs[i])}</em>}
         </b>
       ))}
@@ -75,10 +75,10 @@ export function Split({ a, b, v }) {
 }
 
 // 가로 막대 목록
-export function Rows({ data, max, unit = '', me }) {
+export function Rows({ data, max, unit = '', me, wide }) {
   const m = max || Math.max(...data.map(d => d[1]))
   return (
-    <div className="mix">
+    <div className={'mix' + (wide ? ' wide' : '')}>
       {data.map(([n, v]) => (
         <div key={n} className={n === me ? 'me' : ''}><span>{n}</span><i style={{ width: (v / m) * 100 + '%' }} /><b className="m">{v}{unit}</b></div>
       ))}

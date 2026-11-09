@@ -125,6 +125,9 @@ function setH(map, k) {
   map.setLayoutProperty('building-3d', 'visibility', k > 0.001 ? 'visible' : 'none')
   map.setPaintProperty('building-3d', 'fill-extrusion-height', ['*', H0, k])
   map.setPaintProperty('building-3d', 'fill-extrusion-base', ['*', B0, k])
+  // 높이만 바뀌면 바닥에 납작한 면이 한꺼번에 생겨 보인다 → 투명도도 같이 올린다
+  const f = Math.min(1, k * k)
+  map.setPaintProperty('building-3d', 'fill-extrusion-opacity', .82 * f * f * (3 - 2 * f))
 }
 const eo = v => 1 - Math.pow(1 - v, 3)
 function rise(map, to, dur, delay = 0) {
@@ -320,7 +323,7 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     const map = mapRef.current
     if (!map?.getLayer('building-3d')) return
     map.easeTo({ ...tilt(), duration: 1200 })
-    rise(map, d3 ? 1 : 0, d3 ? 1500 : 900, d3 ? 200 : 0)
+    rise(map, d3 ? 1 : 0, d3 ? 1800 : 900, d3 ? 200 : 0)
   }, [d3])
 
   // 고른 카페로 이동

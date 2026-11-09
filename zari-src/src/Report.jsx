@@ -83,7 +83,9 @@ export default function Report({ report, radius, setRadius, active, setActive, p
       for (const e of es) {
         if (!e.isIntersecting) continue
         // 처음 화면에 보이던 칸은 원래 순서대로, 나중에 들어온 칸은 바로
-        e.target.classList.add('in', ...(performance.now() - t0 > 400 ? ['late'] : []))
+        const late = performance.now() - t0 > 400
+        e.target.classList.add('in', ...(late ? ['late'] : []))
+        countUp(e.target, late ? 350 : 1150)
         io.unobserve(e.target)
       }
     }, { root: col, rootMargin: '0px 0px -12% 0px', threshold: 0.08 })
@@ -284,7 +286,7 @@ export default function Report({ report, radius, setRadius, active, setActive, p
         <h3>㎡당 월 임대료 · 반기별</h3>
         <Line data={D.cost.trend} fmt={v => v + '만'} />
         <h3>다른 곳과 비교</h3>
-        <Rows data={[['이 상권', D.cost.rent], ['노원구', D.cost.rentGu], ['서울', D.cost.rentSeoul]]} unit="만" me="이 상권" />
+        <Rows data={[['이 상권', D.cost.rent], ['노원구', D.cost.rentGu], ['서울', D.cost.rentSeoul]]} unit="만" me="이 상권" wide />
       </Sec>
 
       <Sim i={12} />
@@ -365,6 +367,41 @@ function Sim({ i }) {
       <p className="fine">인테리어 평당 {C0.interior}만 · 장비 {fmt(C0.equip)}만 · 권리금은 주변 시세</p>
     </Sec>
   )
+}
+
+// 칸이 보일 때 큰 숫자를 0부터 세어 올린다. 그사이 화면 값이 바뀌면(계산기 조작 등) 바로 멈춘다
+const NUMS = '.kpis b, .mix b, .cols em, .line em, .pctl b, .walk b'
+function countUp(sec, delay) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  const jobs = []
+  for (const el of sec.querySelectorAll(NUMS)) {
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    for (let n; (n = w.nextNode());) {
+      const txt = n.nodeValue
+      if (!/\d/.test(txt)) continue
+      const parts = txt.split(/(\d[\d,]*(?:\.\d+)?)/)
+      const at = p => parts.map((x, i) => {
+        if (i % 2 === 0) return x
+        const dec = (x.split('.')[1] || '').length, v = parseFloat(x.replace(/,/g, '')) * p
+        return x.includes(',') ? Math.round(v).toLocaleString('ko-KR') : v.toFixed(dec)
+      }).join('')
+      n.nodeValue = at(0)
+      jobs.push({ n, txt, at, last: n.nodeValue })
+    }
+  }
+  if (!jobs.length) return
+  const t0 = performance.now() + delay, D = 1100
+  const step = () => {
+    const p = Math.max(0, Math.min(1, (performance.now() - t0) / D)), e = 1 - Math.pow(1 - p, 3)
+    for (const j of jobs) {
+      if (j.done) continue
+      if (j.n.nodeValue !== j.last) { j.done = true; continue }
+      j.n.nodeValue = j.last = p >= 1 ? j.txt : j.at(e)
+      if (p >= 1) j.done = true
+    }
+    if (p < 1) requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
 }
 
 // 표준정규분포 누적값 (근삿값)
