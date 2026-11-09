@@ -83,7 +83,7 @@ out = {
     "floors": Counter(s["f"] for s in comp if s["d"] <= R).most_common(),
     "mix": mix,
     "competitors": [{"name": s["n"], "dist": s["d"], "x": s["x"], "y": s["y"], "floor": s["f"]} for s in comp],
-    "shops": [[s["x"], s["y"], s["c"]] for s in near],
+    "shops": [[s["x"], s["y"], s["c"], s["n"], s["f"]] for s in near],
     "cats": {c: cats[c] for c in sorted({s["c"] for s in near})},
     "source": "소상공인시장진흥공단 상가(상권)정보 · 서울 · 2026년 6월",
 }

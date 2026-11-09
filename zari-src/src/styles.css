@@ -145,6 +145,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .mix i{display:block;height:8px;background:rgba(255,255,255,.35);animation:grow .9s 1.3s var(--ease) both;transform-origin:0 50%}
 .mix b{font-size:10px;text-align:right}
 .mix .me{color:#fff;font-weight:600}
+.mix.wide div{grid-template-columns:96px 1fr 64px}
 .mix .me i{background:#fff}
 @keyframes grow{from{transform:scaleX(0)}}
 
@@ -364,7 +365,73 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .report .top .mark{position:relative;z-index:1}
 .tray{background:rgba(20,24,52,.92)}
 
+
+/* 걸어서 5·10분 */
+.iso-n{display:grid;gap:3px;margin-top:6px;padding-top:7px;border-top:1px solid rgba(255,255,255,.14);font-size:11px;color:var(--soft)}
+.walk .iso-n span{display:flex;gap:8px;align-items:baseline;font-size:11px;letter-spacing:0;color:var(--soft);white-space:nowrap}
+.walk .iso-n b{font-size:10px;color:#fff;width:34px;font-weight:400}
+.legendmap.places .pk-iso{width:12px;height:12px;background:none;border-radius:50%;box-shadow:inset 0 0 0 1.5px #fff}
+/* 지도에서 누른 가게 */
+.shopcard{position:absolute;right:16px;top:84px;z-index:4;width:260px;padding:14px 16px 12px;display:grid;gap:3px;animation:rise .4s var(--ease) both}
+.shopcard>span{font-size:8px;letter-spacing:.18em;color:var(--soft)}
+.shopcard .nm{font-size:17px;font-weight:600;padding-right:22px;line-height:1.3}
+.shopcard>small{font-size:12px;color:var(--soft);margin-bottom:6px}
+.shopcard .x{position:absolute;right:6px;top:6px;width:28px;height:28px;font-size:18px;color:var(--soft);background:none}
+.shopcard .x:hover{color:#fff}
+.sc-row{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--soft);padding:6px 0;border-top:1px solid rgba(255,255,255,.1)}
+.sc-row b{color:#fff;font-weight:500;text-align:right}
+.sc-row b.m{font-size:11px}
+/* 유동인구 재생 */
+.player{position:absolute;right:16px;bottom:40px;z-index:3;width:400px;padding:12px 14px 8px;animation:rise .5s var(--ease) both}
+.pl-top{display:flex;align-items:center;gap:12px}
+.pp{width:34px;height:34px;flex:none;display:grid;place-items:center;background:#fff}
+.pp .pl{width:0;height:0;border-left:10px solid var(--blue);border-top:6px solid transparent;border-bottom:6px solid transparent;margin-left:3px}
+.pp .ps{width:10px;height:12px;border-left:3px solid var(--blue);border-right:3px solid var(--blue)}
+.pl-now{display:grid;gap:2px;min-width:92px}
+.pl-now b{font-size:18px}
+.pl-now span{font-size:11px;color:var(--soft)}
+.pl-n{display:grid;gap:2px;margin-left:auto;text-align:right}
+.pl-n b{font-size:14px}
+.pl-n small{font-size:10px;color:var(--soft)}
+.player .seg{position:relative;display:flex;background:rgba(255,255,255,.08)}
+.player .seg button{position:relative;z-index:1;width:36px;padding:6px 0;font-size:11px;background:none;color:var(--soft);transition:color .35s var(--ease)}
+.player .seg button.on{color:var(--blue)}
+.player .seg i{position:absolute;left:0;top:0;bottom:0;width:36px;background:#fff;transition:transform .45s var(--ease)}
+.player .seg i.r{transform:translateX(36px)}
+.pl-bars{position:relative;display:flex;align-items:flex-end;gap:2px;height:44px;margin-top:12px;cursor:pointer;touch-action:none}
+.pl-bars i{flex:1;background:rgba(255,255,255,.28);transition:background .2s}
+.pl-bars i.on{background:#fff}
+.pl-bars u{position:absolute;top:-4px;bottom:0;width:1px;background:#fff;pointer-events:none}
+.pl-x{display:flex;justify-content:space-between;font-size:8px;color:var(--soft);margin-top:4px;letter-spacing:.1em}
+/* 리포트: 자동 해설 · 기준일 · 목표 매출 위치 · 체크리스트 */
+.asof{font-size:11px;color:var(--soft);margin-top:10px}
+.insight{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-top:16px;background:rgba(255,255,255,.14)}
+.insight>div{background:var(--panel);padding:12px 14px}
+.insight span{font-size:8px;letter-spacing:.18em;color:var(--soft)}
+.insight ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
+.insight li{font-size:13px;line-height:1.5;padding-left:14px;position:relative}
+.insight li::before{content:'';position:absolute;left:0;top:.55em;width:6px;height:6px;background:#fff}
+.insight .w li::before{background:none;box-shadow:inset 0 0 0 1.5px #fff}
+.pctl{display:grid;grid-template-columns:1fr 64px;gap:10px;align-items:center}
+.pctl .rg{position:relative;height:8px;background:linear-gradient(90deg,rgba(255,255,255,.12),rgba(255,255,255,.5))}
+.pctl .rg i{position:absolute;top:-4px;width:4px;height:16px;background:#fff;margin-left:-2px;transition:left .3s var(--ease)}
+.pctl b{font-size:10px;text-align:right}
+.check{list-style:none;margin:0;padding:0;display:grid;gap:1px;background:rgba(255,255,255,.14)}
+.check button{display:flex;gap:12px;width:100%;text-align:left;padding:12px 12px;background:var(--panel);color:#fff;align-items:flex-start}
+.check button:hover{background:#0d1230}
+.check i{flex:none;width:16px;height:16px;margin-top:2px;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.7);display:grid;place-items:center}
+.check .on i{background:#fff}
+.check .on i::after{content:'';width:7px;height:4px;border-left:2px solid var(--panel);border-bottom:2px solid var(--panel);transform:rotate(-45deg) translate(1px,-1px)}
+.check span{display:grid;gap:3px}
+.check b{font-size:14px;font-weight:600}
+.check small{font-size:12px;color:var(--soft);line-height:1.5}
+.check .on b{text-decoration:line-through;text-decoration-color:rgba(255,255,255,.5)}
 @media (max-width:759px){
+  .shopcard{right:10px;left:auto;top:156px;width:220px;padding:11px 12px 9px}.shopcard .nm{font-size:15px}
+  .player{left:10px;right:10px;bottom:10px;width:auto;padding:8px 10px 7px}.pl-bars{height:18px;margin-top:7px}.pl-x{display:none}.pp{width:30px;height:30px}
+  .head .row .act,.head .row .seg button{padding:9px 8px;letter-spacing:.08em}.pl-now{min-width:70px}.pl-now b{font-size:15px}
+  .insight{grid-template-columns:1fr}
+
   :root{--col:100%}
   .top{padding:16px 18px}
   .top nav{gap:0}

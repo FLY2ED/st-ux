@@ -4,6 +4,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { createRoot } from 'react-dom/client'
 import { Pin } from './pin.jsx'
 import { camState } from './PixelMap.jsx'
+import { DEMO, BRANDS, BRAND_NAME } from './demo.js'
 
 maplibregl.setWorkerUrl(workerUrl)
 
@@ -81,6 +82,24 @@ function ring(lon, lat, r, kx, ky) {
   return pts
 }
 
+// 유동인구 재생(예시): 역·큰길 쪽(출퇴근)과 학교 앞(낮 수업) 두 흐름을 섞는다
+const nz = a => { const m = Math.max(...a); return a.map(v => v / m) }
+const PROF = {
+  h: {
+    n: 24, road: nz([2, 1, 1, 1, 1, 3, 8, 16, 20, 12, 9, 10, 12, 11, 10, 11, 14, 19, 22, 18, 13, 9, 6, 4]),
+    gate: nz([1, 0, 0, 0, 0, 1, 3, 7, 12, 16, 20, 24, 26, 24, 22, 20, 16, 12, 9, 7, 5, 3, 2, 1]),
+    lab: h => `${Math.floor(h)}시`,
+    note: h => (h < 6 ? '새벽' : h < 10 ? '출근 · 등교' : h < 11 ? '오전' : h < 14 ? '점심 · 수업 사이' : h < 17 ? '오후 수업' : h < 21 ? '퇴근 · 하교' : '저녁'),
+  },
+  m: {
+    n: 12, road: [.9, .88, .97, 1, 1, .98, .95, .93, .98, 1, .97, .95],
+    gate: [.35, .3, 1, 1, .98, .85, .4, .35, .97, 1, .95, .6],
+    lab: m => `${Math.floor(m) + 1}월`,
+    note: m => ([0, 1, 6, 7].includes(Math.floor(m)) ? '방학 · 학교 앞이 비어요' : [2, 8].includes(Math.floor(m)) ? '개강' : [11].includes(Math.floor(m)) ? '종강' : '학기 중'),
+  },
+}
+const at = (arr, t) => { const n = arr.length, i = Math.floor(t) % n, f = t - Math.floor(t); return arr[i] * (1 - f) + arr[(i + 1) % n] * f }
+
 // 픽셀 네모 아이콘
 function square(px, fill, frame) {
   const k = 2, n = px * k, c = document.createElement('canvas')
@@ -133,6 +152,8 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
   const kx = 111320 * Math.cos((Q.lat * Math.PI) / 180), ky = 110540
   const ll = (x, y) => [Q.lon + x / kx, Q.lat + y / ky]
   const [layer, setLayer] = useState('shops')
+  const [sel, setSel] = useState(null)
+  const [fm, setFm] = useState('h'), [ft, setFt] = useState(7), [play, setPlay] = useState(true)
 
   // 유동인구 예시 층: 가게가 몰린 곳을 40m 칸으로 번지게 해서 사람이 많은 곳처럼 보여 준다
   function flowCells() {
@@ -147,7 +168,9 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     const max = Math.max(...Object.values(g))
     return Object.entries(g).filter(([k, v]) => { const [a, b] = k.split(',').map(Number); return Math.hypot(a + .5, b + .5) <= N && v / max > .12 }).map(([k, v]) => {
       const [a, b] = k.split(',').map(Number), x0 = a * C + 2, y0 = b * C + 2, x1 = x0 + C - 4, y1 = y0 + C - 4
-      return { type: 'Feature', properties: { v: Math.pow(v / max, 1.3) }, geometry: { type: 'Polygon', coordinates: [[ll(x0, y0), ll(x1, y0), ll(x1, y1), ll(x0, y1), ll(x0, y0)]] } }
+      // 학교 앞(이 자리)에 가까울수록 낮 수업 흐름을 더 따른다
+      const m = Math.max(0, Math.min(1, 1.3 - Math.hypot(a * C + C / 2, b * C + C / 2) / 260))
+      return { type: 'Feature', properties: { v: Math.pow(v / max, 1.3), m }, geometry: { type: 'Polygon', coordinates: [[ll(x0, y0), ll(x1, y0), ll(x1, y1), ll(x0, y1), ll(x0, y0)]] } }
     })
   }
 
@@ -168,10 +191,14 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       PLACE_KINDS.forEach(([k]) => add('p-' + k, glyph(k)))
       map.addSource('walk', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'walk', type: 'line', source: 'walk', layout: { visibility: 'none' }, paint: { 'line-color': '#fff', 'line-width': 2, 'line-dasharray': [1, 1.5] } })
+      // 걸어서 5분 · 10분 (길이 돌아가는 만큼 직선 거리를 1.3으로 나눔)
+      map.addSource('iso', { type: 'geojson', data: { type: 'FeatureCollection', features: ISO.map(([min, r]) => ({ type: 'Feature', properties: { min }, geometry: { type: 'Polygon', coordinates: [ring(Q.lon, Q.lat, r, kx, ky)] } })) } })
+      map.addLayer({ id: 'iso-fill', type: 'fill', source: 'iso', layout: { visibility: 'none' }, paint: { 'fill-color': '#fff', 'fill-opacity': ['case', ['==', ['get', 'min'], 5], .08, .04] } })
+      map.addLayer({ id: 'iso', type: 'line', source: 'iso', layout: { visibility: 'none' }, paint: { 'line-color': '#fff', 'line-width': ['case', ['==', ['get', 'min'], 5], 1.6, 1], 'line-opacity': .8 } })
       map.addSource('radius', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'radius-fill', type: 'fill', source: 'radius', paint: { 'fill-color': W + '.06)' } })
       map.addLayer({ id: 'radius', type: 'line', source: 'radius', paint: { 'line-color': '#fff', 'line-width': 1.6, 'line-dasharray': [2, 2] } })
-      const shops = report.shops.filter(s => s[2] !== Q.cat).map(([x, y, c], i) => ({
+      const shops = report.shops.map((s, i) => [s, i]).filter(([s]) => s[2] !== Q.cat).map(([[x, y, c], i]) => ({
         type: 'Feature', geometry: { type: 'Point', coordinates: ll(x, y) }, properties: { i, d: Math.hypot(x, y), c: report.cats[c] },
       }))
       const cafes = report.competitors.map((s, i) => ({
@@ -187,9 +214,13 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       setRadius(map, radius)
       map.on('mousemove', 'cafes', e => cb.current.onActive(e.features[0].properties.i))
       map.on('mouseleave', 'cafes', () => cb.current.onActive(null))
-      map.on('click', 'cafes', e => cb.current.onPick(e.features[0].properties.i))
-      map.on('mouseenter', 'cafes', () => (map.getCanvas().style.cursor = 'pointer'))
-      map.on('mouseleave', 'cafes', () => (map.getCanvas().style.cursor = ''))
+      map.on('click', 'cafes', e => { const i = e.features[0].properties.i; cb.current.onPick(i); setSel({ cafe: i }) })
+      map.on('click', 'shops', e => { if (!map.queryRenderedFeatures(e.point, { layers: ['cafes'] }).length) setSel({ shop: e.features[0].properties.i }) })
+      map.on('click', e => { if (!map.queryRenderedFeatures(e.point, { layers: ['cafes', 'shops'] }).length) setSel(null) })
+      for (const id of ['cafes', 'shops']) {
+        map.on('mouseenter', id, () => (map.getCanvas().style.cursor = 'pointer'))
+        map.on('mouseleave', id, () => (map.getCanvas().style.cursor = ''))
+      }
     })
     const el = document.createElement('div')
     el.className = 'mpin'
@@ -238,6 +269,9 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     vis('shops', layer === 'shops')
     PLACE_KINDS.forEach(([k]) => vis('poi-' + k, layer === 'place'))
     vis('walk', layer === 'place')
+    vis('iso', layer === 'place'); vis('iso-fill', layer === 'place')
+    vis('radius', layer !== 'place'); vis('radius-fill', layer !== 'place')
+    if (layer === 'flow') { setFt(fm === 'h' ? 7 : 0); setPlay(true) }
     if (layer === 'place') {
       // 지금 불러온 타일에서 가장 가까운 지하철역을 찾아 걸어서 몇 분인지 잰다
       const find = () => {
@@ -252,10 +286,32 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
         setWalk({ ...best, name: /역$/.test(best.name || '') ? best.name : (best.name || '지하철') + '역', min: Math.round((best.d * 1.3) / 67) })
         return true
       }
-      if (!find()) map.once('idle', find)
-      map.easeTo({ zoom: Math.min(map.getZoom(), mob() ? 14.2 : 15.2), duration: 700 })
+      // 이 자리를 가운데 두고 넓게 본 뒤, 타일이 다 오면 가장 가까운 역을 찾는다
+      map.easeTo({ center: [Q.lon, Q.lat], zoom: Math.min(map.getZoom(), mob() ? 14.2 : 15.2), padding: { top: mapPadTop() }, duration: 700 })
+      map.once('moveend', () => map.once('idle', find))
     }
+    if (layer === 'flow') map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomFor(radius), padding: { top: mapPadTop() }, duration: 700 })
   }, [layer])
+
+  // 유동인구 재생: 시간(또는 달)에 따라 칸마다 밝기가 바뀐다
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map?.getLayer('flow')) return
+    const P = PROF[fm], a = at(P.road, ft), b = at(P.gate, ft)
+    const f = ['+', ['*', a, ['-', 1, ['get', 'm']]], ['*', b, ['get', 'm']]]
+    map.setPaintProperty('flow', 'fill-opacity', ['*', ['get', 'v'], f, f, .95])
+  }, [ft, fm, layer])
+  useEffect(() => {
+    if (layer !== 'flow' || !play) return
+    let raf, t0 = performance.now()
+    const step = now => {
+      const dt = (now - t0) / (fm === 'h' ? 650 : 900); t0 = now
+      setFt(t => (t + dt) % PROF[fm].n)
+      raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [layer, play, fm])
 
   // 2D ↔ 3D: 지도를 눕히면서 건물이 바닥에서 서서히 솟는다 (내릴 땐 거꾸로)
   const first = useRef(true)
@@ -294,6 +350,8 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     if (map && shown && center) map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomFor(radius), padding: { top: mapPadTop() }, duration: 700 })
   }, [radius, center])
 
+  const inIso = (r, cafe) => report.shops.filter(([x, y, c]) => Math.hypot(x, y) <= r && (!cafe || c === Q.cat)).length
+
   return (
     <div className="mapwrap">
       <div ref={box} className="linemap" />
@@ -309,10 +367,86 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       <div className={'legendmap glass' + (layer === 'flow' ? ' on' : '')}><span>적음</span><i /><span>많음</span></div>
       <div className={'legendmap places glass' + (layer === 'place' ? ' on' : '')}>
         {PLACE_KINDS.map(([k, t]) => <span key={k}><i className={'pk-' + k} />{t}</span>)}
+        <span><i className="pk-iso" />걸어서 5·10분</span>
       </div>
       {layer === 'place' && walk && (
-        <div className="walk glass"><span className="m">NEAREST STATION</span><b>{walk.name}</b><em>직선 {fmtM(walk.d)} · 걸어서 약 <strong className="m">{walk.min}분</strong></em></div>
+        <div className="walk glass"><span className="m">NEAREST STATION</span><b>{walk.name}</b><em>직선 {fmtM(walk.d)} · 걸어서 약 <strong className="m">{walk.min}분</strong></em>
+          <div className="iso-n">{ISO.map(([min, r]) => <span key={min}><b className="m">{min}분</b>가게 {inIso(r, false)} · 카페 {inIso(r, true)}</span>)}</div>
+        </div>
       )}
+      {layer === 'flow' && <FlowPlayer fm={fm} setFm={m => { setFm(m); setFt(m === 'h' ? 7 : 0) }} ft={ft} setFt={setFt} play={play} setPlay={setPlay} />}
+      {sel && <ShopCard sel={sel} report={report} onClose={() => setSel(null)} />}
+    </div>
+  )
+}
+
+const ISO = [[5, 258], [10, 515]]
+const walkMin = d => Math.max(1, Math.round((d * 1.3) / 67))
+const floorTxt = f => (f > 0 ? f + '층' : f < 0 ? '지하 ' + -f + '층' : '층 정보 없음')
+
+// 지도에서 누른 가게 설명
+function ShopCard({ sel, report, onClose }) {
+  const Q = report.query
+  let name, cat, floor, x, y, extra = null
+  if (sel.cafe != null) {
+    const s = report.competitors[sel.cafe]
+    ;({ name, floor, x, y } = s); cat = Q.what
+    const b = BRANDS.find(b => name.startsWith(b))
+    const [lo, hi] = DEMO.storeRanges[sel.cafe % DEMO.storeRanges.length]
+    extra = (
+      <>
+        <div className="sc-row"><span>구분</span><b>{b ? '프랜차이즈 · ' + (BRAND_NAME[b] || b) : '개인 카페'}</b></div>
+        <div className="sc-row"><span>추정 월매출<em className="eg">예시</em></span><b className="m">{lo.toLocaleString()}–{hi.toLocaleString()}만</b></div>
+      </>
+    )
+  } else {
+    const s = report.shops[sel.shop]
+    ;[x, y] = s; cat = report.cats[s[2]]; name = s[3] || cat; floor = s[4] ?? 0
+  }
+  const d = Math.hypot(x, y)
+  const sameCat = report.shops.filter(t => t[2] === (sel.cafe != null ? Q.cat : report.shops[sel.shop][2]) && Math.hypot(t[0] - x, t[1] - y) <= 100).length - 1
+  return (
+    <div className="shopcard glass" role="dialog" aria-label={name + ' 정보'}>
+      <button className="x" onClick={onClose} aria-label="닫기">×</button>
+      <span className="m">{sel.cafe != null ? 'CAFE · 경쟁 가게' : 'SHOP'}</span>
+      <b className="nm">{name}</b>
+      <small>{cat} · {floorTxt(floor)}</small>
+      <div className="sc-row"><span>이 자리에서</span><b>{fmtM(d)} · 걸어서 {walkMin(d)}분</b></div>
+      <div className="sc-row"><span>100m 안 같은 업종</span><b>{Math.max(0, sameCat)}곳</b></div>
+      {extra}
+    </div>
+  )
+}
+
+// 유동인구 재생 막대: 시간대 · 월별
+function FlowPlayer({ fm, setFm, ft, setFt, play, setPlay }) {
+  const P = PROF[fm], cur = Math.floor(ft) % P.n
+  const tot = P.road.map((r, i) => r * .6 + P.gate[i] * .4), mx = Math.max(...tot)
+  const day = DEMO.flow.day, sum = tot.reduce((a, b) => a + b, 0)
+  const now = fm === 'h' ? Math.round((day * at(tot, ft)) / sum / 10) * 10 : Math.round((day * at(tot, ft)) / mx / 100) * 100
+  return (
+    <div className="player glass">
+      <div className="pl-top">
+        <button className="pp" onClick={() => setPlay(!play)} aria-label={play ? '멈춤' : '재생'}>{play ? <span className="ps" /> : <span className="pl" />}</button>
+        <div className="pl-now"><b className="m">{P.lab(ft)}</b><span>{P.note(ft)}</span></div>
+        <div className="pl-n"><b className="m">{now.toLocaleString()}</b><small>{fm === 'h' ? '명 / 시간' : '명 / 하루'}<em className="eg">예시</em></small></div>
+        <span className="seg" role="group" aria-label="재생 단위">
+          <i className={fm === 'm' ? 'r' : ''} />
+          <button className={'m' + (fm === 'h' ? ' on' : '')} onClick={() => setFm('h')}>시간</button>
+          <button className={'m' + (fm === 'm' ? ' on' : '')} onClick={() => setFm('m')}>월</button>
+        </span>
+      </div>
+      <div className="pl-bars" onPointerDown={e => {
+        const go = ev => { const r = e.currentTarget.getBoundingClientRect(); setFt(Math.max(0, Math.min(P.n - .01, ((ev.clientX - r.left) / r.width) * P.n))) }
+        const el = e.currentTarget; setPlay(false); go(e)
+        const mv = ev => { const r = el.getBoundingClientRect(); setFt(Math.max(0, Math.min(P.n - .01, ((ev.clientX - r.left) / r.width) * P.n))) }
+        const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up) }
+        addEventListener('pointermove', mv); addEventListener('pointerup', up)
+      }}>
+        {tot.map((v, i) => <i key={i} className={i === cur ? 'on' : ''} style={{ height: 12 + (v / mx) * 88 + '%' }} />)}
+        <u style={{ left: (ft / P.n) * 100 + '%' }} />
+      </div>
+      <div className="pl-x m">{fm === 'h' ? ['0', '6', '12', '18', '24'].map(t => <span key={t}>{t}</span>) : ['1', '4', '7', '10', '12'].map(t => <span key={t}>{t}</span>)}</div>
     </div>
   )
 }

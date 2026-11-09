@@ -29,7 +29,7 @@ function useStats(report, radius) {
   }, [report, radius])
 }
 
-export const TABS = [['sum', '요약'], ['comp', '경쟁'], ['sales', '매출'], ['flow', '유동인구'], ['people', '배후'], ['place', '시설'], ['change', '개폐업'], ['cost', '비용'], ['sim', '계산'], ['fit', '추천']]
+export const TABS = [['sum', '요약'], ['comp', '경쟁'], ['sales', '매출'], ['flow', '유동인구'], ['people', '배후'], ['place', '시설'], ['change', '개폐업'], ['cost', '비용'], ['sim', '계산'], ['fit', '추천'], ['check', '체크']]
 
 function Sec({ id, k, title, sub, children, i = 0, demo, className = '' }) {
   return (
@@ -48,6 +48,11 @@ export default function Report({ report, radius, setRadius, active, setActive, p
   const S = useStats(report, radius)
   const [more, setMore] = useState(false)
   const [alarm, setAlarm] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const share = async () => {
+    try { await navigator.clipboard.writeText(location.href) } catch { /* 복사가 막힌 브라우저 */ }
+    setCopied(true); setTimeout(() => setCopied(false), 1800)
+  }
   const [tab, setTab] = useState('sum')
   // 경쟁 강도: 서울 상권(가게 30곳 넘는 200m 칸) 가운데 카페 수·비중 순위를 평균
   const crowd = (100 - C.topPct + (100 - C.sharePct)) / 2
@@ -103,8 +108,10 @@ export default function Report({ report, radius, setRadius, active, setActive, p
           </div>
           <button className={'act m' + (saved ? ' on' : '')} onClick={onSave}>{saved ? '✓ 비교함' : '+ 비교함'}</button>
           <button className={'act m' + (alarm ? ' on' : '')} onClick={() => setAlarm(!alarm)}>{alarm ? '✓ 매월 알림' : '알림'}</button>
+          <button className={'act m' + (copied ? ' on' : '')} onClick={share}>{copied ? '✓ 링크 복사' : '공유'}</button>
           <button className="act m" onClick={() => print()}>저장</button>
         </div>
+        <p className="asof">기준 · 매출 {D.asOf.sales} · 가게 {D.asOf.shops} · 임대료 {D.asOf.rent}</p>
       </section>
 
       <nav className="tabs" aria-label="리포트 목차">
@@ -121,6 +128,10 @@ export default function Report({ report, radius, setRadius, active, setActive, p
           <div><span className="m">SHOPS</span><b className="m">{fmt(S.total)}</b><small>반경 안 가게</small></div>
           <div><span className="m">CAFES</span><b className="m">{S.count}</b><small>같은 업종</small></div>
           <div><span className="m">SHARE</span><b className="m">{pct(S.share)}</b><small>서울 {pct(C.seoulShare)}</small></div>
+        </div>
+        <div className="insight">
+          <div><span className="m">GOOD<em className="eg">예시</em></span><ul>{D.insight.good.map(t => <li key={t}>{t}</li>)}</ul></div>
+          <div className="w"><span className="m">WATCH<em className="eg">예시</em></span><ul>{D.insight.warn.map(t => <li key={t}>{t}</li>)}</ul></div>
         </div>
       </Sec>
 
@@ -179,6 +190,9 @@ export default function Report({ report, radius, setRadius, active, setActive, p
         </div>
         <h3>분기별 월평균</h3>
         <Line data={D.sales.quarters} fmt={won} />
+        <h3>월별 · 성수기와 비수기</h3>
+        <Cols data={D.sales.months} unit="" />
+        <p className="fine">연평균 100 기준 · 방학(1·2·7·8월)이 비수기</p>
         <h3>요일별</h3>
         <Cols data={D.sales.week} />
         <h3>시간대별</h3>
@@ -209,6 +223,10 @@ export default function Report({ report, radius, setRadius, active, setActive, p
           <div><span className="m">STUDENT</span><b className="m">{fmt(D.people.student)}</b><small>서울과기대</small></div>
         </div>
         <p className="fine">{fmt(D.people.house)}세대 · 원룸·오피스텔 비중 높음</p>
+        <div className="kpis two">
+          <div><span className="m">INCOME</span><b className="m">{D.people.income}만</b><small>월평균 소득 · 서울 {D.people.incomeSeoul}만 · {D.people.tier}분위</small></div>
+          <div><span className="m">CAFE SPEND</span><b className="m">{D.people.cafeSpend}만</b><small>1명 한 달 카페 지출</small></div>
+        </div>
         <h3>생활비 중 카페 지출 비중</h3>
         <Rows data={D.people.spend} unit="%" me="20대" />
       </Sec>
@@ -251,6 +269,9 @@ export default function Report({ report, radius, setRadius, active, setActive, p
           ))}
         </div>
         <p className="fine">평균 영업 {D.change.life}년 · 서울 {D.change.lifeSeoul}년 · 세로선은 서울</p>
+        <h3>지금 영업 중인 카페의 업력</h3>
+        <Rows data={D.change.ages} unit="%" />
+        <p className="fine">1년 미만이 23% · 새 가게가 자주 들어오는 상권이에요.</p>
       </Sec>
 
       <Sec id="cost" i={11} k="11 · RENT" title="임대료 · 비용" sub="1층 상가 시세 · 2026 상반기" demo>
@@ -260,6 +281,10 @@ export default function Report({ report, radius, setRadius, active, setActive, p
           <div><span className="m">PREMIUM</span><b className="m">{fmt(D.cost.premium)}</b><small>권리금 만 원</small></div>
         </div>
         <p className="fine">{D.cost.size}㎡(10평) 기준 월 임대료 약 {won(Math.round(D.cost.rent * D.cost.size))} 원</p>
+        <h3>㎡당 월 임대료 · 반기별</h3>
+        <Line data={D.cost.trend} fmt={v => v + '만'} />
+        <h3>다른 곳과 비교</h3>
+        <Rows data={[['이 상권', D.cost.rent], ['노원구', D.cost.rentGu], ['서울', D.cost.rentSeoul]]} unit="만" me="이 상권" />
       </Sec>
 
       <Sim i={12} />
@@ -284,6 +309,8 @@ export default function Report({ report, radius, setRadius, active, setActive, p
         </ol>
       </Sec>
 
+      <Check />
+
       <p className="src m">SOURCE · {report.source}<br />예시 표시 칸은 기획 시연용 숫자 · 서울 열린데이터 상권분석 연결 예정</p>
     </div>
   )
@@ -303,6 +330,14 @@ function Sim({ i }) {
   const fixed = rent + labor + 40
   const be = Math.ceil((fixed * 10000) / (ticket * 30 * (1 - .33 - .08)))
   const R = [['재료비', cost], ['임대료', rent], ['인건비', labor], ['기타', etc]]
+  // 처음 드는 돈: 보증금은 돌려받으니 회수 기간에서 뺀다
+  const C0 = DEMO.cost, interior = C0.interior * size
+  const start = [['보증금', C0.deposit], ['권리금', C0.premium], ['인테리어', interior], ['장비', C0.equip]]
+  const total = start.reduce((a, [, v]) => a + v, 0), sunk = total - C0.deposit
+  const payback = profit > 0 ? Math.ceil(sunk / profit) : null
+  // 이 매출이 이 상권 카페 가운데 어디쯤인지: 평균 둘레로 퍼진 분포(표준편차 평균의 35%)로 셈
+  const z = (sales - DEMO.sales.month) / (DEMO.sales.month * .35)
+  const top = Math.min(99, Math.max(1, Math.round((1 - cdf(z)) * 100)))
   return (
     <Sec id="sim" i={i} k="12 · SIMULATOR" title="매출 · 손익 계산" sub="값을 바꾸면 바로 다시 계산해요" demo>
       <div className="sim">
@@ -320,10 +355,45 @@ function Sim({ i }) {
       </div>
       <div className="legend">{R.map(([n, v]) => <span key={n}>{n} {won(v)}</span>)}</div>
       <p className="note">하루 <b>{be}명</b> 넘게 와야 손해가 없어요.</p>
+      <h3>이 매출은 이 상권 카페 중</h3>
+      <div className="pctl"><span className="rg"><i style={{ left: 100 - top + '%' }} /></span><b className="m">상위 {top}%</b></div>
+      <h3>처음 드는 돈</h3>
+      <div className="mix wide">
+        {start.map(([n, v]) => <div key={n}><span>{n}</span><i style={{ width: (v / total) * 100 + '%' }} /><b className="m">{won(v)}</b></div>)}
+      </div>
+      <p className="note">모두 <b>{won(total)} 원</b>{payback ? <> · 보증금을 빼고 <b>{payback}개월</b>이면 되찾아요.</> : ' · 지금 값으로는 되찾지 못해요.'}</p>
+      <p className="fine">인테리어 평당 {C0.interior}만 · 장비 {fmt(C0.equip)}만 · 권리금은 주변 시세</p>
     </Sec>
   )
 }
 
+// 표준정규분포 누적값 (근삿값)
+function cdf(z) {
+  const t = 1 / (1 + .3275911 * Math.abs(z) / Math.SQRT2)
+  const e = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - .284496736) * t + .254829592) * t * Math.exp(-z * z / 2)
+  return z < 0 ? (1 - e) / 2 : (1 + e) / 2
+}
+
 function Bar({ v }) {
   return <span className="bar"><i style={{ left: v * 100 + '%' }} /><u /></span>
+}
+
+// 계약 전 체크리스트: 고른 것은 이 브라우저에 남는다
+function Check() {
+  const [on, setOn] = useState(() => { try { return JSON.parse(localStorage.getItem('zari-check') || '[]') } catch { return [] } })
+  const flip = n => {
+    const next = on.includes(n) ? on.filter(x => x !== n) : [...on, n]
+    setOn(next); try { localStorage.setItem('zari-check', JSON.stringify(next)) } catch { /* 저장이 막힌 브라우저 */ }
+  }
+  return (
+    <Sec id="check" i={16} k="16 · CHECKLIST" title="계약 전에 확인할 것" sub={`데이터로는 알 수 없는 것 · ${on.length}/${DEMO.check.length} 확인`}>
+      <ul className="check">
+        {DEMO.check.map(([n, t]) => (
+          <li key={n} className={on.includes(n) ? 'on' : ''}>
+            <button onClick={() => flip(n)} aria-pressed={on.includes(n)}><i /><span><b>{n}</b><small>{t}</small></span></button>
+          </li>
+        ))}
+      </ul>
+    </Sec>
+  )
 }
