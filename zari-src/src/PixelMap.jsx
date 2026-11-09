@@ -121,10 +121,10 @@ export default function PixelMap({ grid, clock, camera, tipRef, interactive }) {
           const d = Math.hypot(tx / dpr - px, ty / dpr - py)
           const p = clamp((t - 620 - (d / maxd) * 1100) / 500)
           if (p <= 0) continue
-          const a = .05 + lv[i] * .3, fl = Math.pow(1 - p, 2)
-          x.fillStyle = `rgba(255,255,255,${a + (.9 - a) * fl})`
-          const g2 = s * .82 * (1 + fl * .5)
-          x.fillRect(tx + (s * .82 - g2) / 2, ty + (s * .82 - g2) / 2, g2, g2)
+          // 번쩍이지 않고 제 밝기로 서서히 나타난다
+          const a = (.05 + lv[i] * .3) * p
+          x.fillStyle = `rgba(255,255,255,${a})`
+          x.fillRect(tx, ty, s * .82, s * .82)
         }
       }
       for (let i = 0; i < heat.length; i++) {
