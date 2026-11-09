@@ -10,8 +10,9 @@ const P = new URLSearchParams(location.search)
 export const params = P
 export function makeClock() {
   const freeze = P.get('t') != null ? +P.get('t') : P.has('skip') || P.get('view') ? INTRO.end + 100 : null
-  const c = { t0: performance.now() }
-  c.now = () => (freeze != null ? freeze : performance.now() - c.t0)
-  c.replay = () => { if (freeze == null) c.t0 = performance.now() }
+  // 처음 들어올 때는 2.2배 느리게, 다시 볼 때(로고·Esc)는 원래 속도
+  const c = { t0: performance.now(), speed: 1 / 2.2 }
+  c.now = () => (freeze != null ? freeze : (performance.now() - c.t0) * c.speed)
+  c.replay = () => { if (freeze == null) { c.t0 = performance.now(); c.speed = 1 } }
   return c
 }

@@ -23,8 +23,8 @@ const STYLE = {
     { id: 'building-3d', type: 'fill-extrusion', source: 'omt', 'source-layer': 'building', minzoom: 14, layout: { visibility: 'none' },
       paint: {
         'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 6], 0, '#2a3cf0', 40, '#8f9bff', 90, '#ffffff'],
-        'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 6],
-        'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+        'fill-extrusion-height': 0,
+        'fill-extrusion-base': 0,
         'fill-extrusion-opacity': .82,
       } },
     { id: 'rail', type: 'line', source: 'omt', 'source-layer': 'transportation', filter: ['in', ['get', 'class'], ['literal', ['rail', 'transit']]],
@@ -98,6 +98,27 @@ function square(px, fill, frame) {
   return { image: x.getImageData(0, 0, n, n), pixelRatio: k }
 }
 
+// 건물 높이 배율 k(0~1)를 바꿔 건물을 세우고 내린다
+const H0 = ['coalesce', ['get', 'render_height'], 6], B0 = ['coalesce', ['get', 'render_min_height'], 0]
+const kOf = new WeakMap()
+function setH(map, k) {
+  kOf.set(map, k)
+  map.setLayoutProperty('building-3d', 'visibility', k > 0.001 ? 'visible' : 'none')
+  map.setPaintProperty('building-3d', 'fill-extrusion-height', ['*', H0, k])
+  map.setPaintProperty('building-3d', 'fill-extrusion-base', ['*', B0, k])
+}
+const eo = v => 1 - Math.pow(1 - v, 3)
+function rise(map, to, dur, delay = 0) {
+  const from = kOf.get(map) ?? 0, t0 = performance.now() + delay
+  cancelAnimationFrame(map.__rise)
+  const step = () => {
+    const p = Math.max(0, Math.min(1, (performance.now() - t0) / dur))
+    setH(map, from + (to - from) * eo(p))
+    if (p < 1) map.__rise = requestAnimationFrame(step)
+  }
+  map.__rise = requestAnimationFrame(step)
+}
+
 export default function LineMap({ report, radius, active, onActive, onPick, shown, focus, center }) {
   // 처음부터 3D: 건물을 세우고 지도를 비스듬히 눕힌다
   const [d3, setD3] = useState(true)
@@ -145,8 +166,6 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       add('cafe', square(11, '#fff'))
       add('hi', square(19, '#fff', true))
       PLACE_KINDS.forEach(([k]) => add('p-' + k, glyph(k)))
-      map.setLayoutProperty('building-3d', 'visibility', d3Ref.current ? 'visible' : 'none')
-      map.setLayoutProperty('building', 'visibility', d3Ref.current ? 'none' : 'visible')
       map.addSource('walk', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'walk', type: 'line', source: 'walk', layout: { visibility: 'none' }, paint: { 'line-color': '#fff', 'line-width': 2, 'line-dasharray': [1, 1.5] } })
       map.addSource('radius', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
@@ -238,13 +257,14 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     }
   }, [layer])
 
-  // 3D 건물: 지도를 눕히고 건물을 세운다
+  // 2D ↔ 3D: 지도를 눕히면서 건물이 바닥에서 서서히 솟는다 (내릴 땐 거꾸로)
+  const first = useRef(true)
   useEffect(() => {
+    if (first.current) { first.current = false; return }
     const map = mapRef.current
     if (!map?.getLayer('building-3d')) return
-    map.setLayoutProperty('building-3d', 'visibility', d3 ? 'visible' : 'none')
-    map.setLayoutProperty('building', 'visibility', d3 ? 'none' : 'visible')
-    map.easeTo({ pitch: d3 ? 58 : 0, bearing: d3 ? -20 : 0, zoom: d3 ? Math.max(map.getZoom(), 16) : map.getZoom(), duration: 1200 })
+    map.easeTo({ ...tilt(), duration: 1200 })
+    rise(map, d3 ? 1 : 0, d3 ? 1500 : 900, d3 ? 200 : 0)
   }, [d3])
 
   // 고른 카페로 이동
@@ -265,6 +285,8 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       map.jumpTo({ center: [Q.lon, Q.lat], zoom: z0, padding: { top: mapPadTop() } })
       map.resize()
       map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomFor(radius), ...tilt(), padding: { top: mapPadTop() }, duration: 1600, delay: 150 })
+      const up = () => { setH(map, 0); rise(map, 1, 1600, 900) }
+      if (d3Ref.current) map.getLayer('building-3d') ? up() : map.once('load', up)
     }
   }, [shown])
   useEffect(() => {
@@ -278,7 +300,11 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       <div ref={tipRef} className="tip glass maptip" />
       <div className="layers glass" role="group" aria-label="지도에 보이는 것">
         {[['shops', '가게'], ['flow', '유동인구 · 예시'], ['place', '주변 시설']].map(([k, t]) => <button key={k} className={layer === k ? 'on' : ''} onClick={() => setLayer(k)}>{t}</button>)}
-        <button className={'d3 m' + (d3 ? ' on' : '')} onClick={() => setD3(!d3)} aria-pressed={d3}>3D</button>
+        <span className="seg" role="group" aria-label="2D 3D 보기">
+          <i className={d3 ? 'r' : ''} />
+          <button className={'m' + (d3 ? '' : ' on')} onClick={() => setD3(false)} aria-pressed={!d3}>2D</button>
+          <button className={'m' + (d3 ? ' on' : '')} onClick={() => setD3(true)} aria-pressed={d3}>3D</button>
+        </span>
       </div>
       <div className={'legendmap glass' + (layer === 'flow' ? ' on' : '')}><span>적음</span><i /><span>많음</span></div>
       <div className={'legendmap places glass' + (layer === 'place' ? ' on' : '')}>

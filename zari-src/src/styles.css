@@ -308,7 +308,11 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .legendmap{position:absolute;left:16px;bottom:58px;z-index:3;padding:8px 10px;font-size:10px;color:var(--soft);display:flex;align-items:center;gap:6px;opacity:0;transition:opacity .3s}
 .legendmap.on{opacity:1}
 .legendmap i{width:70px;height:6px;background:linear-gradient(90deg,rgba(255,255,255,.08),#fff)}
-.layers .d3{margin-left:4px;box-shadow:-5px 0 0 -4px rgba(255,255,255,.25);letter-spacing:.12em}
+.layers .seg{position:relative;display:flex;margin-left:6px;background:rgba(255,255,255,.08)}
+.layers .seg button{position:relative;z-index:1;width:40px;padding:7px 0;letter-spacing:.1em;background:none;transition:color .35s var(--ease)}
+.layers .seg button.on{background:none;color:var(--blue)}
+.layers .seg i{position:absolute;left:0;top:0;bottom:0;width:40px;background:#fff;transition:transform .45s var(--ease)}
+.layers .seg i.r{transform:translateX(40px)}
 .legendmap.places{gap:12px;pointer-events:none}
 .legendmap.places span{display:flex;align-items:center;gap:5px}
 .legendmap.places i{width:9px;height:9px;background:#fff}
