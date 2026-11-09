@@ -390,3 +390,11 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   body{overflow:visible;background:var(--blue);-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .app,.col{position:static;width:auto;opacity:1}
 }
+
+/* 스크롤해서 들어올 때 등장: 들어오기 전엔 칸과 안의 그래프 애니메이션을 멈춰 둔다 */
+.col .sec:not(.in),.col .sec:not(.in) *{animation-play-state:paused}
+.col .sec.late{animation:reveal .8s var(--ease) both;animation-delay:0s}
+.col .sec.late *{animation-delay:.3s!important}
+@keyframes reveal{from{opacity:0;transform:translateY(36px)}}
+@media (prefers-reduced-motion:reduce){.col .sec,.col .sec *{animation:none!important}}
+@media print{.col .sec,.col .sec *{animation:none!important}}

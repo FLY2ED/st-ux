@@ -99,7 +99,11 @@ function square(px, fill, frame) {
 }
 
 export default function LineMap({ report, radius, active, onActive, onPick, shown, focus, center }) {
-  const [d3, setD3] = useState(false)
+  // 처음부터 3D: 건물을 세우고 지도를 비스듬히 눕힌다
+  const [d3, setD3] = useState(true)
+  const d3Ref = useRef(d3)
+  d3Ref.current = d3
+  const tilt = () => (d3Ref.current ? { pitch: 58, bearing: -20 } : { pitch: 0, bearing: 0 })
   const [walk, setWalk] = useState(null)
   const box = useRef(null), mapRef = useRef(null), tipRef = useRef(null)
   const cb = useRef({ onActive, onPick })
@@ -141,6 +145,8 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       add('cafe', square(11, '#fff'))
       add('hi', square(19, '#fff', true))
       PLACE_KINDS.forEach(([k]) => add('p-' + k, glyph(k)))
+      map.setLayoutProperty('building-3d', 'visibility', d3Ref.current ? 'visible' : 'none')
+      map.setLayoutProperty('building', 'visibility', d3Ref.current ? 'none' : 'visible')
       map.addSource('walk', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'walk', type: 'line', source: 'walk', layout: { visibility: 'none' }, paint: { 'line-color': '#fff', 'line-width': 2, 'line-dasharray': [1, 1.5] } })
       map.addSource('radius', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
@@ -258,7 +264,7 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       const z0 = st ? Math.log2((st.cssPerCell / st.st) * 360 / 512) : 15
       map.jumpTo({ center: [Q.lon, Q.lat], zoom: z0, padding: { top: mapPadTop() } })
       map.resize()
-      map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomFor(radius), padding: { top: mapPadTop() }, duration: 1600, delay: 150 })
+      map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomFor(radius), ...tilt(), padding: { top: mapPadTop() }, duration: 1600, delay: 150 })
     }
   }, [shown])
   useEffect(() => {

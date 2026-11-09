@@ -69,6 +69,23 @@ export default function Report({ report, radius, setRadius, active, setActive, p
     return () => col.removeEventListener('scroll', on)
   }, [])
 
+  // 스크롤해서 칸이 화면에 들어오면 그때 올라오고, 안의 그래프도 그때 차오른다
+  useEffect(() => {
+    const col = document.querySelector('.col')
+    if (!col) return
+    const t0 = performance.now()
+    const io = new IntersectionObserver(es => {
+      for (const e of es) {
+        if (!e.isIntersecting) continue
+        // 처음 화면에 보이던 칸은 원래 순서대로, 나중에 들어온 칸은 바로
+        e.target.classList.add('in', ...(performance.now() - t0 > 400 ? ['late'] : []))
+        io.unobserve(e.target)
+      }
+    }, { root: col, rootMargin: '0px 0px -12% 0px', threshold: 0.08 })
+    col.querySelectorAll('.sec').forEach(s => io.observe(s))
+    return () => io.disconnect()
+  }, [])
+
   const jump = id => {
     setTab(id)
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
