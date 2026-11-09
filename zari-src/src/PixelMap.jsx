@@ -94,10 +94,6 @@ export default function PixelMap({ grid, clock, camera, tipRef, interactive }) {
     function frame() {
       const t = clock.now()
       for (let i = 0; i < heat.length; i++) heat[i] *= .93
-      if (t > INTRO.end && z < .05) for (let k = 0; k < 6; k++) {
-        const i = (Math.random() * g.length) | 0
-        if (lv[i] > .55) heat[i] = Math.max(heat[i], .7)
-      }
       if (cur && live.current.interactive && z < .05) { const [gx, gy] = cellAt(...cur); light(gx, gy, 1) }
       for (const r of rings) {
         r.r += .45
