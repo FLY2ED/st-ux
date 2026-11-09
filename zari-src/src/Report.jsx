@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DEMO, BRANDS, BRAND_NAME } from './demo.js'
 import { Cols, Line, Radar, Split, Rows } from './charts.jsx'
 
@@ -74,6 +74,34 @@ export default function Report({ report, radius, setRadius, active, setActive, p
     return () => col.removeEventListener('scroll', on)
   }, [])
 
+  // 부드러운 스크롤: 휠 한 번에 바로 튀지 않고 목표 위치까지 미끄러지듯 따라간다 (터치는 기기 그대로)
+  const glide = useRef(null)
+  useEffect(() => {
+    const col = document.querySelector('.col')
+    if (!col || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    let cur = col.scrollTop, target = cur, raf = 0
+    const max = () => col.scrollHeight - col.clientHeight
+    const tick = () => {
+      cur += (target - cur) * .1
+      if (Math.abs(target - cur) < .5) { cur = target; raf = 0 } else raf = requestAnimationFrame(tick)
+      col.scrollTop = cur
+    }
+    const to = y => {
+      if (!raf) cur = col.scrollTop // 스크롤바를 끌었거나 다른 데서 움직였으면 거기서 시작
+      target = Math.max(0, Math.min(max(), y))
+      if (!raf) raf = requestAnimationFrame(tick)
+    }
+    const wheel = e => {
+      if (e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
+      e.preventDefault()
+      const k = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? col.clientHeight : 1
+      to((raf ? target : col.scrollTop) + e.deltaY * k)
+    }
+    glide.current = to
+    col.addEventListener('wheel', wheel, { passive: false })
+    return () => { col.removeEventListener('wheel', wheel); cancelAnimationFrame(raf); glide.current = null }
+  }, [])
+
   // 스크롤해서 칸이 화면에 들어오면 그때 올라오고, 안의 그래프도 그때 차오른다
   useEffect(() => {
     const col = document.querySelector('.col')
@@ -95,7 +123,11 @@ export default function Report({ report, radius, setRadius, active, setActive, p
 
   const jump = id => {
     setTab(id)
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const el = document.getElementById(id), col = document.querySelector('.col')
+    if (!el) return
+    // 아직 올라오기 전인 칸은 아래로 밀려 있으니 그만큼 빼고 잰다
+    if (glide.current && col) glide.current(col.scrollTop + el.getBoundingClientRect().top - new DOMMatrix(getComputedStyle(el).transform).m42 - col.getBoundingClientRect().top - 60)
+    else el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   return (
