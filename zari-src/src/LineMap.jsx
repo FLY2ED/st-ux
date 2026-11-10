@@ -10,6 +10,8 @@ maplibregl.setWorkerUrl(workerUrl)
 
 // 선으로만 그린 실제 지도 (OpenFreeMap 벡터 타일, 글자 없음)
 const W = 'rgba(255,255,255,'
+// 가게·카페·유동인구·시설 표시는 흰 선(길·건물)과 섞이지 않게 검은색 계열로
+const INK = '#05081c'
 const STYLE = {
   version: 8,
   sources: { omt: { type: 'vector', url: 'https://tiles.openfreemap.org/planet' } },
@@ -60,8 +62,8 @@ function glyph(kind) {
   const k = 2, px = kind === 'station' ? 16 : kind === 'bus' ? 8 : 11, n = px * k, c = document.createElement('canvas')
   c.width = c.height = n
   const x = c.getContext('2d')
-  x.fillStyle = '#fff'
-  if (kind === 'station') { x.fillRect(0, 0, n, n); x.fillStyle = '#0b1ed6'; x.fillRect(3 * k, 3 * k, n - 6 * k, n - 6 * k); x.fillStyle = '#fff'; x.fillRect(6 * k, 6 * k, n - 12 * k, n - 12 * k) }
+  x.fillStyle = INK
+  if (kind === 'station') { x.fillRect(0, 0, n, n); x.fillStyle = '#0b22f5'; x.fillRect(3 * k, 3 * k, n - 6 * k, n - 6 * k); x.fillStyle = INK; x.fillRect(6 * k, 6 * k, n - 12 * k, n - 12 * k) }
   if (kind === 'bus') { x.fillRect(0, 0, n, n); x.clearRect(2 * k, 2 * k, n - 4 * k, n - 4 * k) }
   if (kind === 'school') for (let r = 0; r < px; r++) { const w = Math.round((r + 1) / px * px / 2); x.fillRect((px / 2 - w) * k, r * k, w * 2 * k, k) }
   if (kind === 'hospital') { x.fillRect(4 * k, 0, 3 * k, n); x.fillRect(0, 4 * k, n, 3 * k) }
@@ -106,7 +108,7 @@ function square(px, fill, frame) {
   c.width = c.height = n
   const x = c.getContext('2d')
   if (frame) {
-    x.fillStyle = '#fff'
+    x.fillStyle = fill
     x.fillRect(0, 0, n, n)
     x.clearRect(2 * k, 2 * k, n - 4 * k, n - 4 * k)
     x.fillRect(4 * k, 4 * k, n - 8 * k, n - 8 * k)
@@ -188,9 +190,9 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     window.__map = map
     map.on('load', () => {
       const add = (id, { image, pixelRatio }) => map.addImage(id, image, { pixelRatio })
-      add('sq', square(6, 'rgba(255,255,255,.55)'))
-      add('cafe', square(11, '#fff'))
-      add('hi', square(19, '#fff', true))
+      add('sq', square(6, 'rgba(5,8,28,.6)'))
+      add('cafe', square(11, INK))
+      add('hi', square(19, INK, true))
       PLACE_KINDS.forEach(([k]) => add('p-' + k, glyph(k)))
       map.addSource('walk', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'walk', type: 'line', source: 'walk', layout: { visibility: 'none' }, paint: { 'line-color': '#fff', 'line-width': 2, 'line-dasharray': [1, 1.5] } })
@@ -208,7 +210,7 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
         type: 'Feature', geometry: { type: 'Point', coordinates: ll(s.x, s.y) }, properties: { i, d: s.dist },
       }))
       map.addSource('flow', { type: 'geojson', data: { type: 'FeatureCollection', features: flowCells() } })
-      map.addLayer({ id: 'flow', type: 'fill', source: 'flow', layout: { visibility: 'none' }, paint: { 'fill-color': '#fff', 'fill-opacity': ['*', ['get', 'v'], .75] } })
+      map.addLayer({ id: 'flow', type: 'fill', source: 'flow', layout: { visibility: 'none' }, paint: { 'fill-color': INK, 'fill-opacity': ['*', ['get', 'v'], .8] } })
       map.addSource('shops', { type: 'geojson', data: { type: 'FeatureCollection', features: shops } })
       map.addSource('cafes', { type: 'geojson', data: { type: 'FeatureCollection', features: cafes } })
       map.addLayer({ id: 'shops', type: 'symbol', source: 'shops', layout: { 'icon-image': 'sq', 'icon-allow-overlap': true } })
@@ -296,13 +298,13 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     if (layer === 'flow') map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomFor(radius), padding: { top: mapPadTop() }, duration: 700 })
   }, [layer])
 
-  // 유동인구 재생: 시간(또는 달)에 따라 칸마다 밝기가 바뀐다
+  // 유동인구 재생: 시간(또는 달)에 따라 칸마다 진하기가 바뀐다
   useEffect(() => {
     const map = mapRef.current
     if (!map?.getLayer('flow')) return
     const P = PROF[fm], a = at(P.road, ft), b = at(P.gate, ft)
     const f = ['+', ['*', a, ['-', 1, ['get', 'm']]], ['*', b, ['get', 'm']]]
-    map.setPaintProperty('flow', 'fill-opacity', ['*', ['get', 'v'], f, f, .95])
+    map.setPaintProperty('flow', 'fill-opacity', ['min', .9, ['*', ['get', 'v'], f, f, 1.5]])
   }, [ft, fm, layer])
   useEffect(() => {
     if (layer !== 'flow' || !play) return
