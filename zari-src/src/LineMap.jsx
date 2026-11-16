@@ -18,14 +18,14 @@ const STYLE = {
   layers: [
     { id: 'bg', type: 'background', paint: { 'background-color': 'rgba(0,0,0,0)' } },
     { id: 'park', type: 'fill', source: 'omt', 'source-layer': 'park', paint: { 'fill-color': W + '.05)' } },
-    { id: 'water', type: 'fill', source: 'omt', 'source-layer': 'water', paint: { 'fill-color': '#0716b8' } },
+    { id: 'water', type: 'fill', source: 'omt', 'source-layer': 'water', paint: { 'fill-color': '#465166' } },
     { id: 'water-edge', type: 'line', source: 'omt', 'source-layer': 'water', paint: { 'line-color': W + '.35)', 'line-width': .8 } },
     { id: 'building', type: 'line', source: 'omt', 'source-layer': 'building', minzoom: 14,
       paint: { 'line-color': W + '.22)', 'line-width': .6 } },
     // 3D 건물: 높이에 따라 밝아진다
     { id: 'building-3d', type: 'fill-extrusion', source: 'omt', 'source-layer': 'building', minzoom: 14, layout: { visibility: 'none' },
       paint: {
-        'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 6], 0, '#2a3cf0', 40, '#8f9bff', 90, '#ffffff'],
+        'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 6], 0, '#56627a', 40, '#a6b0c2', 90, '#ffffff'],
         'fill-extrusion-height': 0,
         'fill-extrusion-base': 0,
         'fill-extrusion-opacity': .82,
@@ -63,7 +63,7 @@ function glyph(kind) {
   c.width = c.height = n
   const x = c.getContext('2d')
   x.fillStyle = INK
-  if (kind === 'station') { x.fillRect(0, 0, n, n); x.fillStyle = '#0b22f5'; x.fillRect(3 * k, 3 * k, n - 6 * k, n - 6 * k); x.fillStyle = INK; x.fillRect(6 * k, 6 * k, n - 12 * k, n - 12 * k) }
+  if (kind === 'station') { x.fillRect(0, 0, n, n); x.fillStyle = '#6b7689'; x.fillRect(3 * k, 3 * k, n - 6 * k, n - 6 * k); x.fillStyle = INK; x.fillRect(6 * k, 6 * k, n - 12 * k, n - 12 * k) }
   if (kind === 'bus') { x.fillRect(0, 0, n, n); x.clearRect(2 * k, 2 * k, n - 4 * k, n - 4 * k) }
   if (kind === 'school') for (let r = 0; r < px; r++) { const w = Math.round((r + 1) / px * px / 2); x.fillRect((px / 2 - w) * k, r * k, w * 2 * k, k) }
   if (kind === 'hospital') { x.fillRect(4 * k, 0, 3 * k, n); x.fillRect(0, 4 * k, n, 3 * k) }

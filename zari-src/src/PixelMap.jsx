@@ -31,7 +31,7 @@ export default function PixelMap({ grid, clock, camera, tipRef, interactive }) {
       ox = (W - w * s) / 2; oy = (H - h * s) / 2
       const b = base.getContext('2d')
       for (const i of cells) {
-        b.fillStyle = `rgba(255,255,255,${.05 + lv[i] * .3})`
+        b.fillStyle = `rgba(255,255,255,${.02 + lv[i] * .13})`
         b.fillRect(ox + (i % w) * s, oy + Math.floor(i / w) * s, s * .82, s * .82)
       }
     }
@@ -118,7 +118,7 @@ export default function PixelMap({ grid, clock, camera, tipRef, interactive }) {
           const p = clamp((t - 620 - (d / maxd) * 1100) / 500)
           if (p <= 0) continue
           // 번쩍이지 않고 제 밝기로 서서히 나타난다
-          const a = (.05 + lv[i] * .3) * p
+          const a = (.02 + lv[i] * .13) * p
           x.fillStyle = `rgba(255,255,255,${a})`
           x.fillRect(tx, ty, s * .82, s * .82)
         }
