@@ -59,12 +59,12 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .word span{display:inline-block;transition:transform .7s var(--ease),opacity .5s var(--ease);transition-delay:calc(var(--k)*50ms)}
 .report .word span{opacity:0;transform:translate(calc((var(--k) - 1.5)*60px),-50px) rotate(calc((var(--k) - 1.5)*8deg))}
 .qwrap{pointer-events:auto;width:min(620px,100%);position:relative}
-.pill{display:flex;align-items:center;gap:12px;height:60px;border-radius:999px;background:rgba(28,36,54,.38);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);padding:0 8px 0 22px;color:#fff;box-shadow:none;transition:background .6s var(--ease),color .6s var(--ease),box-shadow .6s}
+.pill{display:flex;align-items:center;gap:12px;height:60px;background:rgba(28,36,54,.38);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);padding:0 8px 0 22px;color:#fff;box-shadow:none;transition:background .6s var(--ease),color .6s var(--ease),box-shadow .6s}
 .pill .ic{color:#e6ebff;display:grid;place-items:center;width:24px;height:24px;transform:translate(1px,1px);flex:none}
 .pill .ic svg{width:20px;height:20px}
 .pill input{flex:1;border:0;outline:0;background:none;font:500 18px Pretendard,sans-serif;color:inherit;letter-spacing:-.01em;min-width:0}
 .pill input::placeholder{color:rgba(240,244,255,.72);font-weight:400}
-.pill .go{width:44px;height:44px;border-radius:50%;background:#f3f6ff;color:var(--blue);display:grid;place-items:center;flex:none}
+.pill .go{width:44px;height:44px;background:#f3f6ff;color:var(--blue);display:grid;place-items:center;flex:none}
 .pill .go svg{width:20px;height:20px;transform:translateX(1px)}
 
 /* 추천 목록 (유리) */
