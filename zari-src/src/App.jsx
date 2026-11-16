@@ -78,6 +78,7 @@ export default function App() {
       const IM = imRef.current, HM = markRef.current, letters = [...wordRef.current.children], Q = qRef.current
       if (t <= INTRO.end + 30) {
         done = false
+        document.documentElement.classList.remove('ready')
         order.forEach((k, n) => (rects[k].style.opacity = t > n * (420 / order.length) ? 1 : 0))
         const drop = (1 - back(clamp(t / INTRO.land))) * -40
         const sq = t > 600 && t < 820 ? Math.sin(((t - 600) / 220) * Math.PI) * .1 : 0
@@ -87,6 +88,8 @@ export default function App() {
         const x = sx + (hb.left - sx) * f + (mw * (1 - (1 + sq * .6)) / 2) * (1 - f)
         const y = sy + drop + (hb.top - sy) * f + mh * sq * (1 - f)
         IM.style.transform = `translate(${x}px,${y}px) scale(${sc * (1 + sq * .6)},${sc * (1 - sq)})`
+        // 가운데(짙은 바탕)에선 흰 핀, 왼쪽 위(밝은 바탕)로 갈수록 로고 색으로
+        IM.style.color = `rgb(${255 + (63 - 255) * f},${255 + (71 - 255) * f},${255 + (87 - 255) * f})`
         IM.style.display = t >= INTRO.flyEnd ? 'none' : ''
         HM.style.visibility = t >= INTRO.flyEnd ? 'visible' : 'hidden'
         letters.forEach((el, k) => {
@@ -99,6 +102,7 @@ export default function App() {
         Q.style.translate = `0 ${(1 - p) * 18}px`
       } else if (!done) {
         done = true
+        document.documentElement.classList.add('ready')
         IM.style.display = 'none'
         HM.style.visibility = 'visible'
         letters.forEach(el => { el.style.opacity = ''; el.style.translate = '' })
@@ -202,7 +206,7 @@ export default function App() {
       )}
 
       {saved && phase === 'report' && (
-        <div className="tray glass sq m"><span>COMPARE 3/3</span><b>공릉로 232 · 공릉역 · 하계역</b><em>담아 둔 후보 자리 3곳 · 카페</em>
+        <div className="tray glass m"><span>COMPARE 3/3</span><b>공릉로 232 · 공릉역 · 하계역</b><em>담아 둔 후보 자리 3곳 · 카페</em>
           <span className="tbw">{nav !== 'compare' && <motion.span layoutId="nav-compare" className="navbg w" transition={MORPH} />}
             <button onClick={() => setNav('compare')}>나란히 보기 →</button></span></div>
       )}

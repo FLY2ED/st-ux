@@ -1,4 +1,4 @@
-// 작은 그래프들: 흰 선·흰 네모, 가장 큰 값만 흰색으로 진하게
+// 작은 그래프들: 색은 CSS가 정한다(선·점은 글자색, 가장 큰 값만 진하게)
 
 // 세로 막대
 export function Cols({ data, unit = '%' }) {
@@ -25,7 +25,7 @@ export function Line({ data, fmt = v => v }) {
   return (
     <div className="line">
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-        <polyline points={pts.map(p => p.join(',')).join(' ')} fill="none" stroke="#fff" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+        <polyline points={pts.map(p => p.join(',')).join(' ')} fill="none" stroke="currentColor" strokeWidth="1.25" vectorEffect="non-scaling-stroke" />
       </svg>
       {pts.map(([x, y], i) => (
         <b key={i} style={{ '--d': i / (pts.length - 1), left: (x / W) * 100 + '%', top: (y / H) * 100 + '%' }} className={i === pts.length - 1 ? 'last' : ''}>
@@ -47,15 +47,15 @@ export function Radar({ data, avg = 50 }) {
   const poly = vs => vs.map((v, k) => at(k, v).join(',')).join(' ')
   return (
     <svg className="radar" viewBox="0 0 180 180">
-      {[25, 50, 75, 100].map(r => <polygon key={r} points={poly(data.map(() => r))} fill="none" stroke="rgba(255,255,255,.18)" />)}
-      {data.map((_, k) => { const [x, y] = at(k, 100); return <line key={k} x1={C} y1={C} x2={x} y2={y} stroke="rgba(255,255,255,.18)" /> })}
-      <polygon points={poly(data.map(() => avg))} fill="none" stroke="rgba(255,255,255,.6)" strokeDasharray="3 3" />
-      <polygon className="me" points={poly(data.map(d => d[1]))} fill="rgba(255,255,255,.22)" stroke="#fff" strokeWidth="1.5" />
+      {[25, 50, 75, 100].map(r => <polygon key={r} className="g" points={poly(data.map(() => r))} />)}
+      {data.map((_, k) => { const [x, y] = at(k, 100); return <line key={k} className="g" x1={C} y1={C} x2={x} y2={y} /> })}
+      <polygon className="avg" points={poly(data.map(() => avg))} />
+      <polygon className="me" points={poly(data.map(d => d[1]))} />
       {data.map(([l, v], k) => {
         const [x, y] = at(k, v), [lx, ly] = at(k, 128)
         return (
           <g key={l}>
-            <rect x={x - 3} y={y - 3} width="6" height="6" fill="#fff" />
+            <rect className="pt" x={x - 2.5} y={y - 2.5} width="5" height="5" />
             <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle">{l}<tspan className="v" x={lx} dy="12">{v}</tspan></text>
           </g>
         )

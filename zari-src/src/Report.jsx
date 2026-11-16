@@ -33,7 +33,7 @@ export const TABS = [['sum', '요약'], ['comp', '경쟁'], ['sales', '매출'],
 
 function Sec({ id, k, title, sub, children, i = 0, demo, className = '' }) {
   return (
-    <section id={id} className={'sec sq ' + className} style={{ '--i': i }}>
+    <section id={id} className={'sec ' + className} style={{ '--i': i }}>
       <header>
         <span className="k m">{k}{demo && <span className="eg">예시</span>}</span>
         <h2>{title}</h2>{sub && <p>{sub}</p>}
@@ -132,7 +132,7 @@ export default function Report({ report, radius, setRadius, active, setActive, p
 
   return (
     <div className="report">
-      <section className="sec head sq" style={{ '--i': 0 }}>
+      <section className="sec head" style={{ '--i': 0 }}>
         <span className="k m">REPORT · CAFE · {radius}M</span>
         <h1>{Q.address}</h1>
         <p className="where">{Q.near} · {Q.dong} · {Q.what}</p>
