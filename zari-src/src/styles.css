@@ -216,7 +216,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .grade p{font-size:13px;color:var(--soft);margin-top:4px;line-height:1.5}
 
 .radarw{display:grid;place-items:center}
-.radar{width:min(100%,300px);overflow:visible}
+.radar{width:min(100%,380px);overflow:visible}
 .radar text{fill:var(--soft);font-size:9px;font-family:Pretendard,sans-serif}
 .radar .v{fill:#fff;font-family:Michroma,sans-serif;font-size:8px}
 .radar .me{animation:fadein .9s 1.2s both}
@@ -404,16 +404,6 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .pctl .rg{position:relative;height:8px;background:linear-gradient(90deg,rgba(255,255,255,.12),rgba(255,255,255,.5))}
 .pctl .rg i{position:absolute;top:-4px;width:4px;height:16px;background:#fff;margin-left:-2px;transition:left .3s var(--ease)}
 .pctl b{font-size:10px;text-align:right}
-.check{list-style:none;margin:0;padding:0;display:grid;gap:1px;background:rgba(255,255,255,.14)}
-.check button{display:flex;gap:12px;width:100%;text-align:left;padding:12px 12px;background:var(--panel);color:#fff;align-items:flex-start}
-.check button:hover{background:#303848}
-.check i{flex:none;width:16px;height:16px;margin-top:2px;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.7);display:grid;place-items:center}
-.check .on i{background:#fff}
-.check .on i::after{content:'';width:7px;height:4px;border-left:2px solid var(--panel);border-bottom:2px solid var(--panel);transform:rotate(-45deg) translate(1px,-1px)}
-.check span{display:grid;gap:3px}
-.check b{font-size:14px;font-weight:600}
-.check small{font-size:12px;color:var(--soft);line-height:1.5}
-.check .on b{text-decoration:line-through;text-decoration-color:rgba(255,255,255,.5)}
 @media (max-width:759px){
   .shopcard{right:10px;left:auto;top:156px;width:220px;padding:11px 12px 9px}.shopcard .nm{font-size:15px}
   .player{left:10px;right:10px;bottom:10px;width:auto;padding:8px 10px 7px}.pl-bars{height:18px;margin-top:7px}.pl-x{display:none}.pp{width:30px;height:30px}
@@ -665,14 +655,6 @@ html:not(.ready) .word span,html:not(.ready) .qwrap{opacity:0;transition:none}
 .col .fit li>b{font-size:12px;color:var(--ink-3)}
 .col .fit small{font-size:12px;color:var(--ink-2)}
 .col .fit em{font-size:13px;font-weight:600}
-.col .check{background:none;gap:0}
-.col .check li+li{border-top:1px solid var(--hair)}
-.col .check button{background:none;color:var(--ink);padding:12px 8px;margin:0 -8px;width:calc(100% + 16px)}
-.col .check button:hover{background:var(--hover)}
-.col .check i{border-radius:4px;box-shadow:inset 0 0 0 1.5px var(--ink-3)}
-.col .check .on i{background:var(--ink);box-shadow:none}
-.col .check small{color:var(--ink-2)}
-.col .check .on b{text-decoration-color:var(--ink-3);color:var(--ink-2)}
 .col .src{font-size:11px;letter-spacing:0;color:var(--ink-2);line-height:1.7;margin-top:8px;padding-top:24px;border-top:1px solid var(--hair)}
 
 /* 지도: 가장자리를 밝은 안개로 흐려 홈 하늘색과 잇는다 */
@@ -730,3 +712,6 @@ html:not(.ready) .word span,html:not(.ready) .qwrap{opacity:0;transition:none}
 .walk .iso-n{border-top-color:var(--hair);color:var(--ink-2)}
 .walk .iso-n span{color:var(--ink-2)}
 .walk .iso-n b{color:var(--ink);font-weight:600}
+
+/* 둥근 알약 없이 네모로: 브랜드 칩 · 예시 꼬리표 */
+.col .chips span,.col .eg,.shopcard .eg{border-radius:0}

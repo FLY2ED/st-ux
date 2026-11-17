@@ -29,7 +29,7 @@ function useStats(report, radius) {
   }, [report, radius])
 }
 
-export const TABS = [['sum', '요약'], ['comp', '경쟁'], ['sales', '매출'], ['flow', '유동인구'], ['people', '배후'], ['place', '시설'], ['change', '개폐업'], ['cost', '비용'], ['sim', '계산'], ['fit', '추천'], ['check', '체크']]
+export const TABS = [['sum', '요약'], ['comp', '경쟁'], ['sales', '매출'], ['flow', '유동인구'], ['people', '주민'], ['place', '시설'], ['change', '개폐업'], ['cost', '비용'], ['sim', '계산'], ['fit', '추천']]
 
 function Sec({ id, k, title, sub, children, i = 0, demo, className = '' }) {
   return (
@@ -57,7 +57,7 @@ export default function Report({ report, radius, setRadius, active, setActive, p
   // 경쟁 강도: 서울 상권(가게 30곳 넘는 200m 칸) 가운데 카페 수·비중 순위를 평균
   const crowd = (100 - C.topPct + (100 - C.sharePct)) / 2
   const level = crowd >= 70 ? 2 : crowd >= 40 ? 1 : 0
-  const LV = [['여유', '카페가 적은 편'], ['보통', '카페 수는 중간보다 적고, 비중은 높음'], ['과밀', '카페가 많고 비중도 높음']]
+  const LV = [['적음', '카페가 적은 편'], ['보통', '카페 수는 중간보다 적고, 비중은 높음'], ['많음', '카페가 많고 비중도 높음']]
   const list = more ? S.near : S.near.slice(0, 8)
   const D = DEMO
 
@@ -196,7 +196,7 @@ export default function Report({ report, radius, setRadius, active, setActive, p
         {S.near.length > 8 && <button className="more m" onClick={() => setMore(!more)}>{more ? 'LESS' : `MORE +${S.near.length - 8}`}</button>}
         <div className="brand">
           <Split a="프랜차이즈" b="개인 카페" v={Math.round((S.fr / Math.max(S.near.length, 1)) * 100)} />
-          <div className="chips">{S.brand.map(([b, n]) => <span key={b}>{b} <b className="m">{n}</b></span>)}</div>
+          <div className="chips">{S.brand.map(([b, n]) => <span key={b}>{b}{n > 1 && <b className="m">{n}</b>}</span>)}</div>
         </div>
       </Sec>
 
@@ -219,7 +219,7 @@ export default function Report({ report, radius, setRadius, active, setActive, p
       <Sec id="sales" i={6} k="06 · SALES" title="카페 추정 매출" sub="이 상권 카페 1곳 평균 · 분기마다 갱신" demo>
         <div className="kpis">
           <div><span className="m">MONTH</span><b className="m">{fmt(D.sales.month)}</b><small>만 원 · 서울 {fmt(D.sales.seoul)}</small></div>
-          <div><span className="m">TICKET</span><b className="m">{fmt(D.sales.ticket)}</b><small>객단가 원</small></div>
+          <div><span className="m">TICKET</span><b className="m">{fmt(D.sales.ticket)}</b><small>손님 1명이 쓰는 돈(원)</small></div>
           <div><span className="m">DELIVERY</span><b className="m">{D.sales.delivery}%</b><small>배달 매출</small></div>
         </div>
         <h3>분기별 월평균</h3>
@@ -250,15 +250,15 @@ export default function Report({ report, radius, setRadius, active, setActive, p
         <Split a="여성" b="남성" v={D.flow.female} />
       </Sec>
 
-      <Sec id="people" i={8} k="08 · RESIDENTS" title="배후 인구" sub="걸어서 10분 안" demo>
+      <Sec id="people" i={8} k="08 · RESIDENTS" title="주변에 사는·일하는 사람" sub="걸어서 10분 안" demo>
         <div className="kpis">
-          <div><span className="m">LIVE</span><b className="m">{fmt(D.people.live)}</b><small>상주 인구</small></div>
-          <div><span className="m">WORK</span><b className="m">{fmt(D.people.work)}</b><small>직장 인구</small></div>
-          <div><span className="m">STUDENT</span><b className="m">{fmt(D.people.student)}</b><small>서울과기대</small></div>
+          <div><span className="m">LIVE</span><b className="m">{fmt(D.people.live)}</b><small>사는 사람</small></div>
+          <div><span className="m">WORK</span><b className="m">{fmt(D.people.work)}</b><small>일하는 사람</small></div>
+          <div><span className="m">STUDENT</span><b className="m">{fmt(D.people.student)}</b><small>서울과기대 학생</small></div>
         </div>
         <p className="fine">{fmt(D.people.house)}세대 · 원룸·오피스텔 비중 높음</p>
         <div className="kpis two">
-          <div><span className="m">INCOME</span><b className="m">{D.people.income}만</b><small>월평균 소득 · 서울 {D.people.incomeSeoul}만 · {D.people.tier}분위</small></div>
+          <div><span className="m">INCOME</span><b className="m">{D.people.income}만</b><small>월평균 소득 · 서울 {D.people.incomeSeoul}만</small></div>
           <div><span className="m">CAFE SPEND</span><b className="m">{D.people.cafeSpend}만</b><small>1명 한 달 카페 지출</small></div>
         </div>
         <h3>생활비 중 카페 지출 비중</h3>
@@ -303,7 +303,7 @@ export default function Report({ report, radius, setRadius, active, setActive, p
           ))}
         </div>
         <p className="fine">평균 영업 {D.change.life}년 · 서울 {D.change.lifeSeoul}년 · 세로선은 서울</p>
-        <h3>지금 영업 중인 카페의 업력</h3>
+        <h3>지금 영업 중인 카페가 문 연 지</h3>
         <Rows data={D.change.ages} unit="%" />
         <p className="fine">1년 미만이 23% · 새 가게가 자주 들어오는 상권이에요.</p>
       </Sec>
@@ -312,7 +312,7 @@ export default function Report({ report, radius, setRadius, active, setActive, p
         <div className="kpis">
           <div><span className="m">RENT</span><b className="m">{D.cost.rent}만</b><small>㎡당 월 · 노원 {D.cost.rentGu}</small></div>
           <div><span className="m">DEPOSIT</span><b className="m">{fmt(D.cost.deposit)}</b><small>보증금 만 원</small></div>
-          <div><span className="m">PREMIUM</span><b className="m">{fmt(D.cost.premium)}</b><small>권리금 만 원</small></div>
+          <div><span className="m">PREMIUM</span><b className="m">{fmt(D.cost.premium)}</b><small>권리금 · 앞 가게에 주는 돈(만 원)</small></div>
         </div>
         <p className="fine">{D.cost.size}㎡(10평) 기준 월 임대료 약 {won(Math.round(D.cost.rent * D.cost.size))} 원</p>
         <h3>㎡당 월 임대료 · 반기별</h3>
@@ -342,8 +342,6 @@ export default function Report({ report, radius, setRadius, active, setActive, p
           ))}
         </ol>
       </Sec>
-
-      <Check />
 
       <p className="src m">SOURCE · {report.source}<br />예시 표시 칸은 기획 시연용 숫자 · 서울 열린데이터 상권분석 연결 예정</p>
     </div>
@@ -376,7 +374,7 @@ function Sim({ i }) {
     <Sec id="sim" i={i} k="12 · SIMULATOR" title="매출 · 손익 계산" sub="값을 바꾸면 바로 다시 계산해요" demo>
       <div className="sim">
         <label><span>면적</span><input type="range" min="6" max="30" value={size} onChange={e => setSize(+e.target.value)} /><b className="m">{size}평</b></label>
-        <label><span>객단가</span><input type="range" min="3000" max="15000" step="100" value={ticket} onChange={e => setTicket(+e.target.value)} /><b className="m">{fmt(ticket)}</b></label>
+        <label><span>1명이 쓰는 돈</span><input type="range" min="3000" max="15000" step="100" value={ticket} onChange={e => setTicket(+e.target.value)} /><b className="m">{fmt(ticket)}</b></label>
         <label><span>하루 손님</span><input type="range" min="30" max="300" value={guests} onChange={e => setGuests(+e.target.value)} /><b className="m">{guests}명</b></label>
       </div>
       <div className="kpis two">
@@ -445,24 +443,4 @@ function cdf(z) {
 
 function Bar({ v }) {
   return <span className="bar"><i style={{ left: v * 100 + '%' }} /><u /></span>
-}
-
-// 계약 전 체크리스트: 고른 것은 이 브라우저에 남는다
-function Check() {
-  const [on, setOn] = useState(() => { try { return JSON.parse(localStorage.getItem('zari-check') || '[]') } catch { return [] } })
-  const flip = n => {
-    const next = on.includes(n) ? on.filter(x => x !== n) : [...on, n]
-    setOn(next); try { localStorage.setItem('zari-check', JSON.stringify(next)) } catch { /* 저장이 막힌 브라우저 */ }
-  }
-  return (
-    <Sec id="check" i={16} k="16 · CHECKLIST" title="계약 전에 확인할 것" sub={`데이터로는 알 수 없는 것 · ${on.length}/${DEMO.check.length} 확인`}>
-      <ul className="check">
-        {DEMO.check.map(([n, t]) => (
-          <li key={n} className={on.includes(n) ? 'on' : ''}>
-            <button onClick={() => flip(n)} aria-pressed={on.includes(n)}><i /><span><b>{n}</b><small>{t}</small></span></button>
-          </li>
-        ))}
-      </ul>
-    </Sec>
-  )
 }

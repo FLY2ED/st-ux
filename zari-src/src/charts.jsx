@@ -46,7 +46,7 @@ export function Radar({ data, avg = 50 }) {
   }
   const poly = vs => vs.map((v, k) => at(k, v).join(',')).join(' ')
   return (
-    <svg className="radar" viewBox="0 0 180 180">
+    <svg className="radar" viewBox="-28 0 236 180">
       {[25, 50, 75, 100].map(r => <polygon key={r} className="g" points={poly(data.map(() => r))} />)}
       {data.map((_, k) => { const [x, y] = at(k, 100); return <line key={k} className="g" x1={C} y1={C} x2={x} y2={y} /> })}
       <polygon className="avg" points={poly(data.map(() => avg))} />
