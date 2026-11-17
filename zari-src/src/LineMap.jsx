@@ -131,8 +131,12 @@ function setH(map, k) {
   const f = Math.min(1, k * k)
   map.setPaintProperty('building-3d', 'fill-extrusion-opacity', .82 * f * f * (3 - 2 * f))
   // 지도 3D 건물(같은 자리)보다 조금 높게 세워야 가려지지 않는다
-  if (map.getLayer('ob-hi')) map.setPaintProperty('ob-hi', 'fill-extrusion-height', ['max', .4, ['*', ['+', ['max', ['coalesce', ['feature-state', 'oh'], 0], ['coalesce', ['get', 'h'], 10]], 1.5], k]])
+  const hx = ['max', .4, ['*', ['+', ['max', ['coalesce', ['feature-state', 'oh'], 0], ['coalesce', ['get', 'h'], 10]], 1.5], k]]
+  for (const id of ['ob-hi', 'ob-col']) if (map.getLayer(id)) map.setPaintProperty(id, 'fill-extrusion-height', hx)
 }
+// 건물 색 · 한 번에 보기: 내 자리 · 카페 · 공실 후보 · 다른 가게
+const BC = { tgt: '#3b6fe0', cafe: '#1b2340', empty: '#f08a3c', shop: '#9aa3b2' }
+export const BC_KEYS = [['tgt', '내 자리'], ['cafe', '카페 있는 건물'], ['empty', '공실 후보'], ['shop', '다른 가게 건물']]
 const eo = v => 1 - Math.pow(1 - v, 3)
 function rise(map, to, dur, delay = 0) {
   const from = kOf.get(map) ?? 0, t0 = performance.now() + delay
@@ -210,6 +214,12 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       // Overture 건물: 평소엔 안 보이고, 카페에 올리거나 건물을 누르면 그 건물만 파랗게 세운다
       map.addSource('ob', { type: 'geojson', promoteId: 'i', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'ob', type: 'fill', source: 'ob', paint: { 'fill-color': '#fff', 'fill-opacity': .001 } })
+      map.addLayer({ id: 'ob-col', type: 'fill-extrusion', source: 'ob', layout: { visibility: 'none' },
+        filter: ['any', ['==', ['get', 'tgt'], 1], ['>', ['coalesce', ['get', 'n'], 0], 0], ['==', ['get', 'empty'], 1]],
+        paint: { 'fill-extrusion-opacity': .92, 'fill-extrusion-height': .4,
+          'fill-extrusion-color': ['case', ['==', ['get', 'tgt'], 1], BC.tgt, ['>', ['coalesce', ['get', 'cafe'], 0], 0], BC.cafe, ['==', ['get', 'empty'], 1], BC.empty, BC.shop] } })
+      map.addLayer({ id: 'ob-empty', type: 'line', source: 'ob', layout: { visibility: 'none' }, filter: ['==', ['get', 'empty'], 1],
+        paint: { 'line-color': BC.empty, 'line-width': 2.5, 'line-dasharray': [2, 1.5] } })
       map.addLayer({ id: 'ob-hi', type: 'fill-extrusion', source: 'ob', filter: ['in', ['get', 'i'], ['literal', []]],
         paint: { 'fill-extrusion-color': '#3b6fe0', 'fill-extrusion-opacity': .9, 'fill-extrusion-height': .4 } })
       map.addLayer({ id: 'ob-line', type: 'line', source: 'ob', filter: ['in', ['get', 'i'], ['literal', []]], paint: { 'line-color': '#3b6fe0', 'line-width': 5 } })
@@ -294,6 +304,8 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     vis('walk', layer === 'place')
     vis('iso', layer === 'place'); vis('iso-fill', layer === 'place')
     vis('radius', layer !== 'place'); vis('radius-fill', layer !== 'place')
+    vis('ob-col', layer === 'bcol'); vis('ob-empty', layer === 'bcol')
+    if (layer === 'bcol') heightsAll(map)
     if (layer === 'flow') { setFt(fm === 'h' ? 7 : 0); setPlay(true) }
     if (layer === 'place') {
       // 지금 불러온 타일에서 가장 가까운 지하철역을 찾아 걸어서 몇 분인지 잰다
@@ -395,6 +407,35 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     map.setFilter('ob-line', ['in', ['get', 'i'], ['literal', ids]])
   }, [active, sel, bld])
 
+  // 지도 3D 건물에 가려지지 않게 색칠할 건물마다 같은 자리 지도 건물 높이를 한 번 재 둔다
+  function heightsAll(map) {
+    if (!bld || ohSet.has('all')) return
+    const G = 0.0005, idx = new Map()
+    for (const f of bld.features) {
+      const P = f.properties
+      if (!(P.tgt || P.n > 0 || P.empty) || ohSet.has(P.i)) continue
+      const r = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates[0][0]
+      const c = r.reduce((a, q) => [a[0] + q[0] / r.length, a[1] + q[1] / r.length], [0, 0])
+      const k = Math.floor(c[0] / G) + ',' + Math.floor(c[1] / G)
+      if (!idx.has(k)) idx.set(k, [])
+      idx.get(k).push({ i: P.i, c, h: 0 })
+    }
+    for (const o of map.querySourceFeatures('omt', { sourceLayer: 'building' })) {
+      const g = o.geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []
+      const h = o.properties.render_height || 0
+      if (!h) continue
+      for (const P of polys) {
+        let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9
+        for (const [x, y] of P[0]) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y) }
+        for (let a = Math.floor(x0 / G); a <= Math.floor(x1 / G); a++) for (let b = Math.floor(y0 / G); b <= Math.floor(y1 / G); b++)
+          for (const e of idx.get(a + ',' + b) || []) if (h > e.h && inside(e.c, P[0])) e.h = h
+      }
+    }
+    for (const L of idx.values()) for (const e of L) if (e.h) { map.setFeatureState({ source: 'ob', id: e.i }, { oh: e.h }); ohSet.add(e.i) }
+    ohSet.add('all')
+  }
+  useEffect(() => { const map = mapRef.current; if (layer === 'bcol' && map && bld) map.once('idle', () => heightsAll(map)) }, [bld])
+
   const inIso = (r, cafe) => report.shops.filter(([x, y, c]) => Math.hypot(x, y) <= r && (!cafe || c === Q.cat)).length
 
   return (
@@ -402,7 +443,7 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       <div ref={box} className="linemap" />
       <div ref={tipRef} className="tip glass maptip" />
       <div className="layers glass" role="group" aria-label="지도에 보이는 것">
-        {[['shops', '가게'], ['flow', '유동인구 · 예시'], ['place', '주변 시설']].map(([k, t]) => <button key={k} className={layer === k ? 'on' : ''} onClick={() => setLayer(k)}>{t}</button>)}
+        {[['shops', '가게'], ['flow', '유동인구 · 예시'], ['place', '주변 시설'], ['bcol', '건물 색']].map(([k, t]) => <button key={k} className={layer === k ? 'on' : ''} onClick={() => setLayer(k)}>{t}</button>)}
         <span className="seg" role="group" aria-label="2D 3D 보기">
           <i className={d3 ? 'r' : ''} />
           <button className={'m' + (d3 ? '' : ' on')} onClick={() => setD3(false)} aria-pressed={!d3}>2D</button>
@@ -413,6 +454,9 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       <div className={'legendmap places glass' + (layer === 'place' ? ' on' : '')}>
         {PLACE_KINDS.map(([k, t]) => <span key={k}><i className={'pk-' + k} />{t}</span>)}
         <span><i className="pk-iso" />걸어서 5·10분</span>
+      </div>
+      <div className={'legendmap places bcol glass' + (layer === 'bcol' ? ' on' : '')}>
+        {BC_KEYS.map(([k, t]) => <span key={k}><i className={'bc-' + k} />{t}</span>)}
       </div>
       {layer === 'place' && walk && (
         <div className="walk glass"><span className="m">NEAREST STATION</span><b>{walk.name}</b><em>직선 {fmtM(walk.d)} · 걸어서 약 <strong className="m">{walk.min}분</strong></em>

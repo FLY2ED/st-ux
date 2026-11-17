@@ -777,3 +777,63 @@ html:not(.ready) .word span,html:not(.ready) .qwrap{opacity:0;transition:none}
 /* 지도 화면은 깔끔하게: 위 메뉴·로고와 가장자리 회색 안개를 빼고 지도만 */
 .report .top nav,.report .top .mark{visibility:hidden!important;pointer-events:none!important}
 .mapwrap::after{display:none}
+
+/* 건물 색 · 한 번에 보기 범례 */
+.legendmap.bcol i{width:10px;height:10px}
+.legendmap.bcol .bc-tgt{background:#3b6fe0}
+.legendmap.bcol .bc-cafe{background:#1b2340;box-shadow:inset 0 0 0 1px rgba(255,255,255,.5)}
+.legendmap.bcol .bc-empty{background:rgba(240,138,60,.35);outline:1.5px dashed #f08a3c;outline-offset:-1.5px}
+.legendmap.bcol .bc-shop{background:#9aa3b2}
+@media (max-width:759px){.legendmap.bcol{display:flex;left:auto;right:10px;bottom:auto;top:150px;flex-wrap:wrap;max-width:200px;gap:6px 10px}.legendmap.bcol:not(.on){display:none}}
+
+/* 자세히 · 넓은 화면: 지도까지 덮고 칸(타일)으로 늘어놓는다. 첫 칸만 짙게 */
+.sheeton .col{z-index:60}
+.col .sheet{position:fixed;inset:0;z-index:5;background:#e9ebef;display:flex;flex-direction:column;animation:sheetin .45s var(--ease) both}
+@keyframes sheetin{from{opacity:0;transform:translateY(14px)}}
+.col .sheet-h{display:grid;grid-template-columns:auto 1fr;gap:4px 18px;align-items:center;padding:16px 28px 0;background:#fff;box-shadow:0 1px 0 var(--hair)}
+.col .sheet-h .back{font-size:13px;font-weight:600;padding:9px 14px;box-shadow:inset 0 0 0 1px var(--hair);color:var(--ink)}
+.col .sheet-h .back:hover{background:var(--ink);color:#fff}
+.col .sheet-h .ttl{display:flex;align-items:baseline;gap:12px;min-width:0}
+.col .sheet-h .ttl b{font-size:20px;font-weight:700;letter-spacing:-.02em}
+.col .sheet-h .ttl small{font-size:13px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.col .sheet-h nav{grid-column:1/-1;display:flex;gap:22px;overflow-x:auto;scrollbar-width:none;margin-top:8px}
+.col .sheet-h nav button{padding:12px 0 11px;font-size:13px;font-weight:500;color:var(--ink-2);white-space:nowrap;box-shadow:inset 0 -2px 0 transparent}
+.col .sheet-h nav button:hover{color:var(--ink)}
+.col .sheet-h nav button.on{color:var(--ink);font-weight:600;box-shadow:inset 0 -2px 0 var(--ink)}
+.col .sheet-b{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:20px 28px 60px}
+.col .sheet-g{columns:3 340px;column-gap:14px}
+.col .sheet-g>.sec{display:inline-block;width:100%;break-inside:avoid;background:#fff;padding:22px 22px 24px;margin:0 0 14px;border-top:0}
+.col .sheet-g>.sec.wide{column-span:all;display:block}
+.col .sheet-g>.sec>header{margin-bottom:16px}
+.col .sheet-g>.sec:first-child{--bg:#262c38;--ink:#fff;--ink-2:#a3a9b5;--ink-3:#7d8596;--hair:#3e4555;--track:rgba(255,255,255,.12);--fill:rgba(255,255,255,.45);--mark:rgba(255,255,255,.2);--hover:rgba(255,255,255,.06);background:#262c38;color:#fff}
+.col .sheet-g>.sec:first-child .kpis b{font-size:34px}
+.col .sheet-g .kpis b{font-size:30px}
+@media (max-width:759px){
+  .col .sheet-h{padding:12px 16px 0;gap:4px 12px}
+  .col .sheet-h .ttl small{display:none}
+  .col .sheet-b{padding:12px 12px 48px}
+  .col .sheet-g>.sec{padding:18px 16px 20px;margin-bottom:10px}
+}
+
+/* 문장으로 고르기: 나는 [어디]에 [무슨 가게]를 차릴 거예요 */
+.pill .sent{flex:1;min-width:0;font:500 18px/1.2 Pretendard,sans-serif;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(240,244,255,.86)}
+.pill .chip{display:inline-block;font:inherit;font-weight:700;padding:5px 9px 5px 10px;margin:0 2px;vertical-align:baseline;background:#fff;color:#2b4ea8;transition:background .2s,color .2s}
+.pill .chip+.chip,.pill .chip:nth-of-type(2){background:#ffd66b;color:#1f2633}
+.pill .chip::after{content:"";display:inline-block;width:0;height:0;margin-left:7px;vertical-align:middle;border:4px solid transparent;border-top:5px solid currentColor;border-bottom:0;opacity:.6}
+.pill .chip:hover,.pill .chip.on{box-shadow:inset 0 -3px 0 rgba(31,38,51,.35)}
+.suggest.pick{padding:6px}
+.suggest.pick>.k{display:block;padding:8px 14px 6px}
+.suggest.pick button{grid-template-columns:1fr auto}
+.suggest.pick button:disabled{opacity:.5;cursor:default;background:none}
+.suggest.pick button em{font-style:normal;font-size:11px;color:var(--soft)}
+.suggest.pick.what{left:auto;width:min(320px,100%)}
+.report .pill .sent{font-size:16px;color:inherit}
+@media (min-width:760px){
+  .report .pill .sent{color:#4a5263}
+  .report .pill .chip:not(:nth-of-type(2)){background:#1f2633;color:#fff}
+}
+@media (max-width:759px){
+  .pill .sent{font-size:15px;padding-left:8px}.pill .w0,.pill .ic{display:none}
+  .pill .chip{padding:4px 7px}
+  .report .pill .sent{font-size:14px}
+}

@@ -35,12 +35,13 @@ const NAV = {
   ] },
 }
 
-const SUGGEST = [
-  ['WHAT', '카페', '서울 22,726곳'],
-  ['WHERE', '서울 노원구 공릉로 232', '서울과기대 정문 · 도로명'],
-  ['WHERE', '공릉동', '노원구 · 행정동'],
-  ['WHERE', '공릉역 7호선', '노원구 동일로 1074'],
-]
+// 문장으로 고르기: 나는 [어디]에 [무슨 가게]를 차릴 거예요. 지금 리포트가 있는 건 공릉로 232 × 카페 하나
+const PICK = {
+  where: [['공릉로 232', '서울과기대 정문 · 노원구', true], ['공릉역 2번 출구', '7호선 · 노원구', false], ['하계역 1번 출구', '7호선 · 노원구', false]],
+  what: [['카페', '서울 22,726곳', true], ['베이커리', '빵 · 디저트', false], ['음식점', '한식 · 분식 · 양식', false], ['편의점', '프랜차이즈', false]],
+}
+// 받침이 있으면 '을', 없으면 '를'
+const eul = w => ((w.charCodeAt(w.length - 1) - 0xac00) % 28 ? '을' : '를')
 
 export default function App() {
   const clock = useMemo(makeClock, [])
@@ -50,8 +51,9 @@ export default function App() {
   const [mapOn, setMapOn] = useState(phase === 'report')
   const [nav, setNav] = useState(params.get('nav'))
   const [mob, setMob] = useState(isMob())
-  const [q, setQ] = useState('공릉로 232 카페')
-  const [open, setOpen] = useState(false)
+  const [where, setWhere] = useState('공릉로 232')
+  const [what, setWhat] = useState('카페')
+  const [open, setOpen] = useState(null)
   const radius = 300 // 걸어서 5분 안으로 고정
   const [active, setActive] = useState(null)
   const [focus, setFocus] = useState(null)
@@ -117,8 +119,7 @@ export default function App() {
 
   const go = () => {
     if (!report) return
-    if (!q.trim()) setQ('공릉로 232 카페')
-    setOpen(false)
+    setOpen(null)
     setActive(null)
     setPhase('report')
     // 픽셀 지도 확대가 2/3쯤 왔을 때 선 지도가 받는다
@@ -133,12 +134,20 @@ export default function App() {
   useEffect(() => {
     const key = e => {
       if (e.key !== 'Escape') return
-      if (nav) setNav(null)
+      if (open) setOpen(null)
+      else if (nav) setNav(null)
       else if (phase === 'report') home()
     }
     addEventListener('keydown', key)
     return () => removeEventListener('keydown', key)
-  }, [nav, phase])
+  }, [nav, phase, open])
+  // 고르는 창 밖을 누르면 닫는다
+  useEffect(() => {
+    if (!open) return
+    const down = e => { if (!qRef.current?.contains(e.target)) setOpen(null) }
+    addEventListener('pointerdown', down)
+    return () => removeEventListener('pointerdown', down)
+  }, [open])
 
   const camera = useMemo(() => ({
     z: phase === 'report' ? 1 : 0,
@@ -180,18 +189,24 @@ export default function App() {
           <motion.form layout transition={{ duration: .9, ease: [.65, 0, .35, 1] }} className="pill"
             onSubmit={e => { e.preventDefault(); go() }}>
             <span className="ic"><SearchIcon /></span>
-            <input value={q} placeholder="공릉로 232 카페" autoComplete="off" aria-label="업종과 자리"
-              onChange={e => setQ(e.target.value)} onFocus={() => phase === 'home' && setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)} />
+            <p className="sent" aria-label={`나는 ${where}에 ${what}${eul(what)} 차릴 거예요`}>
+              <span className="w0">나는 </span>
+              <button type="button" className={'chip' + (open === 'where' ? ' on' : '')} onClick={() => setOpen(open === 'where' ? null : 'where')} aria-haspopup="listbox" aria-expanded={open === 'where'}>{where}</button>에{' '}
+              <button type="button" className={'chip' + (open === 'what' ? ' on' : '')} onClick={() => setOpen(open === 'what' ? null : 'what')} aria-haspopup="listbox" aria-expanded={open === 'what'}>{what}</button>{eul(what)}{' '}
+              <span className="w1">차릴 거예요</span>
+            </p>
             <button className="go" aria-label="리포트 보기"><ArrowIcon /></button>
           </motion.form>
-          {open && phase === 'home' && (
-            <div className="suggest glass">
-              {SUGGEST.map(([k, t, s], n) => (
-                <button key={n} className={n === 1 ? 'on' : ''} onMouseDown={() => { setQ(k === 'WHAT' ? '카페' : t.replace('서울 노원구 ', '') + ' 카페'); if (k === 'WHERE') setTimeout(go, 0) }}>
-                  <span className="k m">{k}</span><span>{t}<small>{s}</small></span>
+          {open && (
+            <div className={'suggest pick glass ' + open} role="listbox" aria-label={open === 'where' ? '어디에' : '무슨 가게'}>
+              <span className="k m">{open === 'where' ? 'WHERE · 어디에' : 'WHAT · 무슨 가게'}</span>
+              {PICK[open].map(([t, s, ok]) => (
+                <button key={t} role="option" aria-selected={(open === 'where' ? where : what) === t} disabled={!ok}
+                  className={(open === 'where' ? where : what) === t ? 'on' : ''}
+                  onClick={() => { (open === 'where' ? setWhere : setWhat)(t); setOpen(open === 'where' ? 'what' : null) }}>
+                  <span>{t}<small>{s}</small></span>{!ok && <em className="m">준비 중</em>}
                 </button>
               ))}
-              <button className="act" onMouseDown={() => setTimeout(go, 0)}><span>리포트 보기 · 공릉로 232 × 카페</span><span className="m">↵</span></button>
             </div>
           )}
         </div>

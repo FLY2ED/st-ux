@@ -29,14 +29,24 @@ function useStats(report, radius) {
   }, [report, radius])
 }
 
-// 자세히: 한 번에 하나만 펼친다
+// 자세히: 누르면 지도까지 덮는 넓은 화면에 칸(타일)으로 펼친다. 위 줄에서 다른 자세히로 바로 넘어간다
+const FOLDS = [['comp', '경쟁'], ['sales', '매출'], ['flow', '유동인구 · 시설'], ['people', '사는·일하는 사람'], ['change', '개업 · 폐업'], ['cost', '임대료 · 손익'], ['good', '좋은 점 · 조심할 점'], ['fit', '맞는 업종']]
 function Fold({ id, t, d, children, open, setOpen }) {
   return (
     <div id={'more-' + id} className={'fold' + (open === id ? ' open' : '')}>
       <button className="fold-h" aria-expanded={open === id} onClick={() => setOpen(open === id ? null : id)}>
         <span>{t}</span><small>{d}</small><i aria-hidden="true">›</i>
       </button>
-      {open === id && <div className="fold-b">{children}</div>}
+      {open === id && (
+        <div className="sheet" role="dialog" aria-label={t}>
+          <div className="sheet-h">
+            <button className="back" onClick={() => setOpen(null)}>← 지도로</button>
+            <div className="ttl"><b>{t}</b><small>{d}</small></div>
+            <nav aria-label="자세히 고르기">{FOLDS.map(([k, n]) => <button key={k} className={k === id ? 'on' : ''} onClick={() => setOpen(k)}>{n}</button>)}</nav>
+          </div>
+          <div className="sheet-b"><div className="sheet-g">{children}</div></div>
+        </div>
+      )}
     </div>
   )
 }
@@ -89,7 +99,7 @@ export default function Report({ report, radius, active, setActive, pick, saved,
       col.scrollTop = cur
     }
     const wheel = e => {
-      if (e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
+      if (e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.target.closest('.sheet')) return
       e.preventDefault()
       const k = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? col.clientHeight : 1
       if (!raf) cur = col.scrollTop // 스크롤바를 끌었거나 다른 데서 움직였으면 거기서 시작
@@ -124,7 +134,11 @@ export default function Report({ report, radius, active, setActive, pick, saved,
     if (!open) return
     const row = document.getElementById('more-' + open)
     row?.querySelectorAll('.sec').forEach(s => countUp(s, 250))
-    row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    document.documentElement.classList.add('sheeton')
+    // Esc는 리포트를 닫기 전에 넓은 화면부터 닫는다
+    const key = e => { if (e.key === 'Escape') { e.stopImmediatePropagation(); setOpen(null) } }
+    addEventListener('keydown', key, true)
+    return () => { removeEventListener('keydown', key, true); document.documentElement.classList.remove('sheeton') }
   }, [open])
   const fp = { open, setOpen }
 
@@ -239,16 +253,18 @@ export default function Report({ report, radius, active, setActive, pick, saved,
           <div><span className="m">TICKET</span><b className="m">{fmt(D.sales.ticket)}</b><small>손님 1명이 쓰는 돈(원)</small></div>
           <div><span className="m">DELIVERY</span><b className="m">{D.sales.delivery}%</b><small>배달 매출</small></div>
         </div>
-        <h3>분기별 월평균</h3>
-        <Line data={D.sales.quarters} fmt={won} />
-        <h3>월별 · 성수기와 비수기</h3>
+      </Sec>
+      <Sec className={F} k="QUARTER" title="분기별 월평균" demo><Line data={D.sales.quarters} fmt={won} /></Sec>
+      <Sec className={F} k="MONTH" title="월별 · 성수기와 비수기" demo>
         <Cols data={D.sales.months} unit="" />
         <p className="fine">연평균 100 기준 · 방학(1·2·7·8월)이 비수기</p>
-        <h3>요일별</h3>
+      </Sec>
+      <Sec className={F} k="WEEK · HOUR" title="요일 · 시간대" demo>
         <Cols data={D.sales.week} />
         <h3>시간대별</h3>
         <Cols data={D.sales.hours} />
-        <h3>손님 연령</h3>
+      </Sec>
+      <Sec className={F} k="GUEST" title="손님 연령 · 성별" demo>
         <Rows data={D.sales.age} unit="%" me="20대" />
         <Split a="여성" b="남성" v={D.sales.female} />
       </Sec>
@@ -260,11 +276,13 @@ export default function Report({ report, radius, active, setActive, pick, saved,
           <div><span className="m">PER DAY</span><b className="m">{fmt(D.flow.day)}</b><small>명 · 서울 상권 평균 {fmt(D.flow.seoul)}</small></div>
           <div><span className="m">PEAK</span><b className="m">17–21</b><small>퇴근·하교 시간</small></div>
         </div>
-        <h3>시간대별</h3>
+      </Sec>
+      <Sec className={F} k="HOUR · WEEK" title="시간대 · 요일" demo>
         <Cols data={D.flow.hours} />
         <h3>요일별</h3>
         <Cols data={D.flow.week} />
-        <h3>연령</h3>
+      </Sec>
+      <Sec className={F} k="AGE" title="지나가는 사람 연령" demo>
         <Rows data={D.flow.age} unit="%" me="20대" />
         <Split a="여성" b="남성" v={D.flow.female} />
       </Sec>
@@ -276,6 +294,8 @@ export default function Report({ report, radius, active, setActive, pick, saved,
             <div key={n}><span>{n}</span><b className="m">{m}분</b><i style={{ width: Math.min(100, (m / 25) * 100) + '%' }} /><small>{t}</small></div>
           ))}
         </div>
+      </Sec>
+      <Sec className={F} k="HOMES" title="버스 · 아파트" demo>
         <div className="kpis">
           <div><span className="m">BUS</span><b className="m">{D.place.bus}</b><small>정류장 · 노선 {D.place.busLines}개</small></div>
           <div><span className="m">APT</span><b className="m">{fmt(D.place.apt.house)}</b><small>아파트 {D.place.apt.complex}단지 세대</small></div>
@@ -283,7 +303,8 @@ export default function Report({ report, radius, active, setActive, pick, saved,
         </div>
         <h3>아파트 면적별 세대</h3>
         <Rows data={D.place.apt.sizes} unit="%" />
-        <h3>학교 · 생활 시설</h3>
+      </Sec>
+      <Sec className={F} k="AROUND" title="학교 · 생활 시설" demo>
         <div className="places-grid">
           {[...D.place.schools, ...D.place.etc].map(([n, v]) => <div key={n}><b className="m">{v}</b><small>{n}</small></div>)}
         </div>
@@ -299,6 +320,8 @@ export default function Report({ report, radius, active, setActive, pick, saved,
           <div><span className="m">STUDENT</span><b className="m">{fmt(D.people.student)}</b><small>서울과기대 학생</small></div>
         </div>
         <p className="fine">{fmt(D.people.house)}세대 · 원룸·오피스텔 비중 높음</p>
+      </Sec>
+      <Sec className={F} k="SPEND" title="소득 · 카페 지출" demo>
         <div className="kpis two">
           <div><span className="m">INCOME</span><b className="m">{D.people.income}만</b><small>월평균 소득 · 서울 {D.people.incomeSeoul}만</small></div>
           <div><span className="m">CAFE SPEND</span><b className="m">{D.people.cafeSpend}만</b><small>1명 한 달 카페 지출</small></div>
@@ -319,14 +342,16 @@ export default function Report({ report, radius, active, setActive, pick, saved,
             <div key={y}><span>{y}</span><i className="o" style={{ width: o * 7 + 'px' }} /><b className="m">+{o}</b><i className="c" style={{ width: c * 7 + 'px' }} /><b className="m">−{c}</b></div>
           ))}
         </div>
-        <h3>살아남은 비율 (이 상권 · 서울)</h3>
+      </Sec>
+      <Sec className={F} k="SURVIVAL" title="살아남은 비율" sub="이 상권 · 서울" demo>
         <div className="surv">
           {D.change.survive.map(([y, a, b]) => (
             <div key={y}><span>{y}</span><span className="rg2"><i style={{ width: a + '%' }} /><u style={{ left: b + '%' }} /></span><b className="m">{a}%</b></div>
           ))}
         </div>
         <p className="fine">평균 영업 {D.change.life}년 · 서울 {D.change.lifeSeoul}년 · 세로선은 서울</p>
-        <h3>지금 영업 중인 카페가 문 연 지</h3>
+      </Sec>
+      <Sec className={F} k="AGE" title="지금 카페가 문 연 지" demo>
         <Rows data={D.change.ages} unit="%" />
         <p className="fine">1년 미만이 23% · 새 가게가 자주 들어오는 상권이에요.</p>
       </Sec>
@@ -340,7 +365,8 @@ export default function Report({ report, radius, active, setActive, pick, saved,
           <div><span className="m">PREMIUM</span><b className="m">{fmt(D.cost.premium)}</b><small>권리금 · 앞 가게에 주는 돈(만 원)</small></div>
         </div>
         <p className="fine">{D.cost.size}㎡(10평) 기준 월 임대료 약 {won(Math.round(D.cost.rent * D.cost.size))} 원</p>
-        <h3>㎡당 월 임대료 · 반기별</h3>
+      </Sec>
+      <Sec className={F} k="TREND" title="㎡당 월 임대료 · 반기별" demo>
         <Line data={D.cost.trend} fmt={v => v + '만'} />
         <h3>다른 곳과 비교</h3>
         <Rows data={[['이 상권', D.cost.rent], ['노원구', D.cost.rentGu], ['서울', D.cost.rentSeoul]]} unit="만" me="이 상권" wide />
@@ -349,7 +375,7 @@ export default function Report({ report, radius, active, setActive, pick, saved,
         <Sim className={F} />
       </Fold>
       <Fold {...fp} id="good" t="좋은 점 · 조심할 점" d="한 줄씩">
-        <section className={"sec " + F}>
+        <section className={"sec wide " + F}>
         <div className="insight">
           <div><span className="m">GOOD<em className="eg">예시</em></span><ul>{D.insight.good.map(t => <li key={t}>{t}</li>)}</ul></div>
           <div className="w"><span className="m">WATCH<em className="eg">예시</em></span><ul>{D.insight.warn.map(t => <li key={t}>{t}</li>)}</ul></div>
