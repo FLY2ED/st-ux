@@ -191,6 +191,18 @@ export default function App() {
     cy: () => (isMob() ? (100 + innerHeight * .44) / 2 : innerHeight / 2),
   }), [phase])
 
+  // PC 리포트: 지도 위에서 굴려도 왼쪽 글이 내려간다(페이지 전체가 한 번에 스크롤되는 느낌, 원은 고정)
+  useEffect(() => {
+    if (phase !== 'report') return
+    const on = e => {
+      if (isMob() || !e.target.closest?.('.mapwrap') || e.ctrlKey || document.documentElement.classList.contains('sheeton')) return
+      const col = document.querySelector('.col'); if (!col) return
+      e.preventDefault(); e.stopPropagation(); col.scrollBy({ top: e.deltaY })
+    }
+    addEventListener('wheel', on, { capture: true, passive: false })
+    return () => removeEventListener('wheel', on, { capture: true })
+  }, [phase])
+
   const logo = () => {
     if (phase === 'report') home()
     else clock.replay()
@@ -249,6 +261,7 @@ export default function App() {
 
       {report && (
         <aside className="col" aria-hidden={phase !== 'report'}>
+          <a className="brand m" onClick={logo} title="처음으로">ZARI</a>
           {phase === 'report' && (
             <Report report={report} radius={radius} active={active} setActive={setActive}
               pick={i => { setFocus(i); setActive(i) }} saved={saved} onSave={() => setSaved(!saved)} />

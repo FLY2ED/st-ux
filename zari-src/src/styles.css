@@ -957,3 +957,25 @@ html:not(.ready) .word span,html:not(.ready) .qwrap{opacity:0;transition:none}
 .col{box-shadow:none}
 
 @media (max-width:759px){.solo .report .qwrap{background:#fff}}
+/* 홈 배경: 안개 낀 산과 한강 */
+body{background:url(/bg.webp) center/cover no-repeat fixed #8a8f97}
+/* 메인 검색줄: 바탕·돋보기 없이 문장 길이에 딱 맞게, 칩 높이 = → 높이 */
+.home .qwrap{width:fit-content;max-width:100%;margin-inline:auto}
+.home .pill .ic{display:none}
+.pill{gap:14px;padding:0}
+.pill .sent{flex:0 1 auto}
+.pill .chip{height:44px;display:inline-flex!important;align-items:center;padding:0 12px 0 14px;vertical-align:middle}
+.report .pill .chip{height:38px}
+.report .pill{gap:10px;padding:0 8px}
+/* 지도 화면에는 문장 검색줄 없이, 왼쪽 위 ZARI 글자로 처음 화면 */
+.report .qwrap{display:none}
+.col .brand{display:block;font-size:12px;letter-spacing:.14em;color:#6b7385;padding:26px 28px 0;cursor:pointer;width:max-content}
+.col .brand:hover{color:#16181d}
+/* 스크롤은 화면 전체(오른쪽 끝 스크롤바), 원 지도는 고정 */
+@media (min-width:760px){
+  .app.report .col{top:0;width:100%;background:transparent;pointer-events:none;scrollbar-color:#c5c9d0 transparent}
+  .app.report .col>*{pointer-events:auto}
+  .app.report .col>.report,.app.report .col>.brand{width:var(--col)}
+}
+@media (max-width:759px){.app.report .col{top:44vh}.col .brand{padding:16px 18px 0}}
+@media (max-width:759px){.report .layers{top:14px}}

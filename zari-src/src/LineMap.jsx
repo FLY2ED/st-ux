@@ -14,7 +14,8 @@ const W = 'rgba(255,255,255,'
 const INK = '#05081c'
 const STYLE = {
   version: 8,
-  sources: { omt: { type: 'vector', url: 'https://tiles.openfreemap.org/planet' } },
+  sources: { omt: { type: 'vector', url: 'https://tiles.openfreemap.org/planet' },
+    sat: { type: 'raster', tileSize: 256, maxzoom: 19, tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], attribution: 'Esri World Imagery' } },
   layers: [
     { id: 'bg', type: 'background', paint: { 'background-color': 'rgba(0,0,0,0)' } },
     { id: 'park', type: 'fill', source: 'omt', 'source-layer': 'park', paint: { 'fill-color': W + '.05)' } },
@@ -216,6 +217,9 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       map.addSource('iso', { type: 'geojson', data: { type: 'FeatureCollection', features: ISO.map(([min, r]) => ({ type: 'Feature', properties: { min }, geometry: { type: 'Polygon', coordinates: [ring(Q.lon, Q.lat, r, kx, ky)] } })) } })
       map.addLayer({ id: 'iso-fill', type: 'fill', source: 'iso', layout: { visibility: 'none' }, paint: { 'fill-color': '#fff', 'fill-opacity': ['case', ['==', ['get', 'min'], 5], .08, .04] } })
       map.addLayer({ id: 'iso', type: 'line', source: 'iso', layout: { visibility: 'none' }, paint: { 'line-color': '#fff', 'line-width': ['case', ['==', ['get', 'min'], 5], 1.6, 1], 'line-opacity': .8 } })
+      // 반경만 보기: 원 안에 흑백 위성
+      map.addLayer({ id: 'sat', type: 'raster', source: 'sat', layout: { visibility: 'none' },
+        paint: { 'raster-saturation': -1, 'raster-brightness-max': .75, 'raster-contrast': .1 } })
       map.addSource('radius', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'radius-fill', type: 'fill', source: 'radius', paint: { 'fill-color': W + '.06)' } })
       map.addLayer({ id: 'radius', type: 'line', source: 'radius', paint: { 'line-color': '#fff', 'line-width': 1.6, 'line-dasharray': [2, 2] } })
@@ -268,15 +272,23 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     el.className = 'mpin'
     createRoot(el).render(<Pin size={30} />)
     new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([Q.lon, Q.lat]).addTo(map)
-    const move = () => place(map)
+    const move = () => { place(map); clip(map) }
     map.on('move', move)
     return () => map.remove()
   }, [])
 
+  // 반경만 보기: 지도 그림을 화면 위 원 모양으로 잘라 원 밖에는 아무것도 안 그린다(세운 건물 포함)
+  function clip(map) {
+    const c = map.getCanvas()
+    if (!map.__solo) { c.style.clipPath = ''; return }
+    const pts = ring(Q.lon, Q.lat, map.__r ?? 300, kx, ky).map(q => { const p = map.project(q); return `${p.x.toFixed(1)}px ${p.y.toFixed(1)}px` })
+    c.style.clipPath = `polygon(${pts.join(',')})`
+  }
   function setRadius(map, r) {
     const src = map.getSource('radius')
     if (!src) return
     src.setData({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring(Q.lon, Q.lat, r, kx, ky)] } })
+    map.__r = r; clip(map)
     map.setPaintProperty('shops', 'icon-opacity', ['case', ['<=', ['get', 'd'], r], 1, .35])
     map.setPaintProperty('cafes', 'icon-opacity', ['case', ['<=', ['get', 'd'], r], 1, .45])
   }
@@ -319,8 +331,10 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     document.documentElement.classList.toggle('solo', solo)
     for (const l of STYLE.layers) if (l.id !== 'bg' && l.id !== 'building-3d') vis(l.id, !solo)
     setH(map, kOf.get(map) ?? 0)
-    map.setPaintProperty('radius-fill', 'fill-color', solo ? '#16181d' : W + '.06)')
-    map.setPaintProperty('radius', 'line-color', solo ? '#16181d' : '#fff')
+    vis('sat', solo); clip(map)
+    map.setPaintProperty('radius-fill', 'fill-color', solo ? 'rgba(14,16,20,.35)' : W + '.06)')
+    map.setPaintProperty('radius', 'line-color', solo ? 'rgba(255,255,255,.7)' : '#fff')
+    map.setPaintProperty('radius', 'line-dasharray', solo ? [1, 0] : [2, 2])
     map.setPaintProperty('cafes', 'icon-opacity', solo ? 0 : ['case', ['<=', ['get', 'd'], radius], 1, .45])
     if (layer === 'bcol') heightsAll(map)
     if (layer === 'flow') { setFt(fm === 'h' ? 7 : 0); setPlay(true) }
