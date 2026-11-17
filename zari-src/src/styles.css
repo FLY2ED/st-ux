@@ -897,3 +897,17 @@ html:not(.ready) .word span,html:not(.ready) .qwrap{opacity:0;transition:none}
 .circles .lukey{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11px;color:var(--soft);margin:0}
 .circles .lukey i{display:inline-block;width:9px;height:9px;margin-right:5px;vertical-align:-1px}
 @media (max-width:759px){.circles{gap:8px}.circles .lu div{grid-template-columns:1fr;gap:2px}.circles .lu em{text-align:left}}
+/* 핀이 날아가는 동안 지도 핀은 숨긴다 */
+.pinfly .mpin{visibility:hidden}
+/* 자세히 줄: 위 카드처럼 줄 자체를 그 색 블록으로 */
+.col .folds{border-top:0;display:grid;gap:6px}
+.col .fold{border-bottom:0}
+.col .fold-h,.col .fold-h:hover{grid-template-columns:auto 1fr 14px;padding:15px 16px;margin:0;width:100%;background:color-mix(in srgb,var(--c) 9%,#fff);box-shadow:inset 4px 0 0 var(--c)}
+.col .fold-h:hover{background:color-mix(in srgb,var(--c) 16%,#fff)}
+.col .fold-h .dot{display:none}
+.col .fold-h span{color:color-mix(in srgb,var(--c) 75%,#1f2633);font-weight:600}
+.col .fold-h small{color:color-mix(in srgb,var(--c) 45%,#6b7385)}
+.col .fold-h i{color:var(--c)}
+.col .fold:first-child .fold-h{background:var(--c);box-shadow:none}
+.col .fold:first-child .fold-h span,.col .fold:first-child .fold-h i{color:#fff}
+.col .fold:first-child .fold-h small{color:rgba(255,255,255,.7)}

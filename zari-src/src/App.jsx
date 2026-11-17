@@ -117,15 +117,50 @@ export default function App() {
     return () => cancelAnimationFrame(raf)
   }, [])
 
+  // 로고 핀 ↔ 지도 핀: 같은 픽셀 핀이 왼쪽 위 로고 자리와 지도 위 내 자리 사이를 날아간다
+  const flyRef = useRef(0)
+  const pinAt = () => {
+    const m = document.querySelector('.mapon .mpin svg')
+    if (m) { const r = m.getBoundingClientRect(); if (r.width) return r }
+    const h = markRef.current.getBoundingClientRect(), x = camera.cx(), y = camera.cy()
+    return { left: x - h.width / 2, top: y - h.height, height: h.height }
+  }
+  const fly = (from, to, c0, c1, dur, end) => {
+    const IM = imRef.current
+    const id = ++flyRef.current, t0 = performance.now()
+    IM.querySelectorAll('rect').forEach(r => (r.style.opacity = 1))
+    IM.style.display = ''
+    document.documentElement.classList.add('pinfly')
+    const step = () => {
+      if (id !== flyRef.current) return
+      const f = ioc(clamp((performance.now() - t0) / dur)), a = from(), b = to()
+      const x = a.left + (b.left - a.left) * f, y = a.top + (b.top - a.top) * f
+      const sc = (a.height + (b.height - a.height) * f) / PIN.length / (mob ? 16 : 22)
+      IM.style.transform = `translate(${x}px,${y}px) scale(${sc})`
+      IM.style.color = `rgb(${c0.map((v, k) => Math.round(v + (c1[k] - v) * f)).join(',')})`
+      if (f < 1) return requestAnimationFrame(step)
+      IM.style.display = 'none'
+      document.documentElement.classList.remove('pinfly')
+      end?.()
+    }
+    step()
+  }
   const go = () => {
     if (!report) return
     setOpen(null)
     setActive(null)
+    const h0 = markRef.current.getBoundingClientRect()
+    if (h0.width) fly(() => h0, pinAt, [63, 71, 87], [255, 255, 255], 1500)
     setPhase('report')
     // 픽셀 지도 확대가 2/3쯤 왔을 때 선 지도가 받는다
     setTimeout(() => setMapOn(true), 900)
   }
   const home = () => {
+    const p0 = document.querySelector('.mapon .mpin svg')?.getBoundingClientRect()
+    if (p0?.width) {
+      markRef.current.style.visibility = 'hidden'
+      fly(() => p0, () => markRef.current.getBoundingClientRect(), [255, 255, 255], [63, 71, 87], 900, () => (markRef.current.style.visibility = 'visible'))
+    }
     setNav(null)
     setMapOn(false)
     setPhase('home')
