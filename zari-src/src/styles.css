@@ -715,3 +715,65 @@ html:not(.ready) .word span,html:not(.ready) .qwrap{opacity:0;transition:none}
 
 /* 둥근 알약 없이 네모로: 브랜드 칩 · 예시 꼬리표 */
 .col .chips span,.col .eg,.shopcard .eg{border-radius:0}
+
+/* ───────── E안: 문장 + 큰 숫자 띠. 매출 띠만 짙게, 경쟁·비용은 옅은 회색 ───────── */
+.col .report{--pad:28px}
+.col .head .say{font-size:19px;line-height:1.42;font-weight:500;color:#9aa1ad;letter-spacing:-.015em;margin-top:14px}
+.col .head .say b{color:var(--ink);font-weight:600}
+.col .head .gr{display:inline-flex;align-items:center;gap:6px;margin-left:8px;vertical-align:2px;font-size:13px;font-weight:700;color:#fff;background:#262c38;padding:3px 8px}
+.col .head .gr .eg{color:#a3a9b5;box-shadow:inset 0 0 0 1px #5b6374;padding:0 5px;font-size:10px}
+.col .head .row{margin-top:14px;margin-left:-8px}
+.col .sec.band{margin:0 calc(var(--pad) * -1);padding:22px var(--pad) 24px;border-top:0}
+.col .band+.band{margin-top:2px}
+.col .band.dark{background:#262c38;color:#fff}
+.col .band.g2{background:#eef0f2}
+.col .band.g3{background:#e3e6ea}
+.col .band .k{display:flex;align-items:center;gap:6px}
+.col .band .say{font-size:20px;line-height:1.4;font-weight:500;color:#8f97a5;letter-spacing:-.015em;margin-top:8px}
+.col .band .say b{color:var(--ink);font-weight:600}
+.col .band .n{font-size:44px;font-weight:600;letter-spacing:-.02em;margin-top:10px;line-height:1.1}
+.col .band .n small{font-size:17px;font-weight:500;margin-left:3px;color:var(--ink-2)}
+.col .band .tag{display:inline-block;margin-top:8px;font-size:12px;padding:5px 10px;box-shadow:inset 0 0 0 1px #b9bec8;color:#4a5263}
+.col .band.dark .k,.col .band.dark .n small,.col .band.dark .lab{color:#a3a9b5}
+.col .band.dark .say{color:#8a92a3}
+.col .band.dark .say b{color:#fff}
+.col .band.dark .tag{box-shadow:inset 0 0 0 1px #5b6374;color:#d4d8df}
+.col .band.dark .eg{color:#a3a9b5;box-shadow:inset 0 0 0 1px #5b6374}
+.col .mbars{display:flex;align-items:flex-end;gap:6px;height:100px;margin-top:18px}
+.col .mbars i{flex:1;background:#fff;transform-origin:50% 100%;animation:up .9s 1.2s var(--ease) both}
+.col .mbars i.v{background:#4a5263}
+.col .band .lab{display:flex;justify-content:space-between;font-size:11px;padding-top:6px}
+.col .cmp{margin-top:12px}
+.col .cmp div{display:grid;grid-template-columns:52px 1fr 44px;align-items:center;gap:10px;font-size:12.5px;margin-top:8px;color:var(--ink-2)}
+.col .cmp u{display:block;height:10px;background:#fff}
+.col .cmp u i{display:block;height:10px;background:var(--ink)}
+.col .cmp .s u i{background:#b9bec8}
+.col .cmp em{font-style:normal;text-align:right}
+.col .band .sub{background:#fff;margin:18px -12px 0;padding:12px 12px 6px}
+.col .band .sub .t{font-size:13px;font-weight:600;padding:0 4px 6px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.col .band .sub .t small{font-size:11px;font-weight:500;color:var(--ink-3)}
+.col .band .sub .nr{display:flex;justify-content:space-between;gap:10px;width:100%;padding:9px 4px;font-size:13px;color:var(--ink);text-align:left;box-shadow:0 -1px 0 var(--hair)}
+.col .band .sub .nr small{color:var(--ink-2);white-space:nowrap}
+.col .band .sub .nr:hover,.col .band .sub .nr.on{background:rgba(59,111,224,.08);box-shadow:inset 3px 0 0 #3b6fe0}
+.col .band .sub .all{width:100%;padding:10px 4px 6px;font-size:12px;font-weight:600;color:var(--ink-2);text-align:left;box-shadow:0 -1px 0 var(--hair)}
+.col .band .sub .all:hover{color:var(--ink)}
+/* 자세히: 한 줄씩, 누르면 그 자리에서 펼침 */
+.col .folds{margin-top:18px;border-top:1px solid var(--hair)}
+.col .fold{border-bottom:1px solid var(--hair)}
+.col .fold-h{display:grid;grid-template-columns:auto 1fr 14px;align-items:baseline;gap:10px;width:100%;padding:14px 0;text-align:left;font-size:14px;font-weight:500;color:var(--ink)}
+.col .fold-h small{font-size:12.5px;color:var(--ink-3);text-align:right;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.col .fold-h i{font-style:normal;color:var(--ink-3);transition:transform .25s var(--ease);justify-self:end}
+.col .fold.open .fold-h i{transform:rotate(90deg);color:var(--ink)}
+.col .fold-h:hover small,.col .fold-h:hover i{color:var(--ink-2)}
+.col .fold-b>.sec:first-child{border-top:0;padding-top:8px}
+.col .fold-b>.sec{padding:24px 0 28px}
+.col .fold-b>.sec>.insight{margin-top:0}
+@media (max-width:759px){
+  .col .report{--pad:18px}
+  .col .band .n{font-size:40px}
+  .col .band .say,.col .head .say{font-size:18px}
+}
+
+/* 지도 화면은 깔끔하게: 위 메뉴·로고와 가장자리 회색 안개를 빼고 지도만 */
+.report .top nav,.report .top .mark{visibility:hidden!important;pointer-events:none!important}
+.mapwrap::after{display:none}

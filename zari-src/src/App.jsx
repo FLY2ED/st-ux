@@ -16,18 +16,19 @@ const isMob = () => innerWidth < 760
 const NAV = {
   how: { k: 'HOW IT WORKS', t: '네 단계로 자리를 골라요', body: [
     ['01', '업종과 자리 입력', '“공릉로 232 카페”처럼 쓰면 서울 픽셀 지도가 그 자리로 확대되고, 선으로 그린 실제 지도로 바뀌어요.'],
-    ['02', '지도에서 주변 보기', '반경 300m·500m 안 카페는 큰 네모, 다른 가게는 작은 네모예요. 네모를 누르면 그 가게 업종·층·거리가 떠요. 유동인구를 켜면 시간대·월별로 사람이 몰리는 곳이 영상처럼 바뀌고, 주변 시설을 켜면 역·버스·학교·병원과 걸어서 5·10분 범위가 보여요. 3D를 누르면 건물이 세워져요.'],
-    ['03', '리포트 10개 탭 읽기', '요약 · 경쟁 · 매출 · 유동인구 · 주민 · 시설 · 개폐업 · 비용 · 계산 · 추천. 좋은 점·조심할 점을 먼저 짚고, 계산 탭에서 창업 비용과 되찾는 기간까지 셈해요. 공유로 링크를 복사해요.'],
+    ['02', '지도에서 주변 보기', '걸어서 5분(300m) 안 카페는 큰 네모, 다른 가게는 작은 네모예요. 네모를 누르면 그 가게 업종·층·거리가, 건물을 누르면 그 안에 든 가게가 떠요. 유동인구를 켜면 시간대·월별로 사람이 몰리는 곳이 영상처럼 바뀌고, 주변 시설을 켜면 역·버스·학교·병원과 걸어서 5·10분 범위가 보여요. 3D를 누르면 건물이 세워져요.'],
+    ['03', '리포트 읽기', '맨 위에서 매출 · 경쟁 · 비용 세 가지를 문장과 큰 숫자로 먼저 보여 줘요. 나머지(유동인구 · 주민 · 개폐업 · 손익 계산 · 추천)는 자세히를 눌러 펼쳐요. 공유로 링크를 복사해요.'],
     ['04', '후보 담고 비교', '비교함에 3곳까지 담아 매출·임대료·생존율을 나란히 보고, 줄마다 가장 좋은 값을 표시해요.'],
   ] },
   data: { k: 'DATA', t: '쓰는 데이터', body: [
     ['REAL', '소상공인시장진흥공단 상가(상권)정보', '서울 553,374곳 · 2026년 6월 · 가게 수, 업종 구성, 가까운 카페와 층, 프랜차이즈 비율'],
     ['REAL', '서울 200m 상권 4,797곳 비교', '가게 30곳 넘는 칸의 반경 300m와 견줘 경쟁 강도(적음·보통·많음)를 매겨요.'],
     ['REAL', 'OpenFreeMap · OpenStreetMap', '도로·건물·물길 선 지도, 건물 높이(3D), 지하철역·버스정류장·학교·병원 위치'],
+    ['REAL', 'Overture Maps 건물', '가게를 건물에 맞춰 건물마다 든 가게·카페·층을 세요. 카페에 올리거나 건물을 누르면 보여요.'],
     ['SAMPLE', '서울 열린데이터광장 상권분석 · 연결 예정', '추정매출·유동인구·사는·일하는 사람·주변 시설·아파트 세대·상권 변화 (분기 갱신). 지금은 예시 숫자예요.'],
     ['SAMPLE', '가게별 매출·임대료·권리금', '카드사·부동산 등 민간 데이터라 기획 시연용 예시로만 보여 줘요.'],
   ] },
-  about: { k: 'ABOUT', t: 'ZARI', stats: [['553,374', '서울 가게'], ['4,797', '비교 상권'], ['16', '리포트 칸']], body: [
+  about: { k: 'ABOUT', t: 'ZARI', stats: [['553,374', '서울 가게'], ['4,797', '비교 상권'], ['799', '가게를 맞춘 건물']], body: [
     ['WHY', '서울에서 카페·식당 자리 고르기', '창업하려는 사람이 후보 자리 몇 곳을 같은 기준으로 비교하도록 돕는 서비스예요.'],
     ['HOW', '여러 서비스 기능을 한 화면에', '소상공인365, 서울시 상권분석, 오픈업 같은 서비스의 기능을 모으고, 지도와 리포트가 끊기지 않게 이어 붙였어요.'],
     ['NOW', '기획 시연', '예시 자리 1곳(공릉로 232 · 카페). “예시” 표시가 붙은 칸은 시연용 숫자예요.'],
@@ -51,7 +52,7 @@ export default function App() {
   const [mob, setMob] = useState(isMob())
   const [q, setQ] = useState('공릉로 232 카페')
   const [open, setOpen] = useState(false)
-  const [radius, setRadius] = useState(300)
+  const radius = 300 // 걸어서 5분 안으로 고정
   const [active, setActive] = useState(null)
   const [focus, setFocus] = useState(null)
   const [saved, setSaved] = useState(false)
@@ -199,7 +200,7 @@ export default function App() {
       {report && (
         <aside className="col" aria-hidden={phase !== 'report'}>
           {phase === 'report' && (
-            <Report report={report} radius={radius} setRadius={setRadius} active={active} setActive={setActive}
+            <Report report={report} radius={radius} active={active} setActive={setActive}
               pick={i => { setFocus(i); setActive(i) }} saved={saved} onSave={() => setSaved(!saved)} />
           )}
         </aside>
@@ -267,7 +268,7 @@ function Compare({ close }) {
   return (
     <div className="navin">
       <button className="x m" onClick={close} aria-label="닫기">CLOSE ✕</button>
-      <span className="k m">COMPARE · CAFE · 300M<span className="eg">예시</span></span>
+      <span className="k m">COMPARE · CAFE · 걸어서 5분<span className="eg">예시</span></span>
       <h2>후보 자리 3곳 비교</h2>
       <table className="cmpt">
         <thead><tr><th />{P.map((p, k) => <th key={p.name} className={k === 0 ? 'me' : ''}><b>{p.name}</b><small>{p.sub}</small></th>)}</tr></thead>

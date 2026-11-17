@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DEMO, BRANDS, BRAND_NAME } from './demo.js'
 import { Cols, Line, Radar, Split, Rows } from './charts.jsx'
 
@@ -29,7 +29,17 @@ function useStats(report, radius) {
   }, [report, radius])
 }
 
-export const TABS = [['sum', '요약'], ['comp', '경쟁'], ['sales', '매출'], ['flow', '유동인구'], ['people', '주민'], ['place', '시설'], ['change', '개폐업'], ['cost', '비용'], ['sim', '계산'], ['fit', '추천']]
+// 자세히: 한 번에 하나만 펼친다
+function Fold({ id, t, d, children, open, setOpen }) {
+  return (
+    <div id={'more-' + id} className={'fold' + (open === id ? ' open' : '')}>
+      <button className="fold-h" aria-expanded={open === id} onClick={() => setOpen(open === id ? null : id)}>
+        <span>{t}</span><small>{d}</small><i aria-hidden="true">›</i>
+      </button>
+      {open === id && <div className="fold-b">{children}</div>}
+    </div>
+  )
+}
 
 function Sec({ id, k, title, sub, children, i = 0, demo, className = '' }) {
   return (
@@ -43,39 +53,31 @@ function Sec({ id, k, title, sub, children, i = 0, demo, className = '' }) {
   )
 }
 
-export default function Report({ report, radius, setRadius, active, setActive, pick, saved, onSave }) {
+export default function Report({ report, radius, active, setActive, pick, saved, onSave }) {
   const { query: Q, compare: C } = report
   const S = useStats(report, radius)
   const [more, setMore] = useState(false)
   const [alarm, setAlarm] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [open, setOpen] = useState(null)
   const share = async () => {
     try { await navigator.clipboard.writeText(location.href) } catch { /* 복사가 막힌 브라우저 */ }
     setCopied(true); setTimeout(() => setCopied(false), 1800)
   }
-  const [tab, setTab] = useState('sum')
   // 경쟁 강도: 서울 상권(가게 30곳 넘는 200m 칸) 가운데 카페 수·비중 순위를 평균
   const crowd = (100 - C.topPct + (100 - C.sharePct)) / 2
   const level = crowd >= 70 ? 2 : crowd >= 40 ? 1 : 0
   const LV = [['적음', '카페가 적은 편'], ['보통', '카페 수는 중간보다 적고, 비중은 높음'], ['많음', '카페가 많고 비중도 높음']]
   const list = more ? S.near : S.near.slice(0, 8)
   const D = DEMO
-
-  // 스크롤하면 지금 보는 칸의 탭을 켠다
-  useEffect(() => {
-    const col = document.querySelector('.col')
-    if (!col) return
-    const on = () => {
-      let cur = TABS[0][0]
-      for (const [id] of TABS) { const el = document.getElementById(id); if (el && el.getBoundingClientRect().top < col.getBoundingClientRect().top + 90) cur = id }
-      setTab(cur)
-    }
-    col.addEventListener('scroll', on, { passive: true })
-    return () => col.removeEventListener('scroll', on)
-  }, [])
+  const VAC = [0, 1, 6, 7]
+  const vacDrop = Math.round(100 - VAC.reduce((a, k) => a + D.sales.months[k][1], 0) / VAC.length)
+  const mMax = Math.max(...D.sales.months.map(m => m[1]))
+  const P = plan()
+  const shareMax = Math.max(S.share, C.seoulShare) * 1.25
+  const F = 'in late'
 
   // 부드러운 스크롤: 휠 한 번에 바로 튀지 않고 목표 위치까지 미끄러지듯 따라간다 (터치는 기기 그대로)
-  const glide = useRef(null)
   useEffect(() => {
     const col = document.querySelector('.col')
     if (!col || matchMedia('(prefers-reduced-motion: reduce)').matches) return
@@ -86,20 +88,16 @@ export default function Report({ report, radius, setRadius, active, setActive, p
       if (Math.abs(target - cur) < .5) { cur = target; raf = 0 } else raf = requestAnimationFrame(tick)
       col.scrollTop = cur
     }
-    const to = y => {
-      if (!raf) cur = col.scrollTop // 스크롤바를 끌었거나 다른 데서 움직였으면 거기서 시작
-      target = Math.max(0, Math.min(max(), y))
-      if (!raf) raf = requestAnimationFrame(tick)
-    }
     const wheel = e => {
       if (e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
       e.preventDefault()
       const k = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? col.clientHeight : 1
-      to((raf ? target : col.scrollTop) + e.deltaY * k)
+      if (!raf) cur = col.scrollTop // 스크롤바를 끌었거나 다른 데서 움직였으면 거기서 시작
+      target = Math.max(0, Math.min(max(), (raf ? target : col.scrollTop) + e.deltaY * k))
+      if (!raf) raf = requestAnimationFrame(tick)
     }
-    glide.current = to
     col.addEventListener('wheel', wheel, { passive: false })
-    return () => { col.removeEventListener('wheel', wheel); cancelAnimationFrame(raf); glide.current = null }
+    return () => { col.removeEventListener('wheel', wheel); cancelAnimationFrame(raf) }
   }, [])
 
   // 스크롤해서 칸이 화면에 들어오면 그때 올라오고, 안의 그래프도 그때 차오른다
@@ -121,59 +119,72 @@ export default function Report({ report, radius, setRadius, active, setActive, p
     return () => io.disconnect()
   }, [])
 
-  const jump = id => {
-    setTab(id)
-    const el = document.getElementById(id), col = document.querySelector('.col')
-    if (!el) return
-    // 아직 올라오기 전인 칸은 아래로 밀려 있으니 그만큼 빼고 잰다
-    if (glide.current && col) glide.current(col.scrollTop + el.getBoundingClientRect().top - new DOMMatrix(getComputedStyle(el).transform).m42 - col.getBoundingClientRect().top - 60)
-    else el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
+  // 펼친 칸: 숫자를 세어 올리고 그 칸 머리가 보이게 내린다
+  useEffect(() => {
+    if (!open) return
+    const row = document.getElementById('more-' + open)
+    row?.querySelectorAll('.sec').forEach(s => countUp(s, 250))
+    row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [open])
+  const fp = { open, setOpen }
 
   return (
     <div className="report">
       <section className="sec head" style={{ '--i': 0 }}>
-        <span className="k m">REPORT · CAFE · {radius}M</span>
+        <span className="k m">REPORT · 걸어서 5분 안</span>
         <h1>{Q.address}</h1>
         <p className="where">{Q.near} · {Q.dong} · {Q.what}</p>
+        <p className="say"><b>{D.grade.t}</b>예요. {D.grade.s}<span className="gr m">{D.grade.g}<em className="eg">예시</em></span></p>
         <div className="row">
-          <div className="seg m" role="group" aria-label="반경">
-            {[300, 500].map(r => <button key={r} className={r === radius ? 'on' : ''} onClick={() => setRadius(r)}>{r}M</button>)}
-          </div>
           <button className={'act m' + (saved ? ' on' : '')} onClick={onSave}>{saved ? '✓ 비교함' : '+ 비교함'}</button>
           <button className={'act m' + (alarm ? ' on' : '')} onClick={() => setAlarm(!alarm)}>{alarm ? '✓ 매월 알림' : '알림'}</button>
           <button className={'act m' + (copied ? ' on' : '')} onClick={share}>{copied ? '✓ 링크 복사' : '공유'}</button>
           <button className="act m" onClick={() => print()}>저장</button>
         </div>
-        <p className="asof">기준 · 매출 {D.asOf.sales} · 가게 {D.asOf.shops} · 임대료 {D.asOf.rent}</p>
       </section>
 
-      <nav className="tabs" aria-label="리포트 목차">
-        {TABS.map(([id, t]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => jump(id)}>{t}</button>)}
-      </nav>
+      <section className="sec band dark" style={{ '--i': 1 }}>
+        <span className="k m">매출<em className="eg">예시</em></span>
+        <p className="say">카페 1곳이 한 달에 <b>이만큼</b> 팔아요. <b>방학엔 {vacDrop}%쯤 줄어요.</b></p>
+        <div className="n m">{fmt(D.sales.month)}<small>만 원</small></div>
+        <span className="tag">서울 평균 {fmt(D.sales.seoul)}만</span>
+        <div className="mbars">{D.sales.months.map(([m, v], k) => <i key={m} className={VAC.includes(k) ? 'v' : ''} style={{ height: (v / mMax) * 100 + '%' }} title={m + '월 ' + v} />)}</div>
+        <div className="lab"><span>1월</span><span>옅은 막대 = 방학</span><span>12월</span></div>
+      </section>
 
-      <Sec id="sum" i={1} k="01 · SUMMARY" title="한눈에">
-        <div className="grade">
-          <b className="m">{D.grade.g}</b>
-          <div><span>{D.grade.t}<em className="eg">예시</em></span><p>{D.grade.s}</p></div>
+      <section className="sec band g2" style={{ '--i': 2 }}>
+        <span className="k m">경쟁</span>
+        <p className="say">카페가 <b>가게 {Math.round(1 / S.share)}곳 중 1곳</b>꼴로 <b>서울보다 {S.share > C.seoulShare ? '많아요' : '적어요'}.</b></p>
+        <div className="n m">{S.count}<small>곳</small></div>
+        <div className="cmp">
+          <div><span>이 자리</span><u><i style={{ width: (S.share / shareMax) * 100 + '%' }} /></u><em className="m">{pct(S.share)}</em></div>
+          <div className="s"><span>서울</span><u><i style={{ width: (C.seoulShare / shareMax) * 100 + '%' }} /></u><em className="m">{pct(C.seoulShare)}</em></div>
         </div>
-        <p className="lead">반경 {radius}m 안 가게 <b>{fmt(S.total)}곳</b> 가운데 카페가 <b>{S.count}곳</b>이에요. 가게 {Math.round(1 / S.share)}곳 중 1곳꼴로, 서울 전체 비중({pct(C.seoulShare)})보다 높아요.</p>
-        <div className="kpis">
-          <div><span className="m">SHOPS</span><b className="m">{fmt(S.total)}</b><small>반경 안 가게</small></div>
-          <div><span className="m">CAFES</span><b className="m">{S.count}</b><small>같은 업종</small></div>
-          <div><span className="m">SHARE</span><b className="m">{pct(S.share)}</b><small>서울 {pct(C.seoulShare)}</small></div>
+        <div className="sub">
+          <div className="t">가장 가까운 카페 <small>올리면 지도에 건물이 파랗게</small></div>
+          {S.near.slice(0, 3).map(s => (
+            <button key={s.i} className={'nr' + (active === s.i ? ' on' : '')} onMouseEnter={() => setActive(s.i)} onMouseLeave={() => setActive(null)} onFocus={() => setActive(s.i)} onBlur={() => setActive(null)} onClick={() => pick(s.i)}>
+              <span>{s.name}</span><small className="m">{s.dist}m · {floorTxt(s.floor)}</small>
+            </button>
+          ))}
+          <button className="all" onClick={() => setOpen('comp')}>{S.near.length}곳 모두 보기 ›</button>
         </div>
-        <div className="insight">
-          <div><span className="m">GOOD<em className="eg">예시</em></span><ul>{D.insight.good.map(t => <li key={t}>{t}</li>)}</ul></div>
-          <div className="w"><span className="m">WATCH<em className="eg">예시</em></span><ul>{D.insight.warn.map(t => <li key={t}>{t}</li>)}</ul></div>
-        </div>
-      </Sec>
+      </section>
 
-      <Sec id="score" i={2} k="02 · INDEX" title="상권 지수" sub="다섯 가지를 100점으로 · 점선은 서울 평균(50)" demo>
+      <section className="sec band g3" style={{ '--i': 3 }}>
+        <span className="k m">비용<em className="eg">예시</em></span>
+        <p className="say">처음에 이만큼 들고, {P.payback ? <><b>{P.payback}개월</b>이면 되찾아요.</> : <b>지금 값으로는 되찾지 못해요.</b>}</p>
+        <div className="n m">{(P.total / 10000).toFixed(1)}<small>억</small></div>
+        <span className="tag">한 달에 {fmt(P.profit)}만 남을 때 · 10평</span>
+      </section>
+
+      <div className="folds">
+      <Fold {...fp} id="comp" t="경쟁 자세히" d="서울 상권과 비교 · 카페 목록">
+      <Sec className={F} k="INDEX" title="상권 지수" sub="다섯 가지를 100점으로 · 점선은 서울 평균(50)" demo>
         <div className="radarw"><Radar data={D.score} /></div>
       </Sec>
 
-      <Sec id="comp" i={3} k="03 · COMPETITION" title="경쟁 강도" sub={`가게 30곳 넘는 서울 상권 ${fmt(C.cells)}곳과 비교 · 반경 300m 기준`}>
+      <Sec className={F} k="COMPETITION" title="경쟁 강도" sub={`가게 30곳 넘는 서울 상권 ${fmt(C.cells)}곳과 비교 · 걸어서 5분(300m) 기준`}>
         <div className="signal">
           {LV.map(([t], k) => <div key={k} className={k === level ? 'on' : ''}><i />{t}</div>)}
         </div>
@@ -185,7 +196,7 @@ export default function Report({ report, radius, setRadius, active, setActive, p
         <p className="fine">서울 상권 중간값: 카페 {C.medianCount}곳 · 비중 {pct(C.medianShare)}</p>
       </Sec>
 
-      <Sec i={4} k="04 · NEARBY" title={`가까운 카페 ${S.near.length}곳`} sub={`1층 ${S.floors.one} · 2층 이상·지하 ${S.floors.up} · 층 모름 ${S.floors.none}`}>
+      <Sec className={F} k="NEARBY" title={`가까운 카페 ${S.near.length}곳`} sub={`1층 ${S.floors.one} · 2층 이상·지하 ${S.floors.up} · 층 모름 ${S.floors.none}`}>
         <ol className="near">
           {list.map(s => (
             <li key={s.i} className={active === s.i ? 'on' : ''} onMouseEnter={() => setActive(s.i)} onMouseLeave={() => setActive(null)} onClick={() => pick(s.i)}>
@@ -200,7 +211,7 @@ export default function Report({ report, radius, setRadius, active, setActive, p
         </div>
       </Sec>
 
-      <Sec i={5} k="05 · STORE SALES" title="가게별 추정 월매출" sub="카드 결제로 추정한 범위 · 가까운 순" demo>
+      <Sec className={F} k="STORE SALES" title="가게별 추정 월매출" sub="카드 결제로 추정한 범위 · 가까운 순" demo>
         <div className="ranges">
           {S.near.slice(0, 8).map((s, k) => {
             const [lo, hi] = D.storeRanges[k % D.storeRanges.length]
@@ -216,7 +227,13 @@ export default function Report({ report, radius, setRadius, active, setActive, p
         <p className="fine">단위 만 원 · 막대 끝은 월 2,600만 원</p>
       </Sec>
 
-      <Sec id="sales" i={6} k="06 · SALES" title="카페 추정 매출" sub="이 상권 카페 1곳 평균 · 분기마다 갱신" demo>
+      <Sec className={F} k="MIX" title="주변 업종 구성" sub="반경 안 가게를 업종별로 센 것">
+        <Rows data={S.top} me={Q.what} />
+      </Sec>
+
+      </Fold>
+      <Fold {...fp} id="sales" t="매출 자세히" d="분기 · 요일 · 시간 · 손님 나이">
+      <Sec className={F} k="SALES" title="카페 추정 매출" sub="이 상권 카페 1곳 평균 · 분기마다 갱신" demo>
         <div className="kpis">
           <div><span className="m">MONTH</span><b className="m">{fmt(D.sales.month)}</b><small>만 원 · 서울 {fmt(D.sales.seoul)}</small></div>
           <div><span className="m">TICKET</span><b className="m">{fmt(D.sales.ticket)}</b><small>손님 1명이 쓰는 돈(원)</small></div>
@@ -236,7 +253,9 @@ export default function Report({ report, radius, setRadius, active, setActive, p
         <Split a="여성" b="남성" v={D.sales.female} />
       </Sec>
 
-      <Sec id="flow" i={7} k="07 · FOOT TRAFFIC" title="유동인구" sub="반경 안 하루 평균 · 지도에서 유동인구 켜기" demo>
+      </Fold>
+      <Fold {...fp} id="flow" t="유동인구 · 주변 시설" d={`하루 ${fmt(D.flow.day)}명 · 역 · 학교`}>
+      <Sec className={F} k="FOOT TRAFFIC" title="유동인구" sub="반경 안 하루 평균 · 지도에서 유동인구 켜기" demo>
         <div className="kpis two">
           <div><span className="m">PER DAY</span><b className="m">{fmt(D.flow.day)}</b><small>명 · 서울 상권 평균 {fmt(D.flow.seoul)}</small></div>
           <div><span className="m">PEAK</span><b className="m">17–21</b><small>퇴근·하교 시간</small></div>
@@ -250,22 +269,7 @@ export default function Report({ report, radius, setRadius, active, setActive, p
         <Split a="여성" b="남성" v={D.flow.female} />
       </Sec>
 
-      <Sec id="people" i={8} k="08 · RESIDENTS" title="주변에 사는·일하는 사람" sub="걸어서 10분 안" demo>
-        <div className="kpis">
-          <div><span className="m">LIVE</span><b className="m">{fmt(D.people.live)}</b><small>사는 사람</small></div>
-          <div><span className="m">WORK</span><b className="m">{fmt(D.people.work)}</b><small>일하는 사람</small></div>
-          <div><span className="m">STUDENT</span><b className="m">{fmt(D.people.student)}</b><small>서울과기대 학생</small></div>
-        </div>
-        <p className="fine">{fmt(D.people.house)}세대 · 원룸·오피스텔 비중 높음</p>
-        <div className="kpis two">
-          <div><span className="m">INCOME</span><b className="m">{D.people.income}만</b><small>월평균 소득 · 서울 {D.people.incomeSeoul}만</small></div>
-          <div><span className="m">CAFE SPEND</span><b className="m">{D.people.cafeSpend}만</b><small>1명 한 달 카페 지출</small></div>
-        </div>
-        <h3>생활비 중 카페 지출 비중</h3>
-        <Rows data={D.people.spend} unit="%" me="20대" />
-      </Sec>
-
-      <Sec id="place" i={9} k="09 · PLACES" title="주변 시설" sub="역 · 버스 · 학교 · 아파트 · 지도에서 주변 시설 켜기" demo>
+      <Sec className={F} k="PLACES" title="주변 시설" sub="역 · 버스 · 학교 · 아파트 · 지도에서 주변 시설 켜기" demo>
         <h3>가까운 지하철역 · 걸어서</h3>
         <div className="stations">
           {D.place.stations.map(([n, t, m]) => (
@@ -286,7 +290,26 @@ export default function Report({ report, radius, setRadius, active, setActive, p
         <p className="fine">서울과기대 정문 앞 · 원룸·소형 아파트가 많아 1인 손님 비중이 높아요.</p>
       </Sec>
 
-      <Sec id="change" i={10} k="10 · OPEN · CLOSE" title="개업 · 폐업" sub="반경 안 카페 · 최근 3년" demo>
+      </Fold>
+      <Fold {...fp} id="people" t="주변에 사는·일하는 사람" d="걸어서 10분">
+      <Sec className={F} k="RESIDENTS" title="주변에 사는·일하는 사람" sub="걸어서 10분 안" demo>
+        <div className="kpis">
+          <div><span className="m">LIVE</span><b className="m">{fmt(D.people.live)}</b><small>사는 사람</small></div>
+          <div><span className="m">WORK</span><b className="m">{fmt(D.people.work)}</b><small>일하는 사람</small></div>
+          <div><span className="m">STUDENT</span><b className="m">{fmt(D.people.student)}</b><small>서울과기대 학생</small></div>
+        </div>
+        <p className="fine">{fmt(D.people.house)}세대 · 원룸·오피스텔 비중 높음</p>
+        <div className="kpis two">
+          <div><span className="m">INCOME</span><b className="m">{D.people.income}만</b><small>월평균 소득 · 서울 {D.people.incomeSeoul}만</small></div>
+          <div><span className="m">CAFE SPEND</span><b className="m">{D.people.cafeSpend}만</b><small>1명 한 달 카페 지출</small></div>
+        </div>
+        <h3>생활비 중 카페 지출 비중</h3>
+        <Rows data={D.people.spend} unit="%" me="20대" />
+      </Sec>
+
+      </Fold>
+      <Fold {...fp} id="change" t="개업 · 폐업" d="최근 3년">
+      <Sec className={F} k="OPEN · CLOSE" title="개업 · 폐업" sub="반경 안 카페 · 최근 3년" demo>
         <div className="signal four">
           {D.change.states.map(t => <div key={t} className={t === D.change.state ? 'on' : ''}><i />{t}</div>)}
         </div>
@@ -308,7 +331,9 @@ export default function Report({ report, radius, setRadius, active, setActive, p
         <p className="fine">1년 미만이 23% · 새 가게가 자주 들어오는 상권이에요.</p>
       </Sec>
 
-      <Sec id="cost" i={11} k="11 · RENT" title="임대료 · 비용" sub="1층 상가 시세 · 2026 상반기" demo>
+      </Fold>
+      <Fold {...fp} id="cost" t="임대료 · 손익 계산" d="직접 바꿔 보기">
+      <Sec className={F} k="RENT" title="임대료 · 비용" sub="1층 상가 시세 · 2026 상반기" demo>
         <div className="kpis">
           <div><span className="m">RENT</span><b className="m">{D.cost.rent}만</b><small>㎡당 월 · 노원 {D.cost.rentGu}</small></div>
           <div><span className="m">DEPOSIT</span><b className="m">{fmt(D.cost.deposit)}</b><small>보증금 만 원</small></div>
@@ -321,13 +346,18 @@ export default function Report({ report, radius, setRadius, active, setActive, p
         <Rows data={[['이 상권', D.cost.rent], ['노원구', D.cost.rentGu], ['서울', D.cost.rentSeoul]]} unit="만" me="이 상권" wide />
       </Sec>
 
-      <Sim i={12} />
-
-      <Sec i={13} k="13 · MIX" title="주변 업종 구성" sub="반경 안 가게를 업종별로 센 것">
-        <Rows data={S.top} me={Q.what} />
-      </Sec>
-
-      <Sec id="fit" i={14} k="14 · FIT" title="이 자리에 맞는 업종" sub="수요와 경쟁을 함께 본 점수" demo>
+        <Sim className={F} />
+      </Fold>
+      <Fold {...fp} id="good" t="좋은 점 · 조심할 점" d="한 줄씩">
+        <section className={"sec " + F}>
+        <div className="insight">
+          <div><span className="m">GOOD<em className="eg">예시</em></span><ul>{D.insight.good.map(t => <li key={t}>{t}</li>)}</ul></div>
+          <div className="w"><span className="m">WATCH<em className="eg">예시</em></span><ul>{D.insight.warn.map(t => <li key={t}>{t}</li>)}</ul></div>
+        </div>
+        </section>
+      </Fold>
+      <Fold {...fp} id="fit" t="맞는 업종 · 뜨는 상권" d="노원구">
+      <Sec className={F} k="FIT" title="이 자리에 맞는 업종" sub="수요와 경쟁을 함께 본 점수" demo>
         <ol className="fit">
           {D.recommend.map(([n, v, w], k) => (
             <li key={n} className={n === Q.what ? 'me' : ''}><b className="m">{String(k + 1).padStart(2, '0')}</b><div><span>{n}</span><small>{w}</small></div><em className="m">{v}</em></li>
@@ -335,7 +365,7 @@ export default function Report({ report, radius, setRadius, active, setActive, p
         </ol>
       </Sec>
 
-      <Sec i={15} k="15 · RISING" title="노원구 뜨는 상권" sub="최근 1년 카페 매출 증가율" demo>
+      <Sec className={F} k="RISING" title="노원구 뜨는 상권" sub="최근 1년 카페 매출 증가율" demo>
         <ol className="fit">
           {D.trend.map(([n, v, w], k) => (
             <li key={n}><b className="m">{String(k + 1).padStart(2, '0')}</b><div><span>{n}</span><small>{w}</small></div><em className="m">{v}</em></li>
@@ -343,16 +373,18 @@ export default function Report({ report, radius, setRadius, active, setActive, p
         </ol>
       </Sec>
 
+      </Fold>
+      </div>
+
+      <p className="asof">기준 · 매출 {D.asOf.sales} · 가게 {D.asOf.shops} · 임대료 {D.asOf.rent} · 건물 Overture 2026-10</p>
       <p className="src m">SOURCE · {report.source}<br />예시 표시 칸은 기획 시연용 숫자 · 서울 열린데이터 상권분석 연결 예정</p>
     </div>
   )
 }
 
 // 매출·손익 계산: 값을 바꾸면 바로 다시 셈
-function Sim({ i }) {
-  const [size, setSize] = useState(10)
-  const [ticket, setTicket] = useState(6800)
-  const [guests, setGuests] = useState(110)
+// 매출·손익 계산식: 계산기와 비용 띠가 같이 쓴다
+function plan(size = 10, ticket = 6800, guests = 110) {
   const sales = Math.round((ticket * guests * 30) / 10000)
   const rent = Math.round(DEMO.cost.rent * size * 3.3)
   const cost = Math.round(sales * .33)
@@ -370,8 +402,16 @@ function Sim({ i }) {
   // 이 매출이 이 상권 카페 가운데 어디쯤인지: 평균 둘레로 퍼진 분포(표준편차 평균의 35%)로 셈
   const z = (sales - DEMO.sales.month) / (DEMO.sales.month * .35)
   const top = Math.min(99, Math.max(1, Math.round((1 - cdf(z)) * 100)))
+  return { sales, profit, be, R, start, total, payback, top, C0 }
+}
+
+function Sim({ className }) {
+  const [size, setSize] = useState(10)
+  const [ticket, setTicket] = useState(6800)
+  const [guests, setGuests] = useState(110)
+  const { sales, profit, be, R, start, total, payback, top, C0 } = plan(size, ticket, guests)
   return (
-    <Sec id="sim" i={i} k="12 · SIMULATOR" title="매출 · 손익 계산" sub="값을 바꾸면 바로 다시 계산해요" demo>
+    <Sec className={className} k="SIMULATOR" title="매출 · 손익 계산" sub="값을 바꾸면 바로 다시 계산해요" demo>
       <div className="sim">
         <label><span>면적</span><input type="range" min="6" max="30" value={size} onChange={e => setSize(+e.target.value)} /><b className="m">{size}평</b></label>
         <label><span>1명이 쓰는 돈</span><input type="range" min="3000" max="15000" step="100" value={ticket} onChange={e => setTicket(+e.target.value)} /><b className="m">{fmt(ticket)}</b></label>

@@ -130,6 +130,8 @@ function setH(map, k) {
   // 높이만 바뀌면 바닥에 납작한 면이 한꺼번에 생겨 보인다 → 투명도도 같이 올린다
   const f = Math.min(1, k * k)
   map.setPaintProperty('building-3d', 'fill-extrusion-opacity', .82 * f * f * (3 - 2 * f))
+  // 지도 3D 건물(같은 자리)보다 조금 높게 세워야 가려지지 않는다
+  if (map.getLayer('ob-hi')) map.setPaintProperty('ob-hi', 'fill-extrusion-height', ['max', .4, ['*', ['+', ['max', ['coalesce', ['feature-state', 'oh'], 0], ['coalesce', ['get', 'h'], 10]], 1.5], k]])
 }
 const eo = v => 1 - Math.pow(1 - v, 3)
 function rise(map, to, dur, delay = 0) {
@@ -158,6 +160,8 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
   const ll = (x, y) => [Q.lon + x / kx, Q.lat + y / ky]
   const [layer, setLayer] = useState('shops')
   const [sel, setSel] = useState(null)
+  const [bld, setBld] = useState(null)
+  const ohSet = useRef(new Set()).current
   const [fm, setFm] = useState('h'), [ft, setFt] = useState(7), [play, setPlay] = useState(true)
 
   // 유동인구 예시 층: 가게가 몰린 곳을 40m 칸으로 번지게 해서 사람이 많은 곳처럼 보여 준다
@@ -203,6 +207,16 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       map.addSource('radius', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'radius-fill', type: 'fill', source: 'radius', paint: { 'fill-color': W + '.06)' } })
       map.addLayer({ id: 'radius', type: 'line', source: 'radius', paint: { 'line-color': '#fff', 'line-width': 1.6, 'line-dasharray': [2, 2] } })
+      // Overture 건물: 평소엔 안 보이고, 카페에 올리거나 건물을 누르면 그 건물만 파랗게 세운다
+      map.addSource('ob', { type: 'geojson', promoteId: 'i', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({ id: 'ob', type: 'fill', source: 'ob', paint: { 'fill-color': '#fff', 'fill-opacity': .001 } })
+      map.addLayer({ id: 'ob-hi', type: 'fill-extrusion', source: 'ob', filter: ['in', ['get', 'i'], ['literal', []]],
+        paint: { 'fill-extrusion-color': '#3b6fe0', 'fill-extrusion-opacity': .9, 'fill-extrusion-height': .4 } })
+      map.addLayer({ id: 'ob-line', type: 'line', source: 'ob', filter: ['in', ['get', 'i'], ['literal', []]], paint: { 'line-color': '#3b6fe0', 'line-width': 5 } })
+      fetch('./data/buildings-gongneung.json').then(r => r.json()).then(d => {
+        map.getSource('ob').setData(d); setBld(d)
+        setH(map, kOf.get(map) ?? 0)
+      })
       const shops = report.shops.map((s, i) => [s, i]).filter(([s]) => s[2] !== Q.cat).map(([[x, y, c], i]) => ({
         type: 'Feature', geometry: { type: 'Point', coordinates: ll(x, y) }, properties: { i, d: Math.hypot(x, y), c: report.cats[c] },
       }))
@@ -221,8 +235,12 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       map.on('mouseleave', 'cafes', () => cb.current.onActive(null))
       map.on('click', 'cafes', e => { const i = e.features[0].properties.i; cb.current.onPick(i); setSel({ cafe: i }) })
       map.on('click', 'shops', e => { if (!map.queryRenderedFeatures(e.point, { layers: ['cafes'] }).length) setSel({ shop: e.features[0].properties.i }) })
-      map.on('click', e => { if (!map.queryRenderedFeatures(e.point, { layers: ['cafes', 'shops'] }).length) setSel(null) })
-      for (const id of ['cafes', 'shops']) {
+      map.on('click', e => {
+        if (map.queryRenderedFeatures(e.point, { layers: ['cafes', 'shops'] }).length) return
+        const b = map.queryRenderedFeatures(e.point, { layers: ['ob'] })[0]
+        setSel(b ? { bld: b.properties.i } : null)
+      })
+      for (const id of ['cafes', 'shops', 'ob']) {
         map.on('mouseenter', id, () => (map.getCanvas().style.cursor = 'pointer'))
         map.on('mouseleave', id, () => (map.getCanvas().style.cursor = ''))
       }
@@ -355,6 +373,28 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     if (map && shown && center) map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomFor(radius), padding: { top: mapPadTop() }, duration: 700 })
   }, [radius, center])
 
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map?.getLayer('ob-hi') || !bld) return
+    const of = i => (i == null ? null : bld.cafe[i] ?? null)
+    const ids = [of(active), sel?.bld ?? of(sel?.cafe)].filter(v => v != null)
+    for (const id of ids) {
+      if (ohSet.has(id)) continue
+      const f = bld.features.find(f => f.properties.i === id)
+      if (!f) continue
+      const r = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates[0][0]
+      const c = r.reduce((a, q) => [a[0] + q[0] / r.length, a[1] + q[1] / r.length], [0, 0])
+      let h = 0
+      for (const o of map.querySourceFeatures('omt', { sourceLayer: 'building' })) {
+        const g = o.geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []
+        if (polys.some(P => inside(c, P[0]))) h = Math.max(h, o.properties.render_height || 0)
+      }
+      if (h) { map.setFeatureState({ source: 'ob', id }, { oh: h }); ohSet.add(id) }
+    }
+    map.setFilter('ob-hi', ['in', ['get', 'i'], ['literal', ids]])
+    map.setFilter('ob-line', ['in', ['get', 'i'], ['literal', ids]])
+  }, [active, sel, bld])
+
   const inIso = (r, cafe) => report.shops.filter(([x, y, c]) => Math.hypot(x, y) <= r && (!cafe || c === Q.cat)).length
 
   return (
@@ -380,12 +420,22 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
         </div>
       )}
       {layer === 'flow' && <FlowPlayer fm={fm} setFm={m => { setFm(m); setFt(m === 'h' ? 7 : 0) }} ft={ft} setFt={setFt} play={play} setPlay={setPlay} />}
-      {sel && <ShopCard sel={sel} report={report} onClose={() => setSel(null)} />}
+      {sel && (sel.bld != null ? bld && <BuildingCard b={bld.features.find(f => f.properties.i === sel.bld)?.properties} onClose={() => setSel(null)} />
+        : <ShopCard sel={sel} report={report} onClose={() => setSel(null)} />)}
     </div>
   )
 }
 
 const ISO = [[5, 258], [10, 515]]
+// 점이 다각형 안에 있나 (경도·위도)
+function inside([x, y], ring) {
+  let o = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j]
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) o = !o
+  }
+  return o
+}
 const walkMin = d => Math.max(1, Math.round((d * 1.3) / 67))
 const floorTxt = f => (f > 0 ? f + '층' : f < 0 ? '지하 ' + -f + '층' : '층 정보 없음')
 
@@ -419,6 +469,24 @@ function ShopCard({ sel, report, onClose }) {
       <div className="sc-row"><span>이 자리에서</span><b>{fmtM(d)} · 걸어서 {walkMin(d)}분</b></div>
       <div className="sc-row"><span>100m 안 같은 업종</span><b>{Math.max(0, sameCat)}곳</b></div>
       {extra}
+    </div>
+  )
+}
+
+// 지도에서 누른 건물 설명 (Overture 건물 + 가게 목록을 건물에 맞춘 것)
+function BuildingCard({ b, onClose }) {
+  if (!b) return null
+  const n = b.n || 0
+  return (
+    <div className="shopcard glass" role="dialog" aria-label="건물 정보">
+      <button className="x" onClick={onClose} aria-label="닫기">×</button>
+      <span className="m">{b.tgt ? 'BUILDING · 내 자리' : 'BUILDING · 건물'}</span>
+      <b className="nm">{b.name || (n ? `가게 ${n}곳이 든 건물` : '가게 없는 건물')}</b>
+      <small>{fmtM(b.dist || 0)} · 걸어서 {walkMin(b.dist || 0)}분</small>
+      <div className="sc-row"><span>안에 든 가게</span><b>{n}곳{b.cafe ? ` · 카페 ${b.cafe}` : ''}</b></div>
+      {n > 0 && <div className="sc-row"><span>1층 가게</span><b>{b.f1 || 0}곳</b></div>}
+      {b.fmax > 1 && <div className="sc-row"><span>가게 있는 층</span><b>1–{b.fmax}층</b></div>}
+      {b.top && <div className="sc-row top"><span>많은 업종</span><b>{b.top.split(' · ').slice(0, 2).map(t => t.replace(/ (\d+)$/, ' $1곳')).join(' · ')}</b></div>}
     </div>
   )
 }
