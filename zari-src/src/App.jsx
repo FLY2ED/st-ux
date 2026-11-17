@@ -7,7 +7,7 @@ import { DEMO } from './demo.js'
 import { Pin, PIN, PIN_CELLS, SearchIcon, ArrowIcon } from './pin.jsx'
 import { clamp, ioc, INTRO, makeClock, params } from './motion.js'
 
-const COL = 460 // PC 오른쪽 칸 폭
+const COL = 460 // PC 왼쪽 칸 폭
 // 메뉴 버튼이 그대로 늘어나 패널이 된다
 const MORPH = { type: 'tween', duration: .6, ease: [.65, 0, .35, 1] }
 const isMob = () => innerWidth < 760
@@ -187,7 +187,7 @@ export default function App() {
   const camera = useMemo(() => ({
     z: phase === 'report' ? 1 : 0,
     lon: 127.07655, lat: 37.62994,
-    cx: () => (isMob() ? innerWidth / 2 : (innerWidth - COL) / 2),
+    cx: () => (isMob() ? innerWidth / 2 : COL + (innerWidth - COL) / 2),
     cy: () => (isMob() ? (100 + innerHeight * .44) / 2 : innerHeight / 2),
   }), [phase])
 
