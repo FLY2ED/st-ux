@@ -31,20 +31,24 @@ function useStats(report, radius) {
 
 // 자세히: 누르면 지도까지 덮는 넓은 화면에 칸(타일)으로 펼친다. 위 줄에서 다른 자세히로 바로 넘어간다
 const FOLDS = [['comp', '경쟁'], ['sales', '매출'], ['flow', '유동인구 · 시설'], ['people', '사는·일하는 사람'], ['change', '개업 · 폐업'], ['cost', '임대료 · 손익'], ['good', '좋은 점 · 조심할 점'], ['fit', '맞는 업종']]
+const FC = { comp: '#1b2340', sales: '#3b6fe0', flow: '#2f9e74', people: '#8a63d2', change: '#f08a3c', cost: '#d24b4b', good: '#d9a521', fit: '#4aa3c7' }
 function Fold({ id, t, d, children, open, setOpen }) {
+  const isOpen = open === id
+  // 다른 자세히에서 넘어온 것이면 넓어지는 전환 없이 카드만 바꾼다
+  const cont = useMemo(() => isOpen && document.documentElement.classList.contains('sheeton'), [isOpen])
   return (
-    <div id={'more-' + id} className={'fold' + (open === id ? ' open' : '')}>
+    <div id={'more-' + id} className={'fold' + (open === id ? ' open' : '')} style={{ '--c': FC[id] }}>
       <button className="fold-h" aria-expanded={open === id} onClick={() => setOpen(open === id ? null : id)}>
-        <span>{t}</span><small>{d}</small><i aria-hidden="true">›</i>
+        <b className="dot" aria-hidden="true" /><span>{t}</span><small>{d}</small><i aria-hidden="true">›</i>
       </button>
       {open === id && (
-        <div className="sheet" role="dialog" aria-label={t}>
+        <div className={'sheet' + (cont ? ' cont' : '')} role="dialog" aria-label={t}>
           <div className="sheet-h">
             <button className="back" onClick={() => setOpen(null)}>← 지도로</button>
             <div className="ttl"><b>{t}</b><small>{d}</small></div>
-            <nav aria-label="자세히 고르기">{FOLDS.map(([k, n]) => <button key={k} className={k === id ? 'on' : ''} onClick={() => setOpen(k)}>{n}</button>)}</nav>
+            <nav aria-label="자세히 고르기">{FOLDS.map(([k, n]) => <button key={k} className={k === id ? 'on' : ''} style={{ '--c': FC[k] }} onClick={() => setOpen(k)}><b className="dot" aria-hidden="true" />{n}</button>)}</nav>
           </div>
-          <div className="sheet-b"><div className="sheet-g">{children}</div></div>
+          <div className="sheet-b"><div className="sheet-g" key={id}>{children}</div></div>
         </div>
       )}
     </div>
@@ -145,7 +149,6 @@ export default function Report({ report, radius, active, setActive, pick, saved,
   return (
     <div className="report">
       <section className="sec head" style={{ '--i': 0 }}>
-        <span className="k m">REPORT · 걸어서 5분 안</span>
         <h1>{Q.address}</h1>
         <p className="where">{Q.near} · {Q.dong} · {Q.what}</p>
         <p className="say"><b>{D.grade.t}</b>예요. {D.grade.s}<span className="gr m">{D.grade.g}<em className="eg">예시</em></span></p>
@@ -468,6 +471,7 @@ function Sim({ className }) {
 // 칸이 보일 때 큰 숫자를 0부터 세어 올린다. 그사이 화면 값이 바뀌면(계산기 조작 등) 바로 멈춘다
 const NUMS = '.kpis b, .mix b, .cols em, .line em, .pctl b, .walk b'
 function countUp(sec, delay) {
+  return // 숫자는 처음부터 다 보여 준다(세어 올리지 않음)
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
   const jobs = []
   for (const el of sec.querySelectorAll(NUMS)) {

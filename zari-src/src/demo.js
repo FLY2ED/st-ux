@@ -92,8 +92,8 @@ export const DEMO = {
   // 비교함: 지금 자리 + 예시 후보 2곳
   compare: [
     { name: '공릉로 232', sub: '서울과기대 정문', cafes: 13, crowd: '보통', sales: 2140, flow: 41200, rent: 4.9, survive: 54, grade: 'B+' },
-    { name: '공릉역 2번 출구', sub: '동일로 1074', cafes: 21, crowd: '많음', sales: 2460, flow: 52800, rent: 6.1, survive: 49, grade: 'B' },
-    { name: '하계역 1번 출구', sub: '노원구 하계동', cafes: 8, crowd: '적음', sales: 1720, flow: 28300, rent: 3.6, survive: 58, grade: 'B' },
+    { name: '공릉역 2번 출구', sub: '동일로 1074', cafes: 20, crowd: '많음', sales: 2460, flow: 52800, rent: 6.1, survive: 49, grade: 'B' },
+    { name: '하계역 1번 출구', sub: '노원구 하계동', cafes: 10, crowd: '적음', sales: 1720, flow: 28300, rent: 3.6, survive: 58, grade: 'B' },
   ],
 }
 

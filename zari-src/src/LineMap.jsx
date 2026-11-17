@@ -135,8 +135,8 @@ function setH(map, k) {
   for (const id of ['ob-hi', 'ob-col']) if (map.getLayer(id)) map.setPaintProperty(id, 'fill-extrusion-height', hx)
 }
 // 건물 색 · 한 번에 보기: 내 자리 · 카페 · 공실 후보 · 다른 가게
-const BC = { tgt: '#3b6fe0', cafe: '#1b2340', empty: '#f08a3c', shop: '#9aa3b2' }
-export const BC_KEYS = [['tgt', '내 자리'], ['cafe', '카페 있는 건물'], ['empty', '공실 후보'], ['shop', '다른 가게 건물']]
+const BC = { tgt: '#3b6fe0', cafe: '#1b2340', empty: '#f08a3c', shop: '#8e98aa', none: '#e3e6eb' }
+export const BC_KEYS = [['tgt', '내 자리'], ['cafe', '카페 있는 건물'], ['empty', '공실 후보'], ['shop', '다른 가게 건물'], ['none', '가게 없는 건물']]
 const eo = v => 1 - Math.pow(1 - v, 3)
 function rise(map, to, dur, delay = 0) {
   const from = kOf.get(map) ?? 0, t0 = performance.now() + delay
@@ -162,7 +162,8 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
   const { query: Q } = report
   const kx = 111320 * Math.cos((Q.lat * Math.PI) / 180), ky = 110540
   const ll = (x, y) => [Q.lon + x / kx, Q.lat + y / ky]
-  const [layer, setLayer] = useState('shops')
+  const [layer, setLayer] = useState('bcol')
+  const [ready, setReady] = useState(false)
   const [sel, setSel] = useState(null)
   const [bld, setBld] = useState(null)
   const ohSet = useRef(new Set()).current
@@ -215,9 +216,9 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       map.addSource('ob', { type: 'geojson', promoteId: 'i', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'ob', type: 'fill', source: 'ob', paint: { 'fill-color': '#fff', 'fill-opacity': .001 } })
       map.addLayer({ id: 'ob-col', type: 'fill-extrusion', source: 'ob', layout: { visibility: 'none' },
-        filter: ['any', ['==', ['get', 'tgt'], 1], ['>', ['coalesce', ['get', 'n'], 0], 0], ['==', ['get', 'empty'], 1]],
+        filter: ['any', ['==', ['get', 'tgt'], 1], ['<=', ['get', 'dist'], 300]], // 걸어서 5분 원 안 건물만 색칠
         paint: { 'fill-extrusion-opacity': .92, 'fill-extrusion-height': .4,
-          'fill-extrusion-color': ['case', ['==', ['get', 'tgt'], 1], BC.tgt, ['>', ['coalesce', ['get', 'cafe'], 0], 0], BC.cafe, ['==', ['get', 'empty'], 1], BC.empty, BC.shop] } })
+          'fill-extrusion-color': ['case', ['==', ['get', 'tgt'], 1], BC.tgt, ['>', ['coalesce', ['get', 'cafe'], 0], 0], BC.cafe, ['==', ['get', 'empty'], 1], BC.empty, ['>', ['coalesce', ['get', 'n'], 0], 0], BC.shop, BC.none] } })
       map.addLayer({ id: 'ob-empty', type: 'line', source: 'ob', layout: { visibility: 'none' }, filter: ['==', ['get', 'empty'], 1],
         paint: { 'line-color': BC.empty, 'line-width': 2.5, 'line-dasharray': [2, 1.5] } })
       map.addLayer({ id: 'ob-hi', type: 'fill-extrusion', source: 'ob', filter: ['in', ['get', 'i'], ['literal', []]],
@@ -241,6 +242,7 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       map.addLayer({ id: 'cafes', type: 'symbol', source: 'cafes', layout: { 'icon-image': 'cafe', 'icon-allow-overlap': true } })
       map.addLayer({ id: 'cafe-hi', type: 'symbol', source: 'cafes', filter: ['==', ['get', 'i'], -1], layout: { 'icon-image': 'hi', 'icon-allow-overlap': true } })
       setRadius(map, radius)
+      setReady(true)
       map.on('mousemove', 'cafes', e => cb.current.onActive(e.features[0].properties.i))
       map.on('mouseleave', 'cafes', () => cb.current.onActive(null))
       map.on('click', 'cafes', e => { const i = e.features[0].properties.i; cb.current.onPick(i); setSel({ cafe: i }) })
@@ -326,7 +328,7 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       map.once('moveend', () => map.once('idle', find))
     }
     if (layer === 'flow') map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomFor(radius), padding: { top: mapPadTop() }, duration: 700 })
-  }, [layer])
+  }, [layer, ready])
 
   // 유동인구 재생: 시간(또는 달)에 따라 칸마다 진하기가 바뀐다
   useEffect(() => {
@@ -376,7 +378,7 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       map.jumpTo({ center: [Q.lon, Q.lat], zoom: z0, padding: { top: mapPadTop() } })
       map.resize()
       map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomFor(radius), ...tilt(), padding: { top: mapPadTop() }, duration: 1600, delay: 150 })
-      const up = () => { setH(map, 0); rise(map, 1, 1600, 900) }
+      const up = () => setH(map, 1)
       if (d3Ref.current) map.getLayer('building-3d') ? up() : map.once('load', up)
     }
   }, [shown])
@@ -413,7 +415,7 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     const G = 0.0005, idx = new Map()
     for (const f of bld.features) {
       const P = f.properties
-      if (!(P.tgt || P.n > 0 || P.empty) || ohSet.has(P.i)) continue
+      if (!(P.tgt || P.dist <= 300) || ohSet.has(P.i)) continue
       const r = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates[0][0]
       const c = r.reduce((a, q) => [a[0] + q[0] / r.length, a[1] + q[1] / r.length], [0, 0])
       const k = Math.floor(c[0] / G) + ',' + Math.floor(c[1] / G)
@@ -443,7 +445,7 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       <div ref={box} className="linemap" />
       <div ref={tipRef} className="tip glass maptip" />
       <div className="layers glass" role="group" aria-label="지도에 보이는 것">
-        {[['shops', '가게'], ['flow', '유동인구 · 예시'], ['place', '주변 시설'], ['bcol', '건물 색']].map(([k, t]) => <button key={k} className={layer === k ? 'on' : ''} onClick={() => setLayer(k)}>{t}</button>)}
+        {[['bcol', '건물 색'], ['shops', '가게'], ['flow', '유동인구 · 예시'], ['place', '주변 시설']].map(([k, t]) => <button key={k} className={layer === k ? 'on' : ''} onClick={() => setLayer(k)}>{t}</button>)}
         <span className="seg" role="group" aria-label="2D 3D 보기">
           <i className={d3 ? 'r' : ''} />
           <button className={'m' + (d3 ? '' : ' on')} onClick={() => setD3(false)} aria-pressed={!d3}>2D</button>

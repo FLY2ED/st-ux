@@ -5,9 +5,9 @@ import LineMap from './LineMap.jsx'
 import Report from './Report.jsx'
 import { DEMO } from './demo.js'
 import { Pin, PIN, PIN_CELLS, SearchIcon, ArrowIcon } from './pin.jsx'
-import { clamp, ioc, back, INTRO, makeClock, params } from './motion.js'
+import { clamp, ioc, INTRO, makeClock, params } from './motion.js'
 
-const COL = 460 // PC 왼쪽 칸 폭
+const COL = 460 // PC 오른쪽 칸 폭
 // 메뉴 버튼이 그대로 늘어나 패널이 된다
 const MORPH = { type: 'tween', duration: .6, ease: [.65, 0, .35, 1] }
 const isMob = () => innerWidth < 760
@@ -83,8 +83,8 @@ export default function App() {
         done = false
         document.documentElement.classList.remove('ready')
         order.forEach((k, n) => (rects[k].style.opacity = t > n * (420 / order.length) ? 1 : 0))
-        const drop = (1 - back(clamp(t / INTRO.land))) * -40
-        const sq = t > 600 && t < 820 ? Math.sin(((t - 600) / 220) * Math.PI) * .1 : 0
+        const drop = (1 - ioc(clamp(t / INTRO.land))) * -40
+        const sq = 0
         const hb = HM.getBoundingClientRect(), f = ioc(clamp((t - INTRO.fly) / 800))
         const sx = innerWidth / 2 - mw / 2, sy = innerHeight / 2 - mh / 2 - 30
         const sc = 1 - f + f * (hb.height / mh)
@@ -152,7 +152,7 @@ export default function App() {
   const camera = useMemo(() => ({
     z: phase === 'report' ? 1 : 0,
     lon: 127.07655, lat: 37.62994,
-    cx: () => (isMob() ? innerWidth / 2 : COL + (innerWidth - COL) / 2),
+    cx: () => (isMob() ? innerWidth / 2 : (innerWidth - COL) / 2),
     cy: () => (isMob() ? (100 + innerHeight * .44) / 2 : innerHeight / 2),
   }), [phase])
 
@@ -278,6 +278,38 @@ const CMP = [
   ['3년 생존율', 'survive', v => v + '%', 'max'],
   ['상권 등급', 'grade', v => v, null],
 ]
+// 걸어서 5분(300m) 원 안 건물을 업종별로 칠한 작은 지도 + 업종별 가게 수
+const LU = [['cafe', '카페', '#1b2340'], ['food', '음식점', '#e2683c'], ['retail', '소매', '#e8b737'], ['service', '서비스·학원·사무', '#6c8fd8'], ['none', '가게 없는 건물', '#d5d9e0']]
+const LUC = Object.fromEntries(LU.map(([k, , c]) => [k, c]))
+function Circles() {
+  const [d, setD] = useState(null)
+  useEffect(() => { fetch('./data/compare-circles.json').then(r => r.json()).then(setD) }, [])
+  if (!d) return <div className="circles" />
+  const max = Math.max(...d.flatMap(p => LU.slice(0, 4).map(([k]) => p.shops[k])))
+  return (
+    <div className="circles">
+      {d.map((p, k) => (
+        <figure key={p.name} className={k === 0 ? 'me' : ''}>
+          <svg viewBox="-310 -310 620 620" role="img" aria-label={p.name + ' 반경 300m 건물'}>
+            <defs><clipPath id={'cc' + k}><circle r="300" /></clipPath></defs>
+            <circle r="300" fill="#2a3242" />
+            <g clipPath={`url(#cc${k})`}>{p.b.map(([t, r], j) => <polygon key={j} points={r.join(' ')} fill={LUC[t]} />)}</g>
+            <circle r="300" fill="none" stroke="rgba(255,255,255,.5)" strokeWidth="3" />
+            <circle r="9" fill="#fff" stroke="#3b6fe0" strokeWidth="5" />
+          </svg>
+          <figcaption><b>{p.name}</b></figcaption>
+          <div className="lu">
+            {LU.slice(0, 4).map(([t, n, c]) => (
+              <div key={t}><span>{n}</span><i><s style={{ width: (p.shops[t] / max) * 100 + '%', background: c }} /></i><em className="m">{p.shops[t]}</em></div>
+            ))}
+          </div>
+        </figure>
+      ))}
+      <p className="lukey"><span>막대는 300m 안 가게 수 ·</span>{LU.map(([t, n, c]) => <span key={t}><i style={{ background: c }} />{n}</span>)}</p>
+    </div>
+  )
+}
+
 function Compare({ close }) {
   const P = DEMO.compare
   return (
@@ -285,6 +317,7 @@ function Compare({ close }) {
       <button className="x m" onClick={close} aria-label="닫기">CLOSE ✕</button>
       <span className="k m">COMPARE · CAFE · 걸어서 5분<span className="eg">예시</span></span>
       <h2>후보 자리 3곳 비교</h2>
+      <Circles />
       <table className="cmpt">
         <thead><tr><th />{P.map((p, k) => <th key={p.name} className={k === 0 ? 'me' : ''}><b>{p.name}</b><small>{p.sub}</small></th>)}</tr></thead>
         <tbody>

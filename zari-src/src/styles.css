@@ -783,7 +783,7 @@ html:not(.ready) .word span,html:not(.ready) .qwrap{opacity:0;transition:none}
 .legendmap.bcol .bc-tgt{background:#3b6fe0}
 .legendmap.bcol .bc-cafe{background:#1b2340;box-shadow:inset 0 0 0 1px rgba(255,255,255,.5)}
 .legendmap.bcol .bc-empty{background:rgba(240,138,60,.35);outline:1.5px dashed #f08a3c;outline-offset:-1.5px}
-.legendmap.bcol .bc-shop{background:#9aa3b2}
+.legendmap.bcol .bc-shop{background:#8e98aa}.legendmap.bcol .bc-none{background:#e3e6eb}
 @media (max-width:759px){.legendmap.bcol{display:flex;left:auto;right:10px;bottom:auto;top:150px;flex-wrap:wrap;max-width:200px;gap:6px 10px}.legendmap.bcol:not(.on){display:none}}
 
 /* 자세히 · 넓은 화면: 지도까지 덮고 칸(타일)으로 늘어놓는다. 첫 칸만 짙게 */
@@ -837,3 +837,63 @@ html:not(.ready) .word span,html:not(.ready) .qwrap{opacity:0;transition:none}
   .pill .chip{padding:4px 7px}
   .report .pill .sent{font-size:14px}
 }
+
+/* ───────── 사이드바는 오른쪽 · 튀거나 밀려 나오는 움직임 없음 ───────── */
+*,*::before,*::after{animation:none!important}
+.skel i{animation:pulse 1.6s ease-in-out infinite!important}
+.app::before,.col{left:auto;right:0;transform:none!important;transition:opacity .25s!important}
+.app::before{box-shadow:-1px 0 0 rgba(31,38,51,.08)}
+.report .word span{transform:none}
+.word span{transition:opacity .3s}
+.top{transition:none}
+@media (min-width:760px){
+  .mapwrap{left:0;right:var(--col)}
+  .report .qwrap{left:auto;right:0}
+  .report .top{left:0;right:var(--col);padding-left:32px}
+  .tray{left:auto;right:28px}
+}
+/* 문장 칩: 채우지 않고 흰 테두리 + 흰 글씨 */
+.pill .chip,.pill .chip+.chip,.pill .chip:nth-of-type(2){background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px #fff}
+.pill .chip:hover,.pill .chip.on{background:rgba(255,255,255,.14);box-shadow:inset 0 0 0 1.5px #fff}
+.pill .chip::after{opacity:.9}
+@media (min-width:760px){
+  .report .pill{background:#1f2633;color:#fff;box-shadow:none}
+  .report .pill .sent{color:rgba(240,244,255,.8)}
+  .report .pill .chip:not(:nth-of-type(2)){background:transparent;color:#fff}
+  .report .pill .ic{color:#fff}
+  .report .pill .go{background:#fff;color:#1f2633}
+}
+/* 자세히: 줄마다 색 하나 */
+.col .fold-h{grid-template-columns:auto auto 1fr 14px}
+.col .dot{display:inline-block;width:9px;height:9px;background:var(--c);align-self:center}
+.col .fold-h:hover{box-shadow:inset 3px 0 0 var(--c);padding-left:10px;margin-left:-10px;width:calc(100% + 10px)}
+.col .sheet-h nav button{display:flex;align-items:center;gap:7px}
+.col .sheet-h nav button .dot{width:7px;height:7px}
+.col .sheet-h nav button.on{box-shadow:inset 0 -3px 0 var(--c)}
+.col .sheet-h .ttl b{box-shadow:inset 0 -6px 0 color-mix(in srgb,var(--c) 28%,transparent)}
+.col .sheet-g>.sec{box-shadow:inset 0 3px 0 var(--c)}
+/* 자세히: 오른쪽 칸이 왼쪽으로 넓어지며 화면을 채우고, 그 뒤 카드가 차례로 놓인다 */
+@media (min-width:760px){
+  .col .sheet{animation:sheetx .5s cubic-bezier(.3,.7,.2,1) both!important}
+  @keyframes sheetx{from{clip-path:inset(0 0 0 calc(100% - var(--col)))}to{clip-path:inset(0)}}
+}
+.col .sheet-g>.sec{animation:tilein .3s ease-out both!important;animation-delay:calc(.35s + var(--n,0)*60ms)!important}
+@keyframes tilein{from{opacity:0}}
+.col .sheet-g>.sec:nth-child(2){--n:1}.col .sheet-g>.sec:nth-child(3){--n:2}.col .sheet-g>.sec:nth-child(4){--n:3}.col .sheet-g>.sec:nth-child(5){--n:4}.col .sheet-g>.sec:nth-child(6){--n:5}.col .sheet-g>.sec:nth-child(n+7){--n:6}
+@media (max-width:759px){.col .sheet-g>.sec{animation-delay:calc(var(--n,0)*50ms)!important}}
+@media (prefers-reduced-motion:reduce){.col .sheet,.col .sheet-g>.sec{animation:none!important}}
+.col .sheet.cont{animation:none!important}.col .sheet.cont .sheet-g>.sec{animation-delay:calc(var(--n,0)*50ms)!important}
+/* 비교: 300m 원 안 건물 업종 색 */
+.circles{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin:6px 0 26px}
+.circles figure{margin:0;min-width:0}
+.circles svg{display:block;width:100%;height:auto}
+.circles figcaption{text-align:center;margin:8px 0 10px;font-size:14px}
+.circles figure.me figcaption b{box-shadow:inset 0 -2px 0 #fff}
+.circles .lu div{display:grid;grid-template-columns:1fr 54px 24px;gap:6px;align-items:center;font-size:11px;color:var(--soft);padding:3px 0}
+.circles .lu span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.circles .lu i{display:block;height:6px;background:rgba(255,255,255,.1)}
+.circles .lu s{display:block;height:100%}
+.circles .lu em{font-style:normal;text-align:right;color:#fff;font-size:11px}
+.circles .lukey{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11px;color:var(--soft);margin:0}
+.circles .lukey i{display:inline-block;width:9px;height:9px;margin-right:5px;vertical-align:-1px}
+@media (max-width:759px){.circles{gap:8px}.circles .lu div{grid-template-columns:1fr;gap:2px}.circles .lu em{text-align:left}}
