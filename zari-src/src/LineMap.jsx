@@ -525,13 +525,17 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       <svg ref={pinRef} className="pins" aria-hidden="true" />
       <div ref={tipRef} className="tip glass maptip" />
       <div className="layers" role="group" aria-label="지도에 보이는 것">
-        {[['bcol', '카페·빈 자리', '건물마다 카페·빈 자리·다른 가게를 색으로'], ['shops', '모든 가게', '반경 안 가게를 점으로'], ['flow', '오가는 사람·예시', '사람이 많이 다니는 곳 (예시 값)'], ['place', '역·학교', '가까운 역·학교·버스 정류장']].map(([k, t, d]) => <button key={k} className={layer === k ? 'on' : ''} title={d} onClick={() => setLayer(k)}>{t}</button>)}
-        <span className="seg" role="group" aria-label="2D 3D 보기">
-          <i className={d3 ? 'r' : ''} />
-          <button className={d3 ? '' : 'on'} onClick={() => setD3(false)} aria-pressed={!d3} title="위에서 내려다보기">평면</button>
-          <button className={d3 ? 'on' : ''} onClick={() => setD3(true)} aria-pressed={d3} title="건물을 세워 보기">입체</button>
+        <span className="lg">
+          {[['bcol', '카페·빈 자리', '건물마다 카페·빈 자리·다른 가게를 색으로'], ['shops', '모든 가게', '반경 안 가게를 점으로'], ['flow', '오가는 사람·예시', '사람이 많이 다니는 곳 (예시 값)'], ['place', '역·학교', '가까운 역·학교·버스 정류장']].map(([k, t, d]) => <button key={k} className={layer === k ? 'on' : ''} title={d} onClick={() => setLayer(k)}>{t}</button>)}
         </span>
-        {layer === 'bcol' && <button className={'sat' + (sat ? ' on' : '')} onClick={() => setSat(!sat)} aria-pressed={sat} title="위성 사진 켜고 끄기">위성 사진</button>}
+        <span className="vw">
+          <span className="seg" role="group" aria-label="평면 입체 보기">
+            <i className={d3 ? 'r' : ''} />
+            <button className={d3 ? '' : 'on'} onClick={() => setD3(false)} aria-pressed={!d3} title="위에서 내려다보기">평면</button>
+            <button className={d3 ? 'on' : ''} onClick={() => setD3(true)} aria-pressed={d3} title="건물을 세워 보기">입체</button>
+          </span>
+          {layer === 'bcol' && <button className={'sat' + (sat ? ' on' : '')} onClick={() => setSat(!sat)} aria-pressed={sat} title="위성 사진 켜고 끄기">위성 사진</button>}
+        </span>
       </div>
       <div className={'legendmap glass' + (layer === 'flow' ? ' on' : '')}><span>적음</span><i /><span>많음</span></div>
       <div className={'legendmap places glass' + (layer === 'place' ? ' on' : '')}>

@@ -4,6 +4,7 @@ import PixelMap from './PixelMap.jsx'
 import LineMap from './LineMap.jsx'
 import Report from './Report.jsx'
 import { DEMO, PICK } from './demo.js'
+import Wheel from './Wheel.jsx'
 import { Pin, PIN, PIN_CELLS, SearchIcon, ArrowIcon } from './pin.jsx'
 import { clamp, ioc, INTRO, makeClock, params } from './motion.js'
 
@@ -49,6 +50,7 @@ export default function App() {
   const [where, setWhere] = useState('공릉로 232')
   const [what, setWhat] = useState('카페')
   const [open, setOpen] = useState(null)
+  const chipRef = useRef(null)
   const radius = 300 // 걸어서 5분 안으로 고정
   const [active, setActive] = useState(null)
   const [focus, setFocus] = useState(null)
@@ -174,7 +176,7 @@ export default function App() {
   // 고르는 창 밖을 누르면 닫는다
   useEffect(() => {
     if (!open) return
-    const down = e => { if (!qRef.current?.contains(e.target)) setOpen(null) }
+    const down = e => { if (!qRef.current?.contains(e.target) && !e.target.closest?.('.wheel')) setOpen(null) }
     addEventListener('pointerdown', down)
     return () => removeEventListener('pointerdown', down)
   }, [open])
@@ -233,23 +235,16 @@ export default function App() {
             <span className="ic"><SearchIcon /></span>
             <p className="sent" aria-label={`나는 ${where}에 ${what}${eul(what)} 차릴 거예요`}>
               <span className="w0">나는 </span>
-              <button type="button" className={'chip' + (open === 'where' ? ' on' : '')} onClick={() => setOpen(open === 'where' ? null : 'where')} aria-haspopup="listbox" aria-expanded={open === 'where'}>{where}</button>에{' '}
-              <button type="button" className={'chip' + (open === 'what' ? ' on' : '')} onClick={() => setOpen(open === 'what' ? null : 'what')} aria-haspopup="listbox" aria-expanded={open === 'what'}>{what}</button>{eul(what)}{' '}
+              <button type="button" className={'chip' + (open === 'where' ? ' on' : '')} onClick={e => { chipRef.current = e.currentTarget; setOpen(open === 'where' ? null : 'where') }} aria-haspopup="listbox" aria-expanded={open === 'where'}><span className="wb">[</span>{where}<span className="wb">]</span></button>에{' '}
+              <button type="button" className={'chip' + (open === 'what' ? ' on' : '')} onClick={e => { chipRef.current = e.currentTarget; setOpen(open === 'what' ? null : 'what') }} aria-haspopup="listbox" aria-expanded={open === 'what'}><span className="wb">[</span>{what}<span className="wb">]</span></button>{eul(what)}{' '}
               <span className="w1">차릴 거예요</span>
             </p>
             <button className="go" aria-label="리포트 보기"><ArrowIcon /></button>
           </motion.form>
-          {open && (
-            <div className={'suggest pick glass ' + open} role="listbox" aria-label={open === 'where' ? '어디에' : '무슨 가게'}>
-              <span className="k m">{open === 'where' ? 'WHERE · 어디에' : 'WHAT · 무슨 가게'}</span>
-              {PICK[open].map(([t, s, ok]) => (
-                <button key={t} role="option" aria-selected={(open === 'where' ? where : what) === t} disabled={!ok}
-                  className={(open === 'where' ? where : what) === t ? 'on' : ''}
-                  onClick={() => { (open === 'where' ? setWhere : setWhat)(t); setOpen(open === 'where' ? 'what' : null) }}>
-                  <span>{t}<small>{s}</small></span>{!ok && <em className="m">준비 중</em>}
-                </button>
-              ))}
-            </div>
+          {open && chipRef.current && (
+            <Wheel anchor={chipRef.current} items={PICK[open]} value={open === 'where' ? where : what} scale={1.5}
+              label={open === 'where' ? 'WHERE · 어디에' : 'WHAT · 무슨 가게'}
+              onPick={open === 'where' ? setWhere : setWhat} onClose={() => setOpen(null)} />
           )}
         </div>
       </div>

@@ -3,14 +3,14 @@ import { createPortal } from 'react-dom'
 
 // 제목 속 [ 값 ]을 누르면 그 자리에서 열리는 돌림판. 뒤는 흐려지고, 굴리거나 눌러서 고른다.
 // items: [[이름, 설명, 리포트 있음]]
-export default function Wheel({ anchor, items, value, onPick, onClose, label, show = t => t }) {
+export default function Wheel({ anchor, items, value, onPick, onClose, label, show = t => t, scale = 1 }) {
   const box = useRef(null)
   const atRef = useRef(Math.max(0, items.findIndex(i => i[0] === value)))
   const [at, setAt] = useState(atRef.current)
   const [shut, setShut] = useState(false)
   const r = anchor.getBoundingClientRect()
   const cs = getComputedStyle(anchor)
-  const fs = parseFloat(cs.fontSize)
+  const fs = parseFloat(cs.fontSize) * scale
   const H = Math.round(fs * 1.25)
   const ROWS = 5
 
@@ -51,9 +51,10 @@ export default function Wheel({ anchor, items, value, onPick, onClose, label, sh
 
   const cur = items[at]
   const top = r.top + r.height / 2 - (ROWS * H) / 2
+  const left = Math.max(12, Math.min(r.left, innerWidth - 12 - fs * 9))
   return createPortal(
     <div className={'wheel' + (shut ? ' shut' : '')} onClick={e => e.target === e.currentTarget && close()}>
-      <div className="wheel-b" style={{ top, left: r.left, font: `${cs.fontWeight} ${fs}px/${H}px ${cs.fontFamily}`, letterSpacing: cs.letterSpacing, '--h': H + 'px' }}>
+      <div className="wheel-b" style={{ top, left, font: `${cs.fontWeight} ${fs}px/${H}px ${cs.fontFamily}`, letterSpacing: cs.letterSpacing, '--h': H + 'px' }}>
         <span className="wheel-k m">{label}</span>
         <i className="wheel-band" aria-hidden="true" />
         <ul ref={box} tabIndex={0} role="listbox" aria-label={label} aria-activedescendant={'wh-' + at} onScroll={paint} onKeyDown={key}
