@@ -911,3 +911,10 @@ html:not(.ready) .word span,html:not(.ready) .qwrap{opacity:0;transition:none}
 .col .fold:first-child .fold-h{background:var(--c);box-shadow:none}
 .col .fold:first-child .fold-h span,.col .fold:first-child .fold-h i{color:#fff}
 .col .fold:first-child .fold-h small{color:rgba(255,255,255,.7)}
+/* 반경만 보기(A안): 원 밖은 흰 바탕만 */
+.solo .mapwrap{background:#fff}
+.solo .mapwrap .maplibregl-canvas{filter:none}
+.solo .mpin{color:#fff;filter:drop-shadow(0 2px 0 rgba(0,0,0,.5))}
+.legendmap.bcol .bc-cafe{background:#f4f1ea;box-shadow:inset 0 0 0 1px #16181d}
+.legendmap.bcol .bc-shop{background:#7a8090}.legendmap.bcol .bc-none{background:#3a3f4a}
+.solo .report .pill{background:#1f2633;backdrop-filter:none;-webkit-backdrop-filter:none}

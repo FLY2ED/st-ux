@@ -124,7 +124,7 @@ const H0 = ['coalesce', ['get', 'render_height'], 6], B0 = ['coalesce', ['get', 
 const kOf = new WeakMap()
 function setH(map, k) {
   kOf.set(map, k)
-  map.setLayoutProperty('building-3d', 'visibility', k > 0.001 ? 'visible' : 'none')
+  map.setLayoutProperty('building-3d', 'visibility', k > 0.001 && !map.__solo ? 'visible' : 'none')
   map.setPaintProperty('building-3d', 'fill-extrusion-height', ['*', H0, k])
   map.setPaintProperty('building-3d', 'fill-extrusion-base', ['*', B0, k])
   // 높이만 바뀌면 바닥에 납작한 면이 한꺼번에 생겨 보인다 → 투명도도 같이 올린다
@@ -135,7 +135,14 @@ function setH(map, k) {
   for (const id of ['ob-hi', 'ob-col']) if (map.getLayer(id)) map.setPaintProperty(id, 'fill-extrusion-height', hx)
 }
 // 건물 색 · 한 번에 보기: 내 자리 · 카페 · 공실 후보 · 다른 가게
-const BC = { tgt: '#3b6fe0', cafe: '#1b2340', empty: '#f08a3c', shop: '#8e98aa', none: '#e3e6eb' }
+const BC = { tgt: '#3b6fe0', cafe: '#f4f1ea', empty: '#f08a3c', shop: '#7a8090', none: '#3a3f4a' }
+// 반경만 보기: 원은 검은 땅, 스크롤 중인 항목(fk)의 건물만 밝게 두고 나머지는 어둡게
+const KEYX = { tgt: ['==', ['get', 'tgt'], 1], cafe: ['>', ['coalesce', ['get', 'cafe'], 0], 0], empty: ['==', ['get', 'empty'], 1], shop: ['>', ['coalesce', ['get', 'n'], 0], 0] }
+const DIM = { tgt: '#3b6fe0', cafe: '#77736b', empty: '#7a5233', shop: '#4a4f5b', none: '#2c3038' }
+function bcColor(fk) {
+  const c = k => (!fk || fk === k || k === 'tgt' ? BC[k] : DIM[k])
+  return ['case', KEYX.tgt, c('tgt'), KEYX.cafe, c('cafe'), KEYX.empty, c('empty'), KEYX.shop, c('shop'), c('none')]
+}
 export const BC_KEYS = [['tgt', '내 자리'], ['cafe', '카페 있는 건물'], ['empty', '공실 후보'], ['shop', '다른 가게 건물'], ['none', '가게 없는 건물']]
 const eo = v => 1 - Math.pow(1 - v, 3)
 function rise(map, to, dur, delay = 0) {
@@ -218,7 +225,7 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       map.addLayer({ id: 'ob-col', type: 'fill-extrusion', source: 'ob', layout: { visibility: 'none' },
         filter: ['any', ['==', ['get', 'tgt'], 1], ['<=', ['get', 'dist'], 300]], // 걸어서 5분 원 안 건물만 색칠
         paint: { 'fill-extrusion-opacity': .92, 'fill-extrusion-height': .4,
-          'fill-extrusion-color': ['case', ['==', ['get', 'tgt'], 1], BC.tgt, ['>', ['coalesce', ['get', 'cafe'], 0], 0], BC.cafe, ['==', ['get', 'empty'], 1], BC.empty, ['>', ['coalesce', ['get', 'n'], 0], 0], BC.shop, BC.none] } })
+          'fill-extrusion-color': bcColor(null) } })
       map.addLayer({ id: 'ob-empty', type: 'line', source: 'ob', layout: { visibility: 'none' }, filter: ['==', ['get', 'empty'], 1],
         paint: { 'line-color': BC.empty, 'line-width': 2.5, 'line-dasharray': [2, 1.5] } })
       map.addLayer({ id: 'ob-hi', type: 'fill-extrusion', source: 'ob', filter: ['in', ['get', 'i'], ['literal', []]],
@@ -307,6 +314,14 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     vis('iso', layer === 'place'); vis('iso-fill', layer === 'place')
     vis('radius', layer !== 'place'); vis('radius-fill', layer !== 'place')
     vis('ob-col', layer === 'bcol'); vis('ob-empty', layer === 'bcol')
+    const solo = layer === 'bcol'
+    map.__solo = solo
+    document.documentElement.classList.toggle('solo', solo)
+    for (const l of STYLE.layers) if (l.id !== 'bg' && l.id !== 'building-3d') vis(l.id, !solo)
+    setH(map, kOf.get(map) ?? 0)
+    map.setPaintProperty('radius-fill', 'fill-color', solo ? '#16181d' : W + '.06)')
+    map.setPaintProperty('radius', 'line-color', solo ? '#16181d' : '#fff')
+    map.setPaintProperty('cafes', 'icon-opacity', solo ? 0 : ['case', ['<=', ['get', 'd'], radius], 1, .45])
     if (layer === 'bcol') heightsAll(map)
     if (layer === 'flow') { setFt(fm === 'h' ? 7 : 0); setPlay(true) }
     if (layer === 'place') {
@@ -437,6 +452,12 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     ohSet.add('all')
   }
   useEffect(() => { const map = mapRef.current; if (layer === 'bcol' && map && bld) map.once('idle', () => heightsAll(map)) }, [bld])
+  // 오른쪽 칸에서 지금 읽는 항목의 건물만 밝게
+  useEffect(() => {
+    const on = e => { const map = mapRef.current; if (map?.getLayer('ob-col')) map.setPaintProperty('ob-col', 'fill-extrusion-color', bcColor(e.detail)) }
+    addEventListener('zari-focus', on)
+    return () => removeEventListener('zari-focus', on)
+  }, [])
 
   const inIso = (r, cafe) => report.shops.filter(([x, y, c]) => Math.hypot(x, y) <= r && (!cafe || c === Q.cat)).length
 

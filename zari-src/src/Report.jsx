@@ -133,6 +133,22 @@ export default function Report({ report, radius, active, setActive, pick, saved,
     return () => io.disconnect()
   }, [])
 
+  // 읽는 위치(칸 위쪽 40%)에 걸린 항목을 지도에 알린다: 매출=내 자리, 경쟁=카페, 비용=공실 후보, 그 아래=전체
+  useEffect(() => {
+    const col = document.querySelector('.col')
+    if (!col) return
+    let last
+    const pick = () => {
+      const y = col.getBoundingClientRect().top + col.clientHeight * .4
+      let fk = null
+      for (const s of col.querySelectorAll('[data-fk]')) if (s.getBoundingClientRect().top <= y) fk = s.dataset.fk
+      if (col.scrollTop < 40) fk = null
+      if (fk !== last) { last = fk; dispatchEvent(new CustomEvent('zari-focus', { detail: fk })) }
+    }
+    col.addEventListener('scroll', pick, { passive: true })
+    return () => { col.removeEventListener('scroll', pick); dispatchEvent(new CustomEvent('zari-focus', { detail: null })) }
+  }, [])
+
   // 펼친 칸: 숫자를 세어 올리고 그 칸 머리가 보이게 내린다
   useEffect(() => {
     if (!open) return
@@ -148,7 +164,7 @@ export default function Report({ report, radius, active, setActive, pick, saved,
 
   return (
     <div className="report">
-      <section className="sec head" style={{ '--i': 0 }}>
+      <section data-fk="tgt" className="sec head" style={{ '--i': 0 }}>
         <h1>{Q.address}</h1>
         <p className="where">{Q.near} · {Q.dong} · {Q.what}</p>
         <p className="say"><b>{D.grade.t}</b>예요. {D.grade.s}<span className="gr m">{D.grade.g}<em className="eg">예시</em></span></p>
@@ -160,7 +176,7 @@ export default function Report({ report, radius, active, setActive, pick, saved,
         </div>
       </section>
 
-      <section className="sec band dark" style={{ '--i': 1 }}>
+      <section data-fk="tgt" className="sec band dark" style={{ '--i': 1 }}>
         <span className="k m">매출<em className="eg">예시</em></span>
         <p className="say">카페 1곳이 한 달에 <b>이만큼</b> 팔아요. <b>방학엔 {vacDrop}%쯤 줄어요.</b></p>
         <div className="n m">{fmt(D.sales.month)}<small>만 원</small></div>
@@ -169,7 +185,7 @@ export default function Report({ report, radius, active, setActive, pick, saved,
         <div className="lab"><span>1월</span><span>옅은 막대 = 방학</span><span>12월</span></div>
       </section>
 
-      <section className="sec band g2" style={{ '--i': 2 }}>
+      <section data-fk="cafe" className="sec band g2" style={{ '--i': 2 }}>
         <span className="k m">경쟁</span>
         <p className="say">카페가 <b>가게 {Math.round(1 / S.share)}곳 중 1곳</b>꼴로 <b>서울보다 {S.share > C.seoulShare ? '많아요' : '적어요'}.</b></p>
         <div className="n m">{S.count}<small>곳</small></div>
@@ -188,7 +204,7 @@ export default function Report({ report, radius, active, setActive, pick, saved,
         </div>
       </section>
 
-      <section className="sec band g3" style={{ '--i': 3 }}>
+      <section data-fk="empty" className="sec band g3" style={{ '--i': 3 }}>
         <span className="k m">비용<em className="eg">예시</em></span>
         <p className="say">처음에 이만큼 들고, {P.payback ? <><b>{P.payback}개월</b>이면 되찾아요.</> : <b>지금 값으로는 되찾지 못해요.</b>}</p>
         <div className="n m">{(P.total / 10000).toFixed(1)}<small>억</small></div>
