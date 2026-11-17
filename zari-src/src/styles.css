@@ -709,3 +709,24 @@ html:not(.ready) .word span,html:not(.ready) .qwrap{opacity:0;transition:none}
   .col .kpis b{font-size:22px}
 }
 @media print{body{background:#fff}}
+
+/* 리포트 지도 위 메뉴 · 가게 카드 · 가까운 역: 흰 사이드바와 같은 흰 카드 */
+.report .top nav,.shopcard,.walk{--ink:#1f2633;--ink-2:#6b7385;--hair:#e6e8ec;background:rgba(255,255,255,.95);color:var(--ink);box-shadow:0 1px 2px rgba(31,38,51,.08),0 6px 20px rgba(31,38,51,.10)}
+.report .top nav{padding:3px;gap:2px}
+.report .top nav button{font-family:Pretendard,sans-serif;font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--ink-2);padding:8px 12px}
+.report .top nav button:hover{background:rgba(31,38,51,.05);color:var(--ink)}
+.shopcard .m,.walk .m{font-family:Pretendard,sans-serif;font-weight:500;letter-spacing:0;font-variant-numeric:tabular-nums}
+.shopcard>span,.walk>span{font-size:11px;font-weight:500;letter-spacing:.06em;color:var(--ink-2)}
+.shopcard .nm{color:var(--ink)}
+.shopcard>small,.walk em{color:var(--ink-2)}
+.shopcard .x{color:var(--ink-2)}
+.shopcard .x:hover{color:var(--ink)}
+.sc-row{color:var(--ink-2);border-top-color:var(--hair)}
+.sc-row b{color:var(--ink)}
+.sc-row b.m{font-size:12px}
+.shopcard .eg{background:none;color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--hair);border-radius:999px;padding:1px 7px;font-size:11px;font-weight:500}
+.walk b{color:var(--ink)}
+.walk strong{color:var(--ink);font-weight:600}
+.walk .iso-n{border-top-color:var(--hair);color:var(--ink-2)}
+.walk .iso-n span{color:var(--ink-2)}
+.walk .iso-n b{color:var(--ink);font-weight:600}
