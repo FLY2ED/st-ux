@@ -74,9 +74,10 @@ function glyph(kind) {
 // 반경이 화면에 다 들어오는 확대값. 모바일은 위쪽 검색창 아래로 가운데를 내린다
 const mob = () => innerWidth < 760
 const zoomFor = r => (mob() ? (r > 300 ? 13.9 : 14.6) : r > 300 ? 15.45 : 16.2)
-export const mapPadTop = () => (mob() ? 100 : 0)
+export const mapPadTop = () => (mob() ? 40 : 0)
 
 // 반경 원(미터) → 위경도 고리
+export const shortAddr = a => a.replace(/^서울\S*\s+\S+구\s+/, '')
 const fmtM = d => (d >= 1000 ? (d / 1000).toFixed(1) + 'km' : Math.round(d / 10) * 10 + 'm')
 
 function ring(lon, lat, r, kx, ky) {
@@ -136,15 +137,18 @@ function setH(map, k) {
   for (const id of ['ob-hi', 'ob-col']) if (map.getLayer(id)) map.setPaintProperty(id, 'fill-extrusion-height', hx)
 }
 // 건물 색 · 한 번에 보기: 내 자리 · 카페 · 공실 후보 · 다른 가게
-const BC = { tgt: '#3b6fe0', cafe: '#f4f1ea', empty: '#f08a3c', shop: '#7a8090', none: '#3a3f4a' }
-// 반경만 보기: 원은 검은 땅, 스크롤 중인 항목(fk)의 건물만 밝게 두고 나머지는 어둡게
+const LAND = '#16181d'
+const BC = { tgt: '#3b6fe0', cafe: '#f4f1ea', empty: '#f08a3c', shop: '#6b7180', none: '#343944' }
+// 반경만 보기: 원은 검은 땅, 왼쪽에서 읽는 항목(fk)의 건물만 밝게(카페·가게는 흰색) 두고 나머지는 땅 쪽으로 어둡게
 const KEYX = { tgt: ['==', ['get', 'tgt'], 1], cafe: ['>', ['coalesce', ['get', 'cafe'], 0], 0], empty: ['==', ['get', 'empty'], 1], shop: ['>', ['coalesce', ['get', 'n'], 0], 0] }
-const DIM = { tgt: '#3b6fe0', cafe: '#77736b', empty: '#7a5233', shop: '#4a4f5b', none: '#2c3038' }
-function bcColor(fk) {
-  const c = k => (!fk || fk === k || k === 'tgt' ? BC[k] : DIM[k])
+const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16))
+const dim = h => 'rgb(' + rgb(h).map((v, i) => Math.round(rgb(LAND)[i] + (v - rgb(LAND)[i]) * .4)).join(',') + ')'
+function bcColor(fk, ids = []) {
+  const F = fk === 'near' ? ['in', ['get', 'i'], ['literal', ids]] : KEYX[fk]
+  const c = k => (!F ? BC[k] : ['case', F, k === 'tgt' || k === 'empty' ? BC[k] : '#ffffff', dim(BC[k])])
   return ['case', KEYX.tgt, c('tgt'), KEYX.cafe, c('cafe'), KEYX.empty, c('empty'), KEYX.shop, c('shop'), c('none')]
 }
-export const BC_KEYS = [['tgt', '내 자리'], ['cafe', '카페 있는 건물'], ['empty', '공실 후보'], ['shop', '다른 가게 건물'], ['none', '가게 없는 건물']]
+export const BC_KEYS = [['cafe', '카페'], ['empty', '빈 자리'], ['shop', '다른 가게'], ['tgt', '내 자리']]
 const eo = v => 1 - Math.pow(1 - v, 3)
 function rise(map, to, dur, delay = 0) {
   const from = kOf.get(map) ?? 0, t0 = performance.now() + delay
@@ -158,13 +162,14 @@ function rise(map, to, dur, delay = 0) {
 }
 
 export default function LineMap({ report, radius, active, onActive, onPick, shown, focus, center }) {
-  // 처음부터 3D: 건물을 세우고 지도를 비스듬히 눕힌다
-  const [d3, setD3] = useState(true)
+  // 처음엔 위에서 내려다보는 2D (3D 버튼으로 건물을 세운다)
+  const [d3, setD3] = useState(false)
+  const [sat, setSat] = useState(false)
   const d3Ref = useRef(d3)
   d3Ref.current = d3
   const tilt = () => (d3Ref.current ? { pitch: 58, bearing: -20 } : { pitch: 0, bearing: 0 })
   const [walk, setWalk] = useState(null)
-  const box = useRef(null), mapRef = useRef(null), tipRef = useRef(null)
+  const box = useRef(null), mapRef = useRef(null), tipRef = useRef(null), pinRef = useRef(null), fkRef = useRef('tgt'), bldRef = useRef(null)
   const cb = useRef({ onActive, onPick })
   cb.current = { onActive, onPick }
   const { query: Q } = report
@@ -236,7 +241,7 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
         paint: { 'fill-extrusion-color': '#3b6fe0', 'fill-extrusion-opacity': .9, 'fill-extrusion-height': .4 } })
       map.addLayer({ id: 'ob-line', type: 'line', source: 'ob', filter: ['in', ['get', 'i'], ['literal', []]], paint: { 'line-color': '#3b6fe0', 'line-width': 5 } })
       fetch('./data/buildings-gongneung.json').then(r => r.json()).then(d => {
-        map.getSource('ob').setData(d); setBld(d)
+        map.getSource('ob').setData(d); setBld(d); bldRef.current = d; focusNow(map)
         setH(map, kOf.get(map) ?? 0)
       })
       const shops = report.shops.map((s, i) => [s, i]).filter(([s]) => s[2] !== Q.cat).map(([[x, y, c], i]) => ({
@@ -272,7 +277,7 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     el.className = 'mpin'
     createRoot(el).render(<Pin size={30} />)
     new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([Q.lon, Q.lat]).addTo(map)
-    const move = () => { place(map); clip(map) }
+    const move = () => { place(map); clip(map); drawPins(map) }
     map.on('move', move)
     return () => map.remove()
   }, [])
@@ -325,16 +330,16 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     vis('walk', layer === 'place')
     vis('iso', layer === 'place'); vis('iso-fill', layer === 'place')
     vis('radius', layer !== 'place'); vis('radius-fill', layer !== 'place')
-    vis('ob-col', layer === 'bcol'); vis('ob-empty', layer === 'bcol')
+    vis('ob-col', layer === 'bcol'); vis('ob-empty', false)
     const solo = layer === 'bcol'
     map.__solo = solo
     document.documentElement.classList.toggle('solo', solo)
     for (const l of STYLE.layers) if (l.id !== 'bg' && l.id !== 'building-3d') vis(l.id, !solo)
     setH(map, kOf.get(map) ?? 0)
-    vis('sat', solo); clip(map)
-    map.setPaintProperty('radius-fill', 'fill-color', solo ? 'rgba(14,16,20,.35)' : W + '.06)')
-    map.setPaintProperty('radius', 'line-color', solo ? 'rgba(255,255,255,.7)' : '#fff')
-    map.setPaintProperty('radius', 'line-dasharray', solo ? [1, 0] : [2, 2])
+    vis('sat', solo && sat); clip(map)
+    map.setPaintProperty('radius-fill', 'fill-color', solo ? (sat ? 'rgba(14,16,20,.35)' : LAND) : W + '.06)')
+    map.setPaintProperty('radius', 'line-opacity', solo ? 0 : 1)
+    drawPins(map)
     map.setPaintProperty('cafes', 'icon-opacity', solo ? 0 : ['case', ['<=', ['get', 'd'], radius], 1, .45])
     if (layer === 'bcol') heightsAll(map)
     if (layer === 'flow') { setFt(fm === 'h' ? 7 : 0); setPlay(true) }
@@ -357,7 +362,7 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       map.once('moveend', () => map.once('idle', find))
     }
     if (layer === 'flow') map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomFor(radius), padding: { top: mapPadTop() }, duration: 700 })
-  }, [layer, ready])
+  }, [layer, ready, sat])
 
   // 유동인구 재생: 시간(또는 달)에 따라 칸마다 진하기가 바뀐다
   useEffect(() => {
@@ -466,33 +471,75 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     ohSet.add('all')
   }
   useEffect(() => { const map = mapRef.current; if (layer === 'bcol' && map && bld) map.once('idle', () => heightsAll(map)) }, [bld])
-  // 오른쪽 칸에서 지금 읽는 항목의 건물만 밝게
+  // 왼쪽에서 지금 읽는 항목의 건물만 밝게 + 이름표
+  const nearest = () => report.competitors.map((s, i) => ({ s, i })).sort((a, b) => a.s.dist - b.s.dist).slice(0, 3)
+  function focusNow(map) {
+    if (!map?.getLayer('ob-col')) return
+    const fk = fkRef.current, B = bldRef.current
+    const ids = fk === 'near' && B ? nearest().map(({ i }) => B.cafe[i]).filter(v => v != null) : []
+    map.setPaintProperty('ob-col', 'fill-extrusion-color', bcColor(fk, ids))
+    drawPins(map)
+  }
   useEffect(() => {
-    const on = e => { const map = mapRef.current; if (map?.getLayer('ob-col')) map.setPaintProperty('ob-col', 'fill-extrusion-color', bcColor(e.detail)) }
+    const on = e => { fkRef.current = e.detail; focusNow(mapRef.current) }
     addEventListener('zari-focus', on)
     return () => removeEventListener('zari-focus', on)
   }, [])
+  // 내 자리 점: 내 자리 건물 한가운데 (건물이 아직 없으면 주소 좌표)
+  const meAt = () => {
+    const f = bldRef.current?.features.find(f => f.properties.tgt)
+    if (!f) return [Q.lon, Q.lat]
+    const r = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates[0][0]
+    return r.slice(1).reduce((a, q) => [a[0] + q[0] / (r.length - 1), a[1] + q[1] / (r.length - 1)], [0, 0])
+  }
+  // 이름표: 점에서 오른쪽으로 선을 그어 흰 칸에 이름 (화면 밖으로 나가면 왼쪽으로)
+  const meas = useRef(null)
+  function drawPins(map) {
+    const svg = pinRef.current
+    if (!svg) return
+    if (!map.__solo) { svg.innerHTML = ''; return }
+    const fk = fkRef.current, me = map.project(meAt())
+    let P = []
+    if (fk === 'tgt') P = [{ p: me, t: '내 자리 · ' + shortAddr(Q.address) }]
+    if (fk === 'near') P = nearest().map(({ s }) => ({ p: map.project(ll(s.x, s.y)), t: `${s.name} ${s.dist}m`, c: 1 }))
+    P.sort((a, b) => a.p.y - b.p.y)
+    const ctx = meas.current || (meas.current = document.createElement('canvas').getContext('2d'))
+    ctx.font = `600 ${mob() ? 11.5 : 12.5}px Pretendard, sans-serif`
+    const W0 = svg.clientWidth, ws = P.map(q => ctx.measureText(q.t).width + 18), wmax = Math.max(0, ...ws)
+    let lx = Math.max(...P.map(q => q.p.x)) + 48
+    const left = lx + wmax > W0 - 12
+    if (left) lx = Math.min(...P.map(q => q.p.x)) - 48
+    const y0 = P.length ? (P[0].p.y + P[P.length - 1].p.y) / 2 - (P.length - 1) * 16 : 0
+    const dot = (p, c) => `<circle cx="${p.x}" cy="${p.y}" r="5" class="${c ? 'c' : 'me'}"/>`
+    svg.innerHTML = P.map((q, i) => {
+      const ly = y0 + i * 32, w = ws[i], x = Math.max(8, Math.min(W0 - 8 - w, left ? lx - w : lx))
+      return `<g><line x1="${q.p.x}" y1="${q.p.y}" x2="${lx}" y2="${ly}"/><rect x="${x}" y="${ly - 12}" width="${w}" height="24"/><text x="${x + 9}" y="${ly + 4.5}">${q.t.replace(/[<&]/g, '')}</text>${dot(q.p, q.c)}</g>`
+    }).join('') + (fk === 'tgt' ? '' : dot(me))
+  }
 
   const inIso = (r, cafe) => report.shops.filter(([x, y, c]) => Math.hypot(x, y) <= r && (!cafe || c === Q.cat)).length
 
   return (
     <div className="mapwrap">
       <div ref={box} className="linemap" />
+      <svg ref={pinRef} className="pins" aria-hidden="true" />
       <div ref={tipRef} className="tip glass maptip" />
-      <div className="layers glass" role="group" aria-label="지도에 보이는 것">
+      <div className="layers" role="group" aria-label="지도에 보이는 것">
         {[['bcol', '건물 색'], ['shops', '가게'], ['flow', '유동인구 · 예시'], ['place', '주변 시설']].map(([k, t]) => <button key={k} className={layer === k ? 'on' : ''} onClick={() => setLayer(k)}>{t}</button>)}
         <span className="seg" role="group" aria-label="2D 3D 보기">
           <i className={d3 ? 'r' : ''} />
           <button className={'m' + (d3 ? '' : ' on')} onClick={() => setD3(false)} aria-pressed={!d3}>2D</button>
           <button className={'m' + (d3 ? ' on' : '')} onClick={() => setD3(true)} aria-pressed={d3}>3D</button>
         </span>
+        {layer === 'bcol' && <button className={'sat' + (sat ? ' on' : '')} onClick={() => setSat(!sat)} aria-pressed={sat}>위성</button>}
       </div>
       <div className={'legendmap glass' + (layer === 'flow' ? ' on' : '')}><span>적음</span><i /><span>많음</span></div>
       <div className={'legendmap places glass' + (layer === 'place' ? ' on' : '')}>
         {PLACE_KINDS.map(([k, t]) => <span key={k}><i className={'pk-' + k} />{t}</span>)}
         <span><i className="pk-iso" />걸어서 5·10분</span>
       </div>
-      <div className={'legendmap places bcol glass' + (layer === 'bcol' ? ' on' : '')}>
+      <div className={'scale m' + (layer === 'bcol' ? ' on' : '')}>{radius}M · 걸어서 5분</div>
+      <div className={'legendmap places bcol' + (layer === 'bcol' ? ' on' : '')}>
         {BC_KEYS.map(([k, t]) => <span key={k}><i className={'bc-' + k} />{t}</span>)}
       </div>
       {layer === 'place' && walk && (

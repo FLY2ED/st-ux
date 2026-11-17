@@ -979,3 +979,86 @@ body{background:url(/bg.webp) center/cover no-repeat fixed #8a8f97}
 }
 @media (max-width:759px){.app.report .col{top:44vh}.col .brand{padding:16px 18px 0}}
 @media (max-width:759px){.report .layers{top:14px}}
+
+/* 리디자인: 왼쪽 항목 7개(읽는 것만 진하게) · 오른쪽 흰 바탕 검은 원 · 선으로만 그린 버튼과 글자 범례 */
+@media (min-width:760px){
+  :root{--col:clamp(420px,40vw,620px)}
+  .app.report .col>.report{padding:0 48px 120px 72px}
+  .col .brand{position:fixed;top:0;padding:28px 0 0 72px}
+}
+.app.report .col>.report{gap:0}
+.zl{list-style:none;margin:0;padding:18vh 0 22vh}
+.zi{min-height:58vh;transition:opacity .35s}
+.zi:not(.cur){opacity:.28}
+.zk{display:flex;align-items:center;gap:10px;font-size:11px;letter-spacing:.14em;color:#6b7385;margin-bottom:18px}
+.zk i{width:10px;height:10px;border-radius:50%;background:var(--c,#16181d)}
+.zi.ring .zk i{background:none;box-shadow:inset 0 0 0 2px #16181d}
+.col .zi h2{font-weight:600;font-size:50px;line-height:1.12;letter-spacing:-.03em;margin:0 0 20px;color:#16181d}
+.zi h2 em{font:400 .86em Michroma,sans-serif;letter-spacing:-.02em;font-style:normal}
+.zi p{font-size:16px;line-height:1.7;color:#6b7385;max-width:30em;margin:0}
+.zi p b{color:#16181d;font-weight:600}
+.zi .zg{font-size:12px;color:#16181d;margin-left:4px}
+.zi .eg{font-size:10px;padding:1px 5px;border:1px solid #e6e8ec;color:#6b7385;vertical-align:2px;margin-left:6px;background:none;box-shadow:none}
+.zacts{display:flex;gap:18px;margin-top:26px}
+.zacts button,.zn button{background:none;padding:0 0 3px;font-size:13px;color:#6b7385;box-shadow:inset 0 -1px 0 #c5c9d0;transition:color .2s,box-shadow .2s}
+.zacts button:hover,.zacts button.on,.zn button:hover,.zn button.on{color:#16181d;box-shadow:inset 0 -1px 0 #16181d}
+.zn{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.zn button{font-size:16px}
+.zmore{margin:0 0 4px}
+.zmore::before{content:"";width:10px;height:10px;border-radius:50%;box-shadow:inset 0 0 0 1px #16181d}
+/* 자세히: 색 블록 대신 선으로 나눈 줄 */
+.col .folds{display:block;margin-top:0;border-top:1px solid #16181d}
+.col .fold{border-bottom:1px solid #e6e8ec}
+.col .fold-h,.col .fold-h:hover,.col .fold:first-child .fold-h{grid-template-columns:auto auto 1fr 14px;background:none;box-shadow:none;padding:17px 0;margin:0;width:100%}
+.col .fold-h .dot{display:inline-block;width:8px;height:8px;border-radius:50%}
+.col .fold-h span,.col .fold:first-child .fold-h span{color:#16181d;font-weight:500}
+.col .fold-h small,.col .fold:first-child .fold-h small{color:#6b7385}
+.col .fold-h i,.col .fold:first-child .fold-h i{color:#16181d}
+.col .fold-h:hover span{box-shadow:inset 0 -1px 0 #16181d}
+/* 지도 위: 선 하나로 두른 버튼 줄(오른쪽 위), 글자 범례(오른쪽 아래), 거리(왼쪽 아래) */
+.mapwrap .layers{left:auto;right:32px;top:28px;bottom:auto;padding:0;gap:0;background:#fff;box-shadow:inset 0 0 0 1px #16181d;backdrop-filter:none;-webkit-backdrop-filter:none}
+.mapwrap .layers>button,.mapwrap .layers .seg button{font-size:12px;padding:8px 13px;color:#16181d;background:none;box-shadow:inset -1px 0 0 #16181d}
+.mapwrap .layers>button:last-child{box-shadow:none}
+.mapwrap .layers>button.on{background:#16181d;color:#fff}
+.mapwrap .layers .seg{margin:0;background:none;box-shadow:inset -1px 0 0 #16181d}
+.mapwrap .layers .seg button{width:44px;padding:8px 0;box-shadow:none}
+.mapwrap .layers .seg button.on{color:#fff;background:none}
+.mapwrap .layers .seg i{width:44px;background:#16181d}
+.mapwrap .layers .seg i.r{transform:translateX(44px)}
+.mapwrap .layers .seg:last-child{box-shadow:none}
+.legendmap.bcol{left:auto;right:32px;bottom:28px;top:auto;padding:0;gap:16px;font-size:12px;color:#6b7385;background:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.legendmap.bcol span{gap:6px}
+.legendmap.bcol i{width:9px;height:9px;border-radius:2px;outline:0}
+.legendmap.bcol .bc-cafe{background:#f4f1ea;box-shadow:inset 0 0 0 1px #6b7385}
+.legendmap.bcol .bc-empty{background:#f08a3c;outline:0}
+.legendmap.bcol .bc-shop{background:#6b7180}.legendmap.bcol .bc-tgt{background:#3b6fe0}
+.mapwrap .scale{position:absolute;z-index:3;left:32px;bottom:28px;font-size:10px;letter-spacing:.12em;color:#6b7385;opacity:0;transition:opacity .3s;pointer-events:none}
+.mapwrap .scale.on{opacity:1}
+.solo .mpin{display:none}
+.pins{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;overflow:visible}
+.pins line{stroke:#fff;stroke-width:1}
+.pins rect{fill:#fff}
+.pins text{font:600 12.5px Pretendard,sans-serif;fill:#16181d}
+.pins circle.me{fill:#3b6fe0;stroke:#fff;stroke-width:2}
+.pins circle.c{fill:#fff;stroke:#16181d;stroke-width:2}
+.solo .maplibregl-ctrl-attrib{background:none!important;color:#9aa1ad!important}
+@media (max-width:759px){
+  .zl{padding:4vh 0 26vh}
+  .zi{min-height:36vh}
+  .col .zi h2{font-size:32px;margin-bottom:12px}
+  .zk{margin-bottom:12px}
+  .zi p,.zn button{font-size:14px}
+  .app.report .col>.report{padding:0 24px 100px}
+  .col .brand{padding:16px 24px 0}
+  .mapwrap .layers{right:10px;top:12px;left:auto}
+  .mapwrap .layers>button,.mapwrap .layers .seg button{font-size:11px;padding:7px 8px}
+  .mapwrap .layers .seg button{width:34px;padding:7px 0}
+  .mapwrap .layers .seg i{width:34px}.mapwrap .layers .seg i.r{transform:translateX(34px)}
+  .legendmap.bcol{display:flex;left:14px;right:auto;bottom:auto;top:calc(44vh - 26px);gap:10px;font-size:11px;max-width:none;flex-wrap:nowrap}
+  .legendmap.bcol:not(.on){display:none}
+  .mapwrap .scale{display:none}
+}
+.col .brand{margin-top:0;border-top:0}
+.app.report .col>.brand{width:max-content}
+.col .zi h2{word-break:keep-all}
+@media (max-width:759px){.legendmap.bcol{top:calc(44vh - 24px)}.pins text{font-size:11.5px}}

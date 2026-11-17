@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DEMO, BRANDS, BRAND_NAME } from './demo.js'
 import { Cols, Line, Radar, Split, Rows } from './charts.jsx'
+import { shortAddr } from './LineMap.jsx'
 
 const fmt = n => n.toLocaleString('ko-KR')
 const pct = v => (v * 100).toFixed(1) + '%'
 const floorTxt = f => (f > 0 ? f + '층' : f < 0 ? '지하' + -f + '층' : '층 모름')
 const won = v => fmt(v) + '만'
+// 제목 안 숫자만 Michroma로
+const num = t => { const m = String(t).match(/^(.*?)(\d[\d,.]*)(.*)$/); return m ? <>{m[1]}<em>{m[2]}</em>{m[3]}</> : t }
 
 // 반경 안 숫자는 화면에서 다시 센다(반경 바꾸기)
 function useStats(report, radius) {
@@ -86,9 +89,17 @@ export default function Report({ report, radius, active, setActive, pick, saved,
   const D = DEMO
   const VAC = [0, 1, 6, 7]
   const vacDrop = Math.round(100 - VAC.reduce((a, k) => a + D.sales.months[k][1], 0) / VAC.length)
-  const mMax = Math.max(...D.sales.months.map(m => m[1]))
   const P = plan()
-  const shareMax = Math.max(S.share, C.seoulShare) * 1.25
+  const near3 = [...S.near].sort((a, b) => a.dist - b.dist).slice(0, 3)
+  // 빈 자리 후보: 상가 건물인데 등록된 가게가 없는 곳 (Overture 건물)
+  const [vac, setVac] = useState(null)
+  useEffect(() => {
+    let off = false
+    fetch('./data/buildings-gongneung.json').then(r => r.json()).then(d => {
+      if (!off) setVac(d.features.map(f => f.properties).filter(p => p.empty === 1 && p.dist <= radius).sort((a, b) => a.dist - b.dist))
+    }).catch(() => {})
+    return () => { off = true }
+  }, [radius])
   const F = 'in late'
 
   // 부드러운 스크롤: 휠 한 번에 바로 튀지 않고 목표 위치까지 미끄러지듯 따라간다 (터치는 기기 그대로)
@@ -143,8 +154,8 @@ export default function Report({ report, radius, active, setActive, pick, saved,
       let fk = null, cur
       const all = col.querySelectorAll('[data-fk]')
       for (const s of all) if (s.getBoundingClientRect().top <= y) { fk = s.dataset.fk; cur = s }
-      if (col.scrollTop < 40) { fk = null; cur = all[0] }
-      all.forEach(s => s.classList.toggle('cur', s === (cur || all[0])))
+      if (!cur) { cur = all[0]; fk = cur?.dataset.fk }
+      all.forEach(s => s.classList.toggle('cur', s === cur))
       if (fk !== last) { last = fk; dispatchEvent(new CustomEvent('zari-focus', { detail: fk })) }
     }
     pick()
@@ -167,53 +178,63 @@ export default function Report({ report, radius, active, setActive, pick, saved,
 
   return (
     <div className="report">
-      <section data-fk="tgt" className="sec head" style={{ '--i': 0 }}>
-        <h1>{Q.address}</h1>
-        <p className="where">{Q.near} · {Q.dong} · {Q.what}</p>
-        <p className="say"><b>{D.grade.t}</b>예요. {D.grade.s}<span className="gr m">{D.grade.g}<em className="eg">예시</em></span></p>
-        <div className="row">
-          <button className={'act m' + (saved ? ' on' : '')} onClick={onSave}>{saved ? '✓ 비교함' : '+ 비교함'}</button>
-          <button className={'act m' + (alarm ? ' on' : '')} onClick={() => setAlarm(!alarm)}>{alarm ? '✓ 매월 알림' : '알림'}</button>
-          <button className={'act m' + (copied ? ' on' : '')} onClick={share}>{copied ? '✓ 링크 복사' : '공유'}</button>
-          <button className="act m" onClick={() => print()}>저장</button>
-        </div>
-      </section>
+      <ol className="zl">
+        <li className="zi" data-fk="tgt" style={{ '--c': '#3b6fe0' }}>
+          <span className="zk m"><i />HERE</span>
+          <h2>{num(shortAddr(Q.address))}</h2>
+          <p>{Q.near} · {Q.dong} · {Q.what}<br />{D.grade.t} <span className="zg m">{D.grade.g}</span><span className="eg">예시</span></p>
+          <div className="zacts">
+            <button className={saved ? 'on' : ''} onClick={onSave}>{saved ? '✓ 비교함에 담음' : '비교함에 담기'}</button>
+            <button className={alarm ? 'on' : ''} onClick={() => setAlarm(!alarm)}>{alarm ? '✓ 매월 알림' : '알림'}</button>
+            <button className={copied ? 'on' : ''} onClick={share}>{copied ? '✓ 링크 복사' : '공유'}</button>
+            <button onClick={() => print()}>저장</button>
+          </div>
+        </li>
+        <li className="zi ring" data-fk="cafe">
+          <span className="zk m"><i />CAFES</span>
+          <h2>{Q.what} <em>{S.count}</em>곳</h2>
+          <p>걸어서 5분({radius}m) 안 가게 {fmt(S.total)}곳 중 {S.count}곳, {pct(S.share)}.<br />서울 평균 {pct(C.seoulShare)}보다 {S.share > C.seoulShare ? '많아요' : '적어요'}. 경쟁 강도 <b>{LV[level][0]}</b>.</p>
+        </li>
+        {near3.length > 0 && (
+          <li className="zi ring" data-fk="near">
+            <span className="zk m"><i />NEAREST</span>
+            <h2>가장 가까운 {Q.what} <em>{near3[0].dist}</em>m</h2>
+            <div className="zn">
+              {near3.map(s => (
+                <button key={s.i} className={active === s.i ? 'on' : ''} onMouseEnter={() => setActive(s.i)} onMouseLeave={() => setActive(null)} onFocus={() => setActive(s.i)} onBlur={() => setActive(null)} onClick={() => pick(s.i)}>
+                  {s.name} · {s.dist}m · {floorTxt(s.floor)}
+                </button>
+              ))}
+            </div>
+          </li>
+        )}
+        <li className="zi" data-fk="cafe" style={{ '--c': '#3b6fe0' }}>
+          <span className="zk m"><i />SALES</span>
+          <h2>월매출 <em>{fmt(D.sales.month)}</em>만</h2>
+          <p>{Q.what} 1곳 평균. 서울 평균 {fmt(D.sales.seoul)}만.<br />방학(1·2·7·8월)엔 {vacDrop}%쯤 줄어요.<span className="eg">예시</span></p>
+        </li>
+        {vac && (
+          <li className="zi" data-fk="empty" style={{ '--c': '#f08a3c' }}>
+            <span className="zk m"><i />VACANT</span>
+            <h2>빈 자리 후보 <em>{vac.length}</em>곳</h2>
+            <p>상가 건물인데 등록된 가게가 하나도 없는 곳이에요.{vac[0] && <><br />{vac[0].dist < 60 ? `내 자리 바로 옆 ${vac[0].dist}m에도 있어요.` : `가장 가까운 곳은 ${vac[0].dist}m.`}</>}</p>
+          </li>
+        )}
+        {S.top[0] && (
+          <li className="zi" data-fk="shop" style={{ '--c': '#6b7180' }}>
+            <span className="zk m"><i />MIX</span>
+            <h2>가장 많은 업종 {S.top[0][0]} <em>{S.top[0][1]}</em>곳</h2>
+            <p>그다음 {S.top.slice(1, 5).map(([n, v]) => n + ' ' + v).join(' · ')}.</p>
+          </li>
+        )}
+        <li className="zi" data-fk="tgt" style={{ '--c': '#3b6fe0' }}>
+          <span className="zk m"><i />COST</span>
+          <h2>처음 <em>{(P.total / 10000).toFixed(1)}</em>억{P.payback ? <>, <em>{P.payback}</em>개월</> : null}</h2>
+          <p>10평 기준 보증금·권리금·인테리어·장비.<br />{P.payback ? `한 달 ${fmt(P.profit)}만 남으면 ${P.payback}개월에 되찾아요.` : '지금 값으로는 되찾지 못해요.'}<span className="eg">예시</span></p>
+        </li>
+      </ol>
 
-      <section data-fk="tgt" className="sec band dark" style={{ '--i': 1 }}>
-        <span className="k m">매출<em className="eg">예시</em></span>
-        <p className="say">카페 1곳이 한 달에 <b>이만큼</b> 팔아요. <b>방학엔 {vacDrop}%쯤 줄어요.</b></p>
-        <div className="n m">{fmt(D.sales.month)}<small>만 원</small></div>
-        <span className="tag">서울 평균 {fmt(D.sales.seoul)}만</span>
-        <div className="mbars">{D.sales.months.map(([m, v], k) => <i key={m} className={VAC.includes(k) ? 'v' : ''} style={{ height: (v / mMax) * 100 + '%' }} title={m + '월 ' + v} />)}</div>
-        <div className="lab"><span>1월</span><span>옅은 막대 = 방학</span><span>12월</span></div>
-      </section>
-
-      <section data-fk="cafe" className="sec band g2" style={{ '--i': 2 }}>
-        <span className="k m">경쟁</span>
-        <p className="say">카페가 <b>가게 {Math.round(1 / S.share)}곳 중 1곳</b>꼴로 <b>서울보다 {S.share > C.seoulShare ? '많아요' : '적어요'}.</b></p>
-        <div className="n m">{S.count}<small>곳</small></div>
-        <div className="cmp">
-          <div><span>이 자리</span><u><i style={{ width: (S.share / shareMax) * 100 + '%' }} /></u><em className="m">{pct(S.share)}</em></div>
-          <div className="s"><span>서울</span><u><i style={{ width: (C.seoulShare / shareMax) * 100 + '%' }} /></u><em className="m">{pct(C.seoulShare)}</em></div>
-        </div>
-        <div className="sub">
-          <div className="t">가장 가까운 카페 <small>올리면 지도에 건물이 파랗게</small></div>
-          {S.near.slice(0, 3).map(s => (
-            <button key={s.i} className={'nr' + (active === s.i ? ' on' : '')} onMouseEnter={() => setActive(s.i)} onMouseLeave={() => setActive(null)} onFocus={() => setActive(s.i)} onBlur={() => setActive(null)} onClick={() => pick(s.i)}>
-              <span>{s.name}</span><small className="m">{s.dist}m · {floorTxt(s.floor)}</small>
-            </button>
-          ))}
-          <button className="all" onClick={() => setOpen('comp')}>{S.near.length}곳 모두 보기 ›</button>
-        </div>
-      </section>
-
-      <section data-fk="empty" className="sec band g3" style={{ '--i': 3 }}>
-        <span className="k m">비용<em className="eg">예시</em></span>
-        <p className="say">처음에 이만큼 들고, {P.payback ? <><b>{P.payback}개월</b>이면 되찾아요.</> : <b>지금 값으로는 되찾지 못해요.</b>}</p>
-        <div className="n m">{(P.total / 10000).toFixed(1)}<small>억</small></div>
-        <span className="tag">한 달에 {fmt(P.profit)}만 남을 때 · 10평</span>
-      </section>
-
+      <span className="zk m zmore">MORE</span>
       <div className="folds">
       <Fold {...fp} id="comp" t="경쟁 자세히" d="서울 상권과 비교 · 카페 목록">
       <Sec className={F} k="INDEX" title="상권 지수" sub="다섯 가지를 100점으로 · 점선은 서울 평균(50)" demo>
