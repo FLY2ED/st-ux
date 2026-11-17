@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'motion/react'
 import PixelMap from './PixelMap.jsx'
 import LineMap from './LineMap.jsx'
 import Report from './Report.jsx'
-import { DEMO, PICK } from './demo.js'
+import { DEMO, PICK, SEOUL } from './demo.js'
+import { rebase } from './place.js'
 import Wheel from './Wheel.jsx'
 import { Pin, PIN, PIN_CELLS, SearchIcon, ArrowIcon } from './pin.jsx'
 import { clamp, ioc, INTRO, makeClock, params } from './motion.js'
@@ -26,13 +27,13 @@ const NAV = {
     ['REAL', '서울 200m 상권 4,797곳 비교', '가게 30곳 넘는 칸의 반경 300m와 견줘 경쟁 강도(적음·보통·많음)를 매겨요.'],
     ['REAL', 'OpenFreeMap · OpenStreetMap', '도로·건물·물길 선 지도, 건물 높이(3D), 지하철역·버스정류장·학교·병원 위치'],
     ['REAL', 'Overture Maps 건물', '가게를 건물에 맞춰 건물마다 든 가게·카페·층을 세요. 카페에 올리거나 건물을 누르면 보여요.'],
-    ['SAMPLE', '서울 열린데이터광장 상권분석 · 연결 예정', '추정매출·유동인구·사는·일하는 사람·주변 시설·아파트 세대·상권 변화 (분기 갱신). 지금은 예시 숫자예요.'],
-    ['SAMPLE', '가게별 매출·임대료·권리금', '카드사·부동산 등 민간 데이터라 기획 시연용 예시로만 보여 줘요.'],
+    ['REAL', '서울 열린데이터광장 상권분석서비스', `추정매출 ${SEOUL.asOf.sales} · 유동·상주·직장 인구 ${SEOUL.asOf.flow} · 집객 시설 · 아파트 · 점포 개폐업. 내 자리에서 600m 안 상권 ${SEOUL.area.n}곳을 합쳐 서울 상권과 견줘요.`],
+    ['SAMPLE', '가게별 매출·임대료·권리금·소득·생존율', '카드사·부동산 등 민간 데이터라 기획 시연용 예시로만 보여 줘요. 공실 비용도 예시 임대료로 셈한 추정이에요.'],
   ] },
   about: { k: 'ABOUT', t: 'ZARI', stats: [['553,374', '서울 가게'], ['4,797', '비교 상권'], ['799', '가게를 맞춘 건물']], body: [
     ['WHY', '서울에서 카페·식당 자리 고르기', '창업하려는 사람이 후보 자리 몇 곳을 같은 기준으로 비교하도록 돕는 서비스예요.'],
     ['HOW', '여러 서비스 기능을 한 화면에', '소상공인365, 서울시 상권분석, 오픈업 같은 서비스의 기능을 모으고, 지도와 리포트가 끊기지 않게 이어 붙였어요.'],
-    ['NOW', '기획 시연', '예시 자리 1곳(공릉로 232 · 카페). “예시” 표시가 붙은 칸은 시연용 숫자예요.'],
+    ['NOW', '기획 시연', '예시 자리 1곳(공릉로 232 · 카페). 매출·유동인구·주민·개폐업은 서울시 실제 데이터, “예시” 표시가 붙은 칸만 시연용 숫자예요.'],
   ] },
 }
 
@@ -55,11 +56,17 @@ export default function App() {
   const [active, setActive] = useState(null)
   const [focus, setFocus] = useState(null)
   const [saved, setSaved] = useState(false)
+  // 지도에서 옮긴 내 자리(건물 번호) · 공실 예산(처음 드는 돈, 만 원)
+  const [bld0, setBld0] = useState(null)
+  const [spot, setSpot] = useState(null)
+  const [budget, setBudget] = useState(10000)
+  const { report: R, bld } = useMemo(() => rebase(report, bld0, spot, DEMO.cost), [report, bld0, spot])
   const tipRef = useRef(null), imRef = useRef(null), markRef = useRef(null), qRef = useRef(null), wordRef = useRef(null)
 
   useEffect(() => {
     fetch('./data/seoul-grid.json').then(r => r.json()).then(setGrid)
     fetch('./data/report-gongneung-cafe.json').then(r => r.json()).then(setReport)
+    fetch('./data/buildings-gongneung.json').then(r => r.json()).then(setBld0)
     const rs = () => setMob(isMob())
     addEventListener('resize', rs)
     return () => removeEventListener('resize', rs)
@@ -209,8 +216,8 @@ export default function App() {
     <div className={`app ${phase} ${mob ? 'mob' : 'desk'}${mapOn ? ' mapon' : ''}`}>
       <PixelMap grid={grid} clock={clock} camera={camera} tipRef={tipRef} interactive={phase === 'home'} />
       {report && (
-        <LineMap report={report} radius={radius} active={active} onActive={setActive} onPick={i => { setFocus(i); setActive(i) }}
-          shown={mapOn} focus={focus} center={radius} />
+        <LineMap key={spot ?? 'base'} report={R} bld={bld} radius={radius} active={active} onActive={setActive} onPick={i => { setFocus(i); setActive(i) }}
+          shown={mapOn} focus={focus} center={radius} budget={budget} onMove={i => { setActive(null); setFocus(null); setSpot(i) }} />
       )}
 
       <header className="top m">
@@ -253,7 +260,7 @@ export default function App() {
         <aside className="col" aria-hidden={phase !== 'report'}>
           <a className="brand m" onClick={logo} title="처음으로">ZARI</a>
           {phase === 'report' && (
-            <Report report={report} radius={radius} active={active} setActive={setActive}
+            <Report report={R} bld={bld} budget={budget} setBudget={setBudget} radius={radius} active={active} setActive={setActive}
               pick={i => { setFocus(i); setActive(i) }} saved={saved} onSave={() => setSaved(!saved)} />
           )}
         </aside>
@@ -312,12 +319,12 @@ const CMP = [
   ['경쟁 강도', 'crowd', v => v, null],
   ['카페 월매출', 'sales', v => v.toLocaleString() + '만', 'max'],
   ['유동인구/일', 'flow', v => v.toLocaleString(), 'max'],
-  ['임대료 ㎡/월', 'rent', v => v + '만', 'min'],
-  ['3년 생존율', 'survive', v => v + '%', 'max'],
+  ['임대료 ㎡/월 · 예시', 'rent', v => v + '만', 'min'],
+  ['3년 생존율 · 예시', 'survive', v => v + '%', 'max'],
   ['상권 등급', 'grade', v => v, null],
 ]
 // 걸어서 5분(300m) 원 안 건물을 업종별로 칠한 작은 지도 + 업종별 가게 수
-const LU = [['cafe', '카페', '#1b2340'], ['food', '음식점', '#e2683c'], ['retail', '소매', '#e8b737'], ['service', '서비스·학원·사무', '#6c8fd8'], ['none', '가게 없는 건물', '#d5d9e0']]
+const LU = [['cafe', '카페', '#1b2340'], ['food', '음식점', '#c4577a'], ['retail', '소매', '#e8b737'], ['service', '서비스·학원·사무', '#6c8fd8'], ['none', '가게 없는 건물', '#d5d9e0']]
 const LUC = Object.fromEntries(LU.map(([k, , c]) => [k, c]))
 function Circles() {
   const [d, setD] = useState(null)
@@ -353,7 +360,7 @@ function Compare({ close }) {
   return (
     <div className="navin">
       <button className="x m" onClick={close} aria-label="닫기">CLOSE ✕</button>
-      <span className="k m">COMPARE · CAFE · 걸어서 5분<span className="eg">예시</span></span>
+      <span className="k m">COMPARE · CAFE · 걸어서 5분</span>
       <h2>후보 자리 3곳 비교</h2>
       <Circles />
       <table className="cmpt">
@@ -366,7 +373,7 @@ function Compare({ close }) {
           })}
         </tbody>
       </table>
-      <p className="fine" style={{ marginTop: 18 }}>네모 표시는 그 줄에서 가장 좋은 값이에요. 공릉로 232 줄은 이 리포트, 나머지 두 곳은 예시 후보예요.</p>
+      <p className="fine" style={{ marginTop: 18 }}>네모 표시는 그 줄에서 가장 좋은 값이에요. 카페 수·월매출·유동인구·등급은 서울시 상권분석서비스({SEOUL.asOf.sales}) 실제 값이고, 임대료·생존율은 예시예요. 하계역은 따로 잡힌 상권이 없어 가장 가까운 노원 을지대병원 상권으로 셌어요.</p>
     </div>
   )
 }

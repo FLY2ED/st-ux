@@ -1,7 +1,9 @@
-// 기획 시연용 예시 숫자. 서울 열린데이터·민간 데이터를 연결하기 전까지 화면을 채우는 값이다.
-// 실제 값은 상가(상권)정보로 센 것(가게 수·업종 구성·가까운 카페·브랜드)뿐이다.
+// 리포트 숫자. 서울 열린데이터광장 상권분석서비스에서 뽑은 값(seoul.json, scripts/build_seoul.py)으로 덮어쓰고,
+// 공공 데이터가 없는 칸(임대료·권리금·가게별 매출·소득·생존율·배달)만 아래 예시 숫자로 남긴다.
+import S from './seoul.json'
 
-export const DEMO = {
+export const SEOUL = S
+const EX = {
   grade: { g: 'B+', t: '대학가 낮 장사 자리', s: '평일 낮 손님은 많지만 방학·주말에 크게 줄어요.' },
 
   // 자동 해설: 칸별 숫자에서 뽑은 좋은 점 · 조심할 점
@@ -95,6 +97,18 @@ export const DEMO = {
     { name: '공릉역 2번 출구', sub: '동일로 1074', cafes: 20, crowd: '많음', sales: 2460, flow: 52800, rent: 6.1, survive: 49, grade: 'B' },
     { name: '하계역 1번 출구', sub: '노원구 하계동', cafes: 10, crowd: '적음', sales: 1720, flow: 28300, rent: 3.6, survive: 58, grade: 'B' },
   ],
+}
+
+export const DEMO = {
+  ...EX,
+  area: S.area, grade: S.grade, insight: S.insight, score: S.score, recommend: S.recommend, trend: S.trend, place: S.place,
+  asOf: { ...EX.asOf, ...S.asOf },
+  sales: { ...EX.sales, ...S.sales },
+  flow: S.flow,
+  people: { ...EX.people, ...S.people },
+  change: { ...EX.change, ...S.change },
+  // 임대료·생존율·경쟁 강도는 예시, 나머지는 실제
+  compare: S.compare.map((c, k) => ({ ...EX.compare[k], ...c })),
 }
 
 // 프랜차이즈 브랜드 (이름 앞부분으로 찾음)

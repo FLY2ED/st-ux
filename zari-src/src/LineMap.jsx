@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { Pin } from './pin.jsx'
 import { camState } from './PixelMap.jsx'
 import { DEMO, BRANDS, BRAND_NAME } from './demo.js'
+import { MOVE_MAX } from './place.js'
 
 maplibregl.setWorkerUrl(workerUrl)
 
@@ -137,18 +138,21 @@ function setH(map, k) {
   for (const id of ['ob-hi', 'ob-col']) if (map.getLayer(id)) map.setPaintProperty(id, 'fill-extrusion-height', hx)
 }
 // 건물 색 · 한 번에 보기: 내 자리 · 카페 · 공실 후보 · 다른 가게
-const LAND = '#16181d'
-const BC = { tgt: '#3b6fe0', cafe: '#f4f1ea', empty: '#f08a3c', shop: '#6b7180', none: '#343944' }
+// 오렌지는 공실에만 쓴다. 다른 건물은 땅(검정)과 잘 갈리도록 밝은 회색으로
+const LAND = '#1d2027'
+const BC = { tgt: '#3b6fe0', cafe: '#ffffff', empty: '#f08a3c', shop: '#a3abb8', none: '#626a78' }
 // 반경만 보기: 원은 검은 땅, 왼쪽에서 읽는 항목(fk)의 건물만 밝게(카페·가게는 흰색) 두고 나머지는 땅 쪽으로 어둡게
 const KEYX = { tgt: ['==', ['get', 'tgt'], 1], cafe: ['>', ['coalesce', ['get', 'cafe'], 0], 0], empty: ['==', ['get', 'empty'], 1], shop: ['>', ['coalesce', ['get', 'n'], 0], 0] }
 const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16))
-const dim = h => 'rgb(' + rgb(h).map((v, i) => Math.round(rgb(LAND)[i] + (v - rgb(LAND)[i]) * .4)).join(',') + ')'
-function bcColor(fk, ids = []) {
+const dim = (h, k = .55) => 'rgb(' + rgb(h).map((v, i) => Math.round(rgb(LAND)[i] + (v - rgb(LAND)[i]) * k)).join(',') + ')'
+// budget(만 원): 처음 드는 돈이 예산을 넘는 공실은 흐린 오렌지
+function bcColor(fk, ids = [], budget) {
   const F = fk === 'near' ? ['in', ['get', 'i'], ['literal', ids]] : KEYX[fk]
   const c = k => (!F ? BC[k] : ['case', F, k === 'tgt' || k === 'empty' ? BC[k] : '#ffffff', dim(BC[k])])
-  return ['case', KEYX.tgt, c('tgt'), KEYX.cafe, c('cafe'), KEYX.empty, c('empty'), KEYX.shop, c('shop'), c('none')]
+  const over = budget ? ['>', ['coalesce', ['get', 'start'], 0], budget] : false
+  return ['case', KEYX.tgt, c('tgt'), KEYX.cafe, c('cafe'), ['all', KEYX.empty, over], dim(BC.empty, .35), KEYX.empty, c('empty'), KEYX.shop, c('shop'), c('none')]
 }
-export const BC_KEYS = [['cafe', '카페'], ['empty', '빈 자리'], ['shop', '다른 가게'], ['tgt', '내 자리']]
+export const BC_KEYS = [['cafe', '카페'], ['empty', '공실'], ['shop', '다른 가게'], ['tgt', '내 자리']]
 const eo = v => 1 - Math.pow(1 - v, 3)
 function rise(map, to, dur, delay = 0) {
   const from = kOf.get(map) ?? 0, t0 = performance.now() + delay
@@ -161,10 +165,22 @@ function rise(map, to, dur, delay = 0) {
   map.__rise = requestAnimationFrame(step)
 }
 
-export default function LineMap({ report, radius, active, onActive, onPick, shown, focus, center }) {
-  // 처음엔 위성 사진 위에 건물을 세운 3D
+// 건물 색 지도: 걸어서 5분 원(지름 2r)이 지도 칸을 거의 채우는 확대값 (입체면 세로가 눌려 보이는 만큼 더 키움)
+function soloZoom(el, r, lat, d3) {
+  const w = el.clientWidth, h = el.clientHeight - mapPadTop() - (mob() ? 20 : 70)
+  const px = Math.min(w * .9, (h * .9) / (d3 ? .62 : 1))
+  return Math.log2((px * 40075016.686 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 * r))
+}
+// 건물 색 지도에서는 끌기·확대를 막아 원이 그 자리에 머문다
+function lock(map, on) {
+  for (const h of [map.dragPan, map.scrollZoom, map.boxZoom, map.doubleClickZoom, map.touchZoomRotate, map.keyboard]) on ? h.disable() : h.enable()
+  if (!on) map.touchZoomRotate.disableRotation()
+}
+
+export default function LineMap({ report, bld, radius, active, onActive, onPick, shown, focus, center, budget, onMove }) {
+  // 처음엔 위성 사진 없이 건물을 세운 3D (위성은 스위치로 켠다)
   const [d3, setD3] = useState(true)
-  const [sat, setSat] = useState(true)
+  const [sat, setSat] = useState(false)
   const d3Ref = useRef(d3)
   d3Ref.current = d3
   const tilt = () => (d3Ref.current ? { pitch: 58, bearing: -20 } : { pitch: 0, bearing: 0 })
@@ -178,7 +194,10 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
   const [layer, setLayer] = useState('bcol')
   const [ready, setReady] = useState(false)
   const [sel, setSel] = useState(null)
-  const [bld, setBld] = useState(null)
+  bldRef.current = bld
+  const layerRef = useRef(layer), budgetRef = useRef(budget)
+  layerRef.current = layer; budgetRef.current = budget
+  const zoomNow = () => (layerRef.current === 'bcol' && box.current ? soloZoom(box.current, radius, Q.lat, (mapRef.current?.getPitch() ?? 0) > 10) : zoomFor(radius))
   const ohSet = useRef(new Set()).current
   const [fm, setFm] = useState('h'), [ft, setFt] = useState(7), [play, setPlay] = useState(true)
 
@@ -240,10 +259,6 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       map.addLayer({ id: 'ob-hi', type: 'fill-extrusion', source: 'ob', filter: ['in', ['get', 'i'], ['literal', []]],
         paint: { 'fill-extrusion-color': '#3b6fe0', 'fill-extrusion-opacity': .9, 'fill-extrusion-height': .4 } })
       map.addLayer({ id: 'ob-line', type: 'line', source: 'ob', filter: ['in', ['get', 'i'], ['literal', []]], paint: { 'line-color': '#3b6fe0', 'line-width': 5 } })
-      fetch('./data/buildings-gongneung.json').then(r => r.json()).then(d => {
-        map.getSource('ob').setData(d); setBld(d); bldRef.current = d; focusNow(map)
-        setH(map, kOf.get(map) ?? 0)
-      })
       const shops = report.shops.map((s, i) => [s, i]).filter(([s]) => s[2] !== Q.cat).map(([[x, y, c], i]) => ({
         type: 'Feature', geometry: { type: 'Point', coordinates: ll(x, y) }, properties: { i, d: Math.hypot(x, y), c: report.cats[c] },
       }))
@@ -332,6 +347,9 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     vis('radius', layer !== 'place'); vis('radius-fill', layer !== 'place')
     vis('ob-col', layer === 'bcol'); vis('ob-empty', false)
     const solo = layer === 'bcol'
+    // 건물 색 지도로 들어오면 원을 크게 맞추고 지도를 고정, 나가면 다시 움직이게
+    if (map.__solo !== undefined && solo !== map.__solo && solo) map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomNow(), padding: { top: mapPadTop() }, duration: 700 })
+    lock(map, solo)
     map.__solo = solo
     document.documentElement.classList.toggle('solo', solo)
     for (const l of STYLE.layers) if (l.id !== 'bg' && l.id !== 'building-3d') vis(l.id, !solo)
@@ -394,10 +412,20 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     rise(map, d3 ? 1 : 0, d3 ? 1800 : 900, d3 ? 200 : 0)
   }, [d3])
 
-  // 고른 카페로 이동
+  // 건물 데이터가 오면 지도에 올린다
   useEffect(() => {
     const map = mapRef.current
-    if (!map || focus == null) return
+    if (!ready || !bld || !map.getSource('ob')) return
+    map.getSource('ob').setData(bld); focusNow(map)
+    setH(map, kOf.get(map) ?? 0)
+    if (layerRef.current === 'bcol') map.once('idle', () => heightsAll(map))
+  }, [bld, ready])
+  useEffect(() => { focusNow(mapRef.current) }, [budget])
+
+  // 고른 카페로 이동 (건물 색 지도에서는 지도를 움직이지 않음)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || focus == null || map.__solo) return
     const s = report.competitors[focus]
     map.easeTo({ center: ll(s.x, s.y), zoom: Math.max(map.getZoom(), 16.6), duration: 700 })
   }, [focus])
@@ -409,16 +437,20 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     if (shown) {
       const st = camState.get()
       const z0 = st ? Math.log2((st.cssPerCell / st.st) * 360 / 512) : 15
-      map.jumpTo({ center: [Q.lon, Q.lat], zoom: z0, padding: { top: mapPadTop() } })
       map.resize()
-      map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomFor(radius), ...tilt(), padding: { top: mapPadTop() }, duration: 1600, delay: 150 })
+      // 지도에서 자리를 옮겨 다시 연 것이면 들어가는 움직임 없이 바로
+      if (Q.moved) map.jumpTo({ center: [Q.lon, Q.lat], zoom: zoomNow(), padding: { top: mapPadTop() } })
+      else {
+        map.jumpTo({ center: [Q.lon, Q.lat], zoom: z0, padding: { top: mapPadTop() } })
+        map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomNow(), ...tilt(), padding: { top: mapPadTop() }, duration: 1600, delay: 150 })
+      }
       const up = () => setH(map, 1)
       if (d3Ref.current) map.getLayer('building-3d') ? up() : map.once('load', up)
     }
   }, [shown])
   useEffect(() => {
     const map = mapRef.current
-    if (map && shown && center) map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomFor(radius), padding: { top: mapPadTop() }, duration: 700 })
+    if (map && shown && center) map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomNow(), padding: { top: mapPadTop() }, duration: 700 })
   }, [radius, center])
 
   useEffect(() => {
@@ -470,14 +502,13 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
     for (const L of idx.values()) for (const e of L) if (e.h) { map.setFeatureState({ source: 'ob', id: e.i }, { oh: e.h }); ohSet.add(e.i) }
     ohSet.add('all')
   }
-  useEffect(() => { const map = mapRef.current; if (layer === 'bcol' && map && bld) map.once('idle', () => heightsAll(map)) }, [bld])
   // 왼쪽에서 지금 읽는 항목의 건물만 밝게 + 이름표
   const nearest = () => report.competitors.map((s, i) => ({ s, i })).sort((a, b) => a.s.dist - b.s.dist).slice(0, 3)
   function focusNow(map) {
     if (!map?.getLayer('ob-col')) return
     const fk = fkRef.current, B = bldRef.current
     const ids = fk === 'near' && B ? nearest().map(({ i }) => B.cafe[i]).filter(v => v != null) : []
-    map.setPaintProperty('ob-col', 'fill-extrusion-color', bcColor(fk, ids))
+    map.setPaintProperty('ob-col', 'fill-extrusion-color', bcColor(fk, ids, budgetRef.current))
     drawPins(map)
   }
   useEffect(() => {
@@ -526,7 +557,7 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       <div ref={tipRef} className="tip glass maptip" />
       <div className="layers" role="group" aria-label="지도에 보이는 것">
         <span className="lg">
-          {[['bcol', '카페·빈 자리', '건물마다 카페·빈 자리·다른 가게를 색으로'], ['shops', '모든 가게', '반경 안 가게를 점으로'], ['flow', '오가는 사람·예시', '사람이 많이 다니는 곳 (예시 값)'], ['place', '역·학교', '가까운 역·학교·버스 정류장']].map(([k, t, d]) => <button key={k} className={layer === k ? 'on' : ''} title={d} onClick={() => setLayer(k)}>{t}</button>)}
+          {[['bcol', '카페·공실', '건물마다 카페·공실·다른 가게를 색으로'], ['shops', '모든 가게', '반경 안 가게를 점으로'], ['flow', '오가는 사람·예시', '사람이 많이 다니는 곳 (예시 값)'], ['place', '역·학교', '가까운 역·학교·버스 정류장']].map(([k, t, d]) => <button key={k} className={layer === k ? 'on' : ''} title={d} onClick={() => setLayer(k)}>{t}</button>)}
         </span>
         <span className="vw">
           <span className="seg" role="group" aria-label="평면 입체 보기">
@@ -552,7 +583,8 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
         </div>
       )}
       {layer === 'flow' && <FlowPlayer fm={fm} setFm={m => { setFm(m); setFt(m === 'h' ? 7 : 0) }} ft={ft} setFt={setFt} play={play} setPlay={setPlay} />}
-      {sel && (sel.bld != null ? bld && <BuildingCard b={bld.features.find(f => f.properties.i === sel.bld)?.properties} onClose={() => setSel(null)} />
+      {layer === 'bcol' && <div className="movehint">{Q.moved ? <>공릉로 232에서 {Q.moved}m 옮긴 자리 · <button onClick={() => onMove(null)}>원래 자리로</button></> : '건물을 누르면 내 자리를 옮길 수 있어요'}</div>}
+      {sel && (sel.bld != null ? bld && <BuildingCard b={bld.features.find(f => f.properties.i === sel.bld)?.properties} budget={budget} onMove={i => { setSel(null); onMove(i) }} onClose={() => setSel(null)} />
         : <ShopCard sel={sel} report={report} onClose={() => setSel(null)} />)}
     </div>
   )
@@ -606,19 +638,28 @@ function ShopCard({ sel, report, onClose }) {
 }
 
 // 지도에서 누른 건물 설명 (Overture 건물 + 가게 목록을 건물에 맞춘 것)
-function BuildingCard({ b, onClose }) {
+function BuildingCard({ b, budget, onMove, onClose }) {
   if (!b) return null
-  const n = b.n || 0
+  const n = b.n || 0, c = b.cost
+  // 가게·건물 데이터가 처음 자리에서 600m까지라, 옮긴 자리의 걸어서 5분이 그 안에 들 만큼만 옮긴다
+  const movable = !b.tgt && b.base <= MOVE_MAX
   return (
     <div className="shopcard glass" role="dialog" aria-label="건물 정보">
       <button className="x" onClick={onClose} aria-label="닫기">×</button>
-      <span className="m">{b.tgt ? 'BUILDING · 내 자리' : 'BUILDING · 건물'}</span>
-      <b className="nm">{b.name || (n ? `가게 ${n}곳이 든 건물` : '가게 없는 건물')}</b>
+      <span className="m">{b.tgt ? 'BUILDING · 내 자리' : b.empty ? 'VACANT · 공실 후보' : 'BUILDING · 건물'}</span>
+      <b className="nm">{b.name || (b.empty ? '가게가 하나도 없는 상가 건물' : n ? `가게 ${n}곳이 든 건물` : '가게 없는 건물')}</b>
       <small>{fmtM(b.dist || 0)} · 걸어서 {walkMin(b.dist || 0)}분</small>
       <div className="sc-row"><span>안에 든 가게</span><b>{n}곳{b.cafe ? ` · 카페 ${b.cafe}` : ''}</b></div>
       {n > 0 && <div className="sc-row"><span>1층 가게</span><b>{b.f1 || 0}곳</b></div>}
       {b.fmax > 1 && <div className="sc-row"><span>가게 있는 층</span><b>1–{b.fmax}층</b></div>}
-      {b.top && <div className="sc-row top"><span>많은 업종</span><b>{b.top.split(' · ').slice(0, 2).map(t => t.replace(/ (\d+)$/, ' $1곳')).join(' · ')}</b></div>}
+      {b.top && <div className="sc-row tops"><span>많은 업종</span><b>{b.top.split(' · ').slice(0, 2).map(t => t.replace(/ (\d+)$/, ' $1곳')).join(' · ')}</b></div>}
+      {c && <>
+        <div className="sc-row"><span>1칸 넓이</span><b>약 {c.py}평 ({c.m2}㎡)</b></div>
+        <div className="sc-row"><span>월세 · 보증금<em className="eg">예시</em></span><b className="m">{c.rent.toLocaleString()}만 · {c.deposit.toLocaleString()}만</b></div>
+        <div className={'sc-row' + (budget && c.start > budget ? ' over' : ' in')}><span>처음 드는 돈 · 권리금 없음</span><b className="m">{c.start.toLocaleString()}만{budget ? (c.start > budget ? ' · 예산 넘음' : ' · 예산 안') : ''}</b></div>
+      </>}
+      {movable && <button className="moveto" onClick={() => onMove(b.i)}>여기를 내 자리로 →</button>}
+      {!b.tgt && !movable && <p className="sc-note">공릉로 232에서 {MOVE_MAX}m 안 건물만 내 자리로 옮길 수 있어요</p>}
     </div>
   )
 }

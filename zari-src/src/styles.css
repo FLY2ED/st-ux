@@ -477,7 +477,7 @@ html:not(.ready) .word span,html:not(.ready) .qwrap{opacity:0;transition:none}
 .col{
   --bg:#fff;--ink:#1f2633;--ink-2:#6b7385;--ink-3:#a3a9b6;
   --hair:#e6e8ec;--track:rgba(31,38,51,.08);--fill:rgba(31,38,51,.22);--hover:rgba(31,38,51,.04);--mark:rgba(31,38,51,.10);
-  --good:#16a34a;--warn:#e07a3f;
+  --good:#16a34a;--warn:#d6455d;
   --bar:6px;--lab:96px;--val:64px;
   --soft:var(--ink-2);--blue:var(--bg);--panel:var(--bg);--glass:var(--hover);
   background:var(--bg);color:var(--ink);box-shadow:none;scrollbar-color:var(--hair) transparent
@@ -915,8 +915,8 @@ html:not(.ready) .word span,html:not(.ready) .qwrap{opacity:0;transition:none}
 .solo .mapwrap{background:#fff}
 .solo .mapwrap .maplibregl-canvas{filter:none}
 .solo .mpin{color:#fff;filter:drop-shadow(0 2px 0 rgba(0,0,0,.5))}
-.legendmap.bcol .bc-cafe{background:#f4f1ea;box-shadow:inset 0 0 0 1px #16181d}
-.legendmap.bcol .bc-shop{background:#7a8090}.legendmap.bcol .bc-none{background:#3a3f4a}
+.legendmap.bcol .bc-cafe{background:#fff;box-shadow:inset 0 0 0 1px #16181d}
+.legendmap.bcol .bc-shop{background:#a3abb8}.legendmap.bcol .bc-none{background:#626a78}
 .solo .report .pill{background:#1f2633;backdrop-filter:none;-webkit-backdrop-filter:none}
 /* 사이드바: 흰 바탕에 항목을 크게 쭉 나열, 읽는 항목만 진하게 */
 .col .sec[data-fk]{transition:opacity .35s}
@@ -1019,9 +1019,9 @@ body{background:url(/bg.webp) center/cover no-repeat fixed #8a8f97}
 .legendmap.bcol{left:auto;right:32px;bottom:28px;top:auto;padding:0;gap:16px;font-size:12px;color:#6b7385;background:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
 .legendmap.bcol span{gap:6px}
 .legendmap.bcol i{width:9px;height:9px;border-radius:2px;outline:0}
-.legendmap.bcol .bc-cafe{background:#f4f1ea;box-shadow:inset 0 0 0 1px #6b7385}
+.legendmap.bcol .bc-cafe{background:#fff;box-shadow:inset 0 0 0 1px #6b7385}
 .legendmap.bcol .bc-empty{background:#f08a3c;outline:0}
-.legendmap.bcol .bc-shop{background:#6b7180}.legendmap.bcol .bc-tgt{background:#3b6fe0}
+.legendmap.bcol .bc-shop{background:#a3abb8}.legendmap.bcol .bc-tgt{background:#3b6fe0}
 .mapwrap .scale{position:absolute;z-index:3;left:32px;bottom:28px;font-size:10px;letter-spacing:.12em;color:#6b7385;opacity:0;transition:opacity .3s;pointer-events:none}
 .mapwrap .scale.on{opacity:1}
 .solo .mpin{display:none}
@@ -1143,3 +1143,18 @@ body{background:url(/bg.webp) center/cover no-repeat fixed #8a8f97}
 .pill .chip .wb{color:rgba(255,255,255,.45);font-weight:300;margin:0 .22em}
 .pill .chip .wb:first-child{margin-left:0}.pill .chip .wb:last-child{margin-right:0}
 .pill .chip:hover .wb,.pill .chip.on .wb{color:#fff}
+
+/* 지도에서 내 자리 옮기기 · 공실 예산 */
+.movehint{position:absolute;z-index:4;left:32px;bottom:52px;font-size:12px;color:#6b7385;pointer-events:auto}
+.movehint button{font:inherit;color:#1f2633;background:none;border:0;padding:0;border-bottom:1px solid #1f2633;cursor:pointer}
+.moveto{display:block;width:100%;margin-top:12px;padding:10px 12px;font:inherit;font-size:13px;font-weight:600;color:#fff;background:#3b6fe0;border:0;border-radius:0;cursor:pointer;text-align:left}
+.moveto:hover{background:#2f5cc4}
+.sc-note{margin:10px 0 0;font-size:11px;color:#8a92a3}
+.sc-row.over b{color:#8a92a3}
+.sc-row.in b{color:#f08a3c}
+.sc-row .eg{margin-left:4px}
+.zi .zbud{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:10px;font-size:13px;color:#6b7385}
+.zbud .chip{font:inherit;font-weight:600;color:#1f2633;background:none;border:1px solid #1f2633;border-radius:0;padding:4px 10px;cursor:pointer}
+.zbud .chip.on,.zbud .chip:hover{background:#1f2633;color:#fff}
+.zbud small{flex-basis:100%;font-size:11px;color:#8a92a3}
+@media (max-width:759px){.movehint{left:14px;bottom:auto;top:44px;font-size:11px}}
