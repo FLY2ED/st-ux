@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { DEMO, BRANDS, BRAND_NAME } from './demo.js'
+import { DEMO, BRANDS, BRAND_NAME, PICK } from './demo.js'
+import Wheel from './Wheel.jsx'
 import { Cols, Line, Radar, Split, Rows } from './charts.jsx'
 import { shortAddr } from './LineMap.jsx'
 
@@ -34,7 +35,8 @@ function useStats(report, radius) {
 
 // 자세히: 누르면 지도까지 덮는 넓은 화면에 칸(타일)으로 펼친다. 위 줄에서 다른 자세히로 바로 넘어간다
 const FOLDS = [['comp', '경쟁'], ['sales', '매출'], ['flow', '유동인구 · 시설'], ['people', '사는·일하는 사람'], ['change', '개업 · 폐업'], ['cost', '임대료 · 손익'], ['good', '좋은 점 · 조심할 점'], ['fit', '맞는 업종']]
-const FC = { comp: '#1b2340', sales: '#3b6fe0', flow: '#2f9e74', people: '#8a63d2', change: '#f08a3c', cost: '#d24b4b', good: '#d9a521', fit: '#4aa3c7' }
+// 자세히는 모두 같은 검은 선 하나로 (항목마다 색을 다르게 하지 않음)
+const FC = Object.fromEntries(FOLDS.map(([k]) => [k, '#16181d']))
 function Fold({ id, t, d, children, open, setOpen }) {
   const isOpen = open === id
   // 다른 자세히에서 넘어온 것이면 넓어지는 전환 없이 카드만 바꾼다
@@ -77,6 +79,8 @@ export default function Report({ report, radius, active, setActive, pick, saved,
   const [alarm, setAlarm] = useState(false)
   const [copied, setCopied] = useState(false)
   const [open, setOpen] = useState(null)
+  const [wh, setWh] = useState(null)
+  const tok = (k, cur) => <button type="button" className="tok" aria-haspopup="listbox" onClick={e => { e.stopPropagation(); setWh({ k, el: e.currentTarget, cur }) }}><span className="wb">[</span>{num(cur)}<span className="wb">]</span></button>
   const share = async () => {
     try { await navigator.clipboard.writeText(location.href) } catch { /* 복사가 막힌 브라우저 */ }
     setCopied(true); setTimeout(() => setCopied(false), 1800)
@@ -178,10 +182,11 @@ export default function Report({ report, radius, active, setActive, pick, saved,
 
   return (
     <div className="report">
+      {wh && <Wheel anchor={wh.el} items={PICK[wh.k]} value={wh.cur} show={num} label={wh.k === 'where' ? 'WHERE · 어디에' : 'WHAT · 무슨 가게'} onClose={() => setWh(null)} />}
       <ol className="zl">
         <li className="zi" data-fk="tgt" style={{ '--c': '#3b6fe0' }}>
           <span className="zk m"><i />HERE</span>
-          <h2>{num(shortAddr(Q.address))}</h2>
+          <h2>{tok('where', shortAddr(Q.address))}</h2>
           <p>{Q.near} · {Q.dong} · {Q.what}<br />{D.grade.t} <span className="zg m">{D.grade.g}</span><span className="eg">예시</span></p>
           <div className="zacts">
             <button className={saved ? 'on' : ''} onClick={onSave}>{saved ? '✓ 비교함에 담음' : '비교함에 담기'}</button>
@@ -192,7 +197,7 @@ export default function Report({ report, radius, active, setActive, pick, saved,
         </li>
         <li className="zi ring" data-fk="cafe">
           <span className="zk m"><i />CAFES</span>
-          <h2>{Q.what} <em>{S.count}</em>곳</h2>
+          <h2>{tok('what', Q.what)} <em>{S.count}</em>곳</h2>
           <p>걸어서 5분({radius}m) 안 가게 {fmt(S.total)}곳 중 {S.count}곳, {pct(S.share)}.<br />서울 평균 {pct(C.seoulShare)}보다 {S.share > C.seoulShare ? '많아요' : '적어요'}. 경쟁 강도 <b>{LV[level][0]}</b>.</p>
         </li>
         {near3.length > 0 && (

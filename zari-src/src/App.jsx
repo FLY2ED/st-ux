@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import PixelMap from './PixelMap.jsx'
 import LineMap from './LineMap.jsx'
 import Report from './Report.jsx'
-import { DEMO } from './demo.js'
+import { DEMO, PICK } from './demo.js'
 import { Pin, PIN, PIN_CELLS, SearchIcon, ArrowIcon } from './pin.jsx'
 import { clamp, ioc, INTRO, makeClock, params } from './motion.js'
 
@@ -35,11 +35,6 @@ const NAV = {
   ] },
 }
 
-// 문장으로 고르기: 나는 [어디]에 [무슨 가게]를 차릴 거예요. 지금 리포트가 있는 건 공릉로 232 × 카페 하나
-const PICK = {
-  where: [['공릉로 232', '서울과기대 정문 · 노원구', true], ['공릉역 2번 출구', '7호선 · 노원구', false], ['하계역 1번 출구', '7호선 · 노원구', false]],
-  what: [['카페', '서울 22,726곳', true], ['베이커리', '빵 · 디저트', false], ['음식점', '한식 · 분식 · 양식', false], ['편의점', '프랜차이즈', false]],
-}
 // 받침이 있으면 '을', 없으면 '를'
 const eul = w => ((w.charCodeAt(w.length - 1) - 0xac00) % 28 ? '을' : '를')
 

@@ -162,9 +162,9 @@ function rise(map, to, dur, delay = 0) {
 }
 
 export default function LineMap({ report, radius, active, onActive, onPick, shown, focus, center }) {
-  // 처음엔 위에서 내려다보는 2D (3D 버튼으로 건물을 세운다)
-  const [d3, setD3] = useState(false)
-  const [sat, setSat] = useState(false)
+  // 처음엔 위성 사진 위에 건물을 세운 3D
+  const [d3, setD3] = useState(true)
+  const [sat, setSat] = useState(true)
   const d3Ref = useRef(d3)
   d3Ref.current = d3
   const tilt = () => (d3Ref.current ? { pitch: 58, bearing: -20 } : { pitch: 0, bearing: 0 })
@@ -525,13 +525,13 @@ export default function LineMap({ report, radius, active, onActive, onPick, show
       <svg ref={pinRef} className="pins" aria-hidden="true" />
       <div ref={tipRef} className="tip glass maptip" />
       <div className="layers" role="group" aria-label="지도에 보이는 것">
-        {[['bcol', '건물 색'], ['shops', '가게'], ['flow', '유동인구 · 예시'], ['place', '주변 시설']].map(([k, t]) => <button key={k} className={layer === k ? 'on' : ''} onClick={() => setLayer(k)}>{t}</button>)}
+        {[['bcol', '카페·빈 자리', '건물마다 카페·빈 자리·다른 가게를 색으로'], ['shops', '모든 가게', '반경 안 가게를 점으로'], ['flow', '오가는 사람·예시', '사람이 많이 다니는 곳 (예시 값)'], ['place', '역·학교', '가까운 역·학교·버스 정류장']].map(([k, t, d]) => <button key={k} className={layer === k ? 'on' : ''} title={d} onClick={() => setLayer(k)}>{t}</button>)}
         <span className="seg" role="group" aria-label="2D 3D 보기">
           <i className={d3 ? 'r' : ''} />
-          <button className={'m' + (d3 ? '' : ' on')} onClick={() => setD3(false)} aria-pressed={!d3}>2D</button>
-          <button className={'m' + (d3 ? ' on' : '')} onClick={() => setD3(true)} aria-pressed={d3}>3D</button>
+          <button className={d3 ? '' : 'on'} onClick={() => setD3(false)} aria-pressed={!d3} title="위에서 내려다보기">평면</button>
+          <button className={d3 ? 'on' : ''} onClick={() => setD3(true)} aria-pressed={d3} title="건물을 세워 보기">입체</button>
         </span>
-        {layer === 'bcol' && <button className={'sat' + (sat ? ' on' : '')} onClick={() => setSat(!sat)} aria-pressed={sat}>위성</button>}
+        {layer === 'bcol' && <button className={'sat' + (sat ? ' on' : '')} onClick={() => setSat(!sat)} aria-pressed={sat} title="위성 사진 켜고 끄기">위성 사진</button>}
       </div>
       <div className={'legendmap glass' + (layer === 'flow' ? ' on' : '')}><span>적음</span><i /><span>많음</span></div>
       <div className={'legendmap places glass' + (layer === 'place' ? ' on' : '')}>
