@@ -165,6 +165,8 @@ function rise(map, to, dur, delay = 0) {
   map.__rise = requestAnimationFrame(step)
 }
 
+// 건물 색 지도에서도 도로 선은 건물 위에 그린다
+const ROADS = ['road-minor', 'road-mid', 'road-major', 'rail']
 // 건물 색 지도: 걸어서 5분 원(지름 2r)이 지도 칸을 거의 채우는 확대값 (입체면 세로가 눌려 보이는 만큼 더 키움)
 function soloZoom(el, r, lat, d3) {
   const w = el.clientWidth, h = el.clientHeight - mapPadTop() - (mob() ? 20 : 70)
@@ -352,7 +354,9 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
     lock(map, solo)
     map.__solo = solo
     document.documentElement.classList.toggle('solo', solo)
-    for (const l of STYLE.layers) if (l.id !== 'bg' && l.id !== 'building-3d') vis(l.id, !solo)
+    for (const l of STYLE.layers) if (l.id !== 'bg' && l.id !== 'building-3d') vis(l.id, !solo || ROADS.includes(l.id))
+    // 도로 선을 색 건물 위로 올린다
+    for (const id of ROADS) map.moveLayer(id, 'ob-hi')
     setH(map, kOf.get(map) ?? 0)
     vis('sat', solo && sat); clip(map)
     map.setPaintProperty('radius-fill', 'fill-color', solo ? (sat ? 'rgba(14,16,20,.35)' : LAND) : W + '.06)')

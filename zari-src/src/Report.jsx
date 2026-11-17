@@ -189,6 +189,20 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
             <button onClick={() => print()}>저장</button>
           </div>
         </li>
+        {vac && (
+          <li className="zi" data-fk="empty" style={{ '--c': '#f08a3c' }}>
+            <span className="zk m"><i />VACANT</span>
+            <h2>공실 <em>{vac.length}</em>곳 · 예산 안 <em>{fit.length}</em>곳</h2>
+            <p>상가 건물인데 등록된 가게가 하나도 없는 곳이에요.{fit[0] ? <><br />{fit[0].dist < 60 ? `예산 안 공실이 내 자리 바로 옆 ${fit[0].dist}m에도 있어요.` : `예산 안 공실 중 가장 가까운 곳은 ${fit[0].dist}m.`}</> : vac[0] && <><br />가장 가까운 공실은 {vac[0].dist}m, 예산을 늘려 보세요.</>}</p>
+            <div className="zbud">
+              <span>처음 드는 돈</span>
+              <button ref={bRef} className={'chip' + (bw ? ' on' : '')} onClick={() => setBw(!bw)} aria-haspopup="listbox" aria-expanded={bw}>{budgetName(budget)} 안</button>
+              <small>권리금 없이 · 보증금·인테리어·장비<span className="eg">추정</span></small>
+            </div>
+            {bw && <Wheel anchor={bRef.current} items={BUDGETS.map(([v, n]) => [n, `공실 ${vac.filter(p => p.cost && p.cost.start <= v).length}곳`, true])} value={budgetName(budget)} label="BUDGET · 내 예산"
+              onPick={n => setBudget(BUDGETS.find(b => b[1] === n)[0])} onClose={() => setBw(false)} />}
+          </li>
+        )}
         <li className="zi ring" data-fk="cafe">
           <span className="zk m"><i />CAFES</span>
           <h2>{Q.what} <em>{S.count}</em>곳</h2>
@@ -212,20 +226,6 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
           <h2>월매출 <em>{fmt(D.sales.month)}</em>만</h2>
           <p>주변 상권 카페 {D.sales.stores}곳 평균. 서울 평균 {fmt(D.sales.seoul)}만.<br />방학이 낀 1·3분기엔 {D.sales.vac}%쯤 줄어요.</p>
         </li>
-        {vac && (
-          <li className="zi" data-fk="empty" style={{ '--c': '#f08a3c' }}>
-            <span className="zk m"><i />VACANT</span>
-            <h2>공실 <em>{vac.length}</em>곳 · 예산 안 <em>{fit.length}</em>곳</h2>
-            <p>상가 건물인데 등록된 가게가 하나도 없는 곳이에요.{fit[0] ? <><br />{fit[0].dist < 60 ? `예산 안 공실이 내 자리 바로 옆 ${fit[0].dist}m에도 있어요.` : `예산 안 공실 중 가장 가까운 곳은 ${fit[0].dist}m.`}</> : vac[0] && <><br />가장 가까운 공실은 {vac[0].dist}m, 예산을 늘려 보세요.</>}</p>
-            <div className="zbud">
-              <span>처음 드는 돈</span>
-              <button ref={bRef} className={'chip' + (bw ? ' on' : '')} onClick={() => setBw(!bw)} aria-haspopup="listbox" aria-expanded={bw}>{budgetName(budget)} 안</button>
-              <small>권리금 없이 · 보증금·인테리어·장비<span className="eg">추정</span></small>
-            </div>
-            {bw && <Wheel anchor={bRef.current} items={BUDGETS.map(([v, n]) => [n, `공실 ${vac.filter(p => p.cost && p.cost.start <= v).length}곳`, true])} value={budgetName(budget)} label="BUDGET · 내 예산"
-              onPick={n => setBudget(BUDGETS.find(b => b[1] === n)[0])} onClose={() => setBw(false)} />}
-          </li>
-        )}
         {S.top[0] && (
           <li className="zi" data-fk="shop" style={{ '--c': '#6b7180' }}>
             <span className="zk m"><i />MIX</span>
