@@ -140,11 +140,14 @@ export default function Report({ report, radius, active, setActive, pick, saved,
     let last
     const pick = () => {
       const y = col.getBoundingClientRect().top + col.clientHeight * .4
-      let fk = null
-      for (const s of col.querySelectorAll('[data-fk]')) if (s.getBoundingClientRect().top <= y) fk = s.dataset.fk
-      if (col.scrollTop < 40) fk = null
+      let fk = null, cur
+      const all = col.querySelectorAll('[data-fk]')
+      for (const s of all) if (s.getBoundingClientRect().top <= y) { fk = s.dataset.fk; cur = s }
+      if (col.scrollTop < 40) { fk = null; cur = all[0] }
+      all.forEach(s => s.classList.toggle('cur', s === (cur || all[0])))
       if (fk !== last) { last = fk; dispatchEvent(new CustomEvent('zari-focus', { detail: fk })) }
     }
+    pick()
     col.addEventListener('scroll', pick, { passive: true })
     return () => { col.removeEventListener('scroll', pick); dispatchEvent(new CustomEvent('zari-focus', { detail: null })) }
   }, [])

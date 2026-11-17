@@ -918,3 +918,29 @@ html:not(.ready) .word span,html:not(.ready) .qwrap{opacity:0;transition:none}
 .legendmap.bcol .bc-cafe{background:#f4f1ea;box-shadow:inset 0 0 0 1px #16181d}
 .legendmap.bcol .bc-shop{background:#7a8090}.legendmap.bcol .bc-none{background:#3a3f4a}
 .solo .report .pill{background:#1f2633;backdrop-filter:none;-webkit-backdrop-filter:none}
+/* 사이드바: 흰 바탕에 항목을 크게 쭉 나열, 읽는 항목만 진하게 */
+.col .sec[data-fk]{transition:opacity .35s}
+.col .sec[data-fk]:not(.cur){opacity:.28}
+.col .sec.band,.col .band.dark,.col .band.g2,.col .band.g3{background:none;color:var(--ink);margin:0;padding:0;min-height:52vh}
+.col .sec.head{min-height:44vh;padding-top:36px}
+.col .band+.band{margin-top:0}
+.col .band .k,.col .band.dark .k{font:11px Michroma,sans-serif;letter-spacing:.14em;color:var(--ink-2);display:flex;align-items:center;gap:10px}
+.col .band .k::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--c)}
+.col [data-fk=tgt]{--c:#3b6fe0}.col [data-fk=cafe]{--c:#16181d}.col [data-fk=empty]{--c:#f08a3c}
+.col .band .say,.col .band.dark .say{font-size:17px;line-height:1.6;color:var(--ink-2);margin-top:14px}
+.col .band .say b,.col .band.dark .say b{color:var(--ink)}
+.col .band .n{font-size:64px;margin-top:6px;letter-spacing:-.03em;color:var(--ink)}
+.col .band .n small,.col .band.dark .n small,.col .band.dark .lab{color:var(--ink-2)}
+.col .band .tag,.col .band.dark .tag{box-shadow:inset 0 0 0 1px var(--hair);color:var(--ink-2)}
+.col .band.dark .eg{color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--hair)}
+.col .mbars i{background:#16181d}.col .mbars i.v{background:#d5d9e0}
+.col .cmp u{background:#eef0f2}
+.col .band .sub{background:none;margin:22px 0 0;padding:0}
+.col .folds{margin-top:24px}
+@media (max-width:759px){
+  .col .sec.band,.col .band.dark,.col .band.g2,.col .band.g3{min-height:40vh}
+  .col .sec.head{min-height:0;padding-top:8px;padding-bottom:28px}
+  .col .band .n{font-size:48px}
+}
+.col .head h1{font-size:38px;line-height:1.15;letter-spacing:-.03em}
+@media (max-width:759px){.col .head h1{font-size:30px}}
