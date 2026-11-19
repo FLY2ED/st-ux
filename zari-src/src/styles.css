@@ -1143,6 +1143,19 @@ body{background:url(/bg.webp) center/cover no-repeat fixed #8a8f97}
 .pill .chip .wb{color:rgba(255,255,255,.45);font-weight:300;margin:0 .22em}
 .pill .chip .wb:first-child{margin-left:0}.pill .chip .wb:last-child{margin-right:0}
 .pill .chip:hover .wb,.pill .chip.on .wb{color:#fff}
+/* 메인 문장 글씨를 키우고, → 흰 상자는 문장 높이에 맞춘다 */
+.home .pill{height:auto}
+.home .pill .sent{font-size:28px;line-height:1.3;overflow:visible}
+.home .pill .chip{height:auto}
+.home .pill .go{width:52px;height:52px;margin-left:6px;transition:transform .2s}
+.home .pill .go svg{width:24px;height:24px}
+.home .pill .go:hover{transform:translateX(3px)}
+@media (max-width:759px){
+  .home .pill{gap:10px}
+  .home .pill .sent{font-size:18px;padding-left:0}
+  .home .pill .go{width:36px;height:36px;margin-left:0}
+  .home .pill .go svg{width:16px;height:16px}
+}
 
 /* 지도에서 내 자리 옮기기 · 공실 예산 */
 .movehint{position:absolute;z-index:4;left:32px;bottom:52px;font-size:12px;color:#6b7385;pointer-events:auto}
