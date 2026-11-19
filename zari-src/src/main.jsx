@@ -4,6 +4,6 @@ import './styles.css'
 import App from './App.jsx'
 
 // 지도 버튼 줄 시안 비교용: ?lv=a|b|c|d
-document.documentElement.dataset.lv = new URLSearchParams(location.search).get('lv') || 'a'
+document.documentElement.dataset.lv = new URLSearchParams(location.search).get('lv') || 'b'
 
 createRoot(document.getElementById('root')).render(<App />)

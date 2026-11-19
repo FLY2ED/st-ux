@@ -1153,8 +1153,9 @@ body{background:url(/bg.webp) center/cover no-repeat fixed #8a8f97}
 .sc-row.over b{color:#8a92a3}
 .sc-row.in b{color:#f08a3c}
 .sc-row .eg{margin-left:4px}
-.zi .zbud{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:10px;font-size:13px;color:#6b7385}
+.zi .zbud{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin-top:10px;font-size:13px;color:#6b7385}
 .zbud .chip{font:inherit;font-weight:600;color:#1f2633;background:none;border:1px solid #1f2633;border-radius:0;padding:4px 10px;cursor:pointer}
 .zbud .chip.on,.zbud .chip:hover{background:#1f2633;color:#fff}
 .zbud small{flex-basis:100%;font-size:11px;color:#8a92a3}
 @media (max-width:759px){.movehint{left:14px;bottom:auto;top:44px;font-size:11px}}
+.zbud .zb{display:inline-flex;align-items:center;gap:8px}

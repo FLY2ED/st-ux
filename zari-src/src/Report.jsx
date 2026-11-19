@@ -9,8 +9,13 @@ const pct = v => (v * 100).toFixed(1) + '%'
 const floorTxt = f => (f > 0 ? f + '층' : f < 0 ? '지하' + -f + '층' : '층 모름')
 const won = v => fmt(v) + '만'
 // 공실 예산: 처음 드는 돈(보증금·인테리어·장비, 권리금 없음)
-export const BUDGETS = [[5000, '5천만 원'], [7000, '7천만 원'], [10000, '1억 원'], [15000, '1억 5천만 원'], [20000, '2억 원']]
-const budgetName = v => BUDGETS.find(b => b[0] === v)?.[1] ?? won(v) + ' 원'
+// 내 예산(만 원): 처음 드는 돈 · 매달 내는 돈(월세+관리비)
+export const BUDGETS = {
+  start: [[5000, '5천만 원'], [7000, '7천만 원'], [10000, '1억 원'], [15000, '1억 5천만 원'], [20000, '2억 원']],
+  month: [[150, '150만 원'], [200, '200만 원'], [300, '300만 원'], [400, '400만 원'], [500, '500만 원']],
+}
+const budgetName = (k, v) => BUDGETS[k].find(b => b[0] === v)?.[1] ?? won(v) + ' 원'
+const fits = (p, b) => p.cost && p.cost.start <= b.start && p.cost.month <= b.month
 // 제목 안 숫자만 Michroma로
 const num = t => { const m = String(t).match(/^(.*?)(\d[\d,.]*)(.*)$/); return m ? <>{m[1]}<em>{m[2]}</em>{m[3]}</> : t }
 
@@ -96,9 +101,10 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
   const near3 = [...S.near].sort((a, b) => a.dist - b.dist).slice(0, 3)
   // 공실 후보: 상가 건물인데 등록된 가게가 없는 곳 (Overture 건물) · 예산 안에 드는 곳
   const vac = useMemo(() => bld && bld.features.map(f => f.properties).filter(p => p.empty === 1 && !p.tgt && p.dist <= radius).sort((a, b) => a.dist - b.dist), [bld, radius])
-  const fit = vac ? vac.filter(p => p.cost && p.cost.start <= budget) : []
-  const [bw, setBw] = useState(false)
-  const bRef = useRef(null)
+  const fit = vac ? vac.filter(p => fits(p, budget)) : []
+  // 열린 예산 돌림판: 'start' | 'month' | null
+  const [bw, setBw] = useState(null)
+  const bRef = { start: useRef(null), month: useRef(null) }
   const F = 'in late'
 
   // 부드러운 스크롤: 휠 한 번에 바로 튀지 않고 목표 위치까지 미끄러지듯 따라간다 (터치는 기기 그대로)
@@ -195,12 +201,16 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
             <h2>공실 <em>{vac.length}</em>곳 · 예산 안 <em>{fit.length}</em>곳</h2>
             <p>상가 건물인데 등록된 가게가 하나도 없는 곳이에요.{fit[0] ? <><br />{fit[0].dist < 60 ? `예산 안 공실이 내 자리 바로 옆 ${fit[0].dist}m에도 있어요.` : `예산 안 공실 중 가장 가까운 곳은 ${fit[0].dist}m.`}</> : vac[0] && <><br />가장 가까운 공실은 {vac[0].dist}m, 예산을 늘려 보세요.</>}</p>
             <div className="zbud">
-              <span>처음 드는 돈</span>
-              <button ref={bRef} className={'chip' + (bw ? ' on' : '')} onClick={() => setBw(!bw)} aria-haspopup="listbox" aria-expanded={bw}>{budgetName(budget)} 안</button>
-              <small>권리금 없이 · 보증금·인테리어·장비<span className="eg">추정</span></small>
+              {[['start', '처음 드는 돈'], ['month', '매달 내는 돈']].map(([k, t]) => (
+                <span key={k} className="zb">{t}
+                  <button ref={bRef[k]} className={'chip' + (bw === k ? ' on' : '')} onClick={() => setBw(bw === k ? null : k)} aria-haspopup="listbox" aria-expanded={bw === k}>{budgetName(k, budget[k])} 안</button>
+                </span>
+              ))}
+              <small>처음: 권리금 없이 보증금·인테리어·장비 · 매달: 월세+관리비<span className="eg">추정</span></small>
             </div>
-            {bw && <Wheel anchor={bRef.current} items={BUDGETS.map(([v, n]) => [n, `공실 ${vac.filter(p => p.cost && p.cost.start <= v).length}곳`, true])} value={budgetName(budget)} label="BUDGET · 내 예산"
-              onPick={n => setBudget(BUDGETS.find(b => b[1] === n)[0])} onClose={() => setBw(false)} />}
+            {bw && <Wheel key={bw} anchor={bRef[bw].current} items={BUDGETS[bw].map(([v, n]) => [n, `공실 ${vac.filter(p => fits(p, { ...budget, [bw]: v })).length}곳`, true])} value={budgetName(bw, budget[bw])}
+              label={bw === 'start' ? 'BUDGET · 처음' : 'BUDGET · 매달'}
+              onPick={n => setBudget({ ...budget, [bw]: BUDGETS[bw].find(b => b[1] === n)[0] })} onClose={() => setBw(null)} />}
           </li>
         )}
         <li className="zi ring" data-fk="cafe">

@@ -145,11 +145,11 @@ const BC = { tgt: '#3b6fe0', cafe: '#ffffff', empty: '#f08a3c', shop: '#a3abb8',
 const KEYX = { tgt: ['==', ['get', 'tgt'], 1], cafe: ['>', ['coalesce', ['get', 'cafe'], 0], 0], empty: ['==', ['get', 'empty'], 1], shop: ['>', ['coalesce', ['get', 'n'], 0], 0] }
 const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16))
 const dim = (h, k = .55) => 'rgb(' + rgb(h).map((v, i) => Math.round(rgb(LAND)[i] + (v - rgb(LAND)[i]) * k)).join(',') + ')'
-// budget(만 원): 처음 드는 돈이 예산을 넘는 공실은 흐린 오렌지
+// budget(만 원): 처음 드는 돈이나 매달 내는 돈이 예산을 넘는 공실은 흐린 오렌지
 function bcColor(fk, ids = [], budget) {
   const F = fk === 'near' ? ['in', ['get', 'i'], ['literal', ids]] : KEYX[fk]
   const c = k => (!F ? BC[k] : ['case', F, k === 'tgt' || k === 'empty' ? BC[k] : '#ffffff', dim(BC[k])])
-  const over = budget ? ['>', ['coalesce', ['get', 'start'], 0], budget] : false
+  const over = budget ? ['any', ['>', ['coalesce', ['get', 'start'], 0], budget.start], ['>', ['coalesce', ['get', 'month'], 0], budget.month]] : false
   return ['case', KEYX.tgt, c('tgt'), KEYX.cafe, c('cafe'), ['all', KEYX.empty, over], dim(BC.empty, .35), KEYX.empty, c('empty'), KEYX.shop, c('shop'), c('none')]
 }
 export const BC_KEYS = [['cafe', '카페'], ['empty', '공실'], ['shop', '다른 가게'], ['tgt', '내 자리']]
@@ -659,8 +659,8 @@ function BuildingCard({ b, budget, onMove, onClose }) {
       {b.top && <div className="sc-row tops"><span>많은 업종</span><b>{b.top.split(' · ').slice(0, 2).map(t => t.replace(/ (\d+)$/, ' $1곳')).join(' · ')}</b></div>}
       {c && <>
         <div className="sc-row"><span>1칸 넓이</span><b>약 {c.py}평 ({c.m2}㎡)</b></div>
-        <div className="sc-row"><span>월세 · 보증금<em className="eg">예시</em></span><b className="m">{c.rent.toLocaleString()}만 · {c.deposit.toLocaleString()}만</b></div>
-        <div className={'sc-row' + (budget && c.start > budget ? ' over' : ' in')}><span>처음 드는 돈 · 권리금 없음</span><b className="m">{c.start.toLocaleString()}만{budget ? (c.start > budget ? ' · 예산 넘음' : ' · 예산 안') : ''}</b></div>
+        <div className={'sc-row' + (budget && c.month > budget.month ? ' over' : ' in')}><span>매달 · 월세+관리비<em className="eg">예시</em></span><b className="m">{c.month.toLocaleString()}만{budget ? (c.month > budget.month ? ' · 예산 넘음' : ' · 예산 안') : ''}</b></div>
+        <div className={'sc-row' + (budget && c.start > budget.start ? ' over' : ' in')}><span>처음 · 보증금 {c.deposit.toLocaleString()}만 포함</span><b className="m">{c.start.toLocaleString()}만{budget ? (c.start > budget.start ? ' · 예산 넘음' : ' · 예산 안') : ''}</b></div>
       </>}
       {movable && <button className="moveto" onClick={() => onMove(b.i)}>여기를 내 자리로 →</button>}
       {!b.tgt && !movable && <p className="sc-note">공릉로 232에서 {MOVE_MAX}m 안 건물만 내 자리로 옮길 수 있어요</p>}

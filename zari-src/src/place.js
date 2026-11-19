@@ -22,7 +22,9 @@ export function vacancyCost(m2, C) {
   const deposit = rent * 10
   const py = m2 / 3.3
   const start = deposit + Math.round(C.interior * py) + C.equip
-  return { m2: Math.round(m2), py: Math.round(py), rent, deposit, start }
+  // 매달 내는 돈 = 월세 + 관리비
+  const fee = Math.round((C.fee ?? 1) * py)
+  return { m2: Math.round(m2), py: Math.round(py), rent, deposit, start, fee, month: rent + fee }
 }
 
 // base 리포트를 건물 i로 옮긴 리포트·건물 데이터. i가 없으면 그대로
@@ -39,7 +41,7 @@ export function rebase(report, B, i, C) {
     const [x, y] = centroid(f), p = { ...f.properties }
     p.base = d0((x - Q.lon) * kx, (y - Q.lat) * ky)
     if (i != null) { p.dist = d0((x - lon) * kx, (y - lat) * ky); p.tgt = f.properties.i === i ? 1 : 0 }
-    if (p.empty) { p.cost = vacancyCost(Math.max(20, Math.min(99, area(f, kx, ky) * .6)), C); p.start = p.cost.start }
+    if (p.empty) { p.cost = vacancyCost(Math.max(20, Math.min(99, area(f, kx, ky) * .6)), C); p.start = p.cost.start; p.month = p.cost.month }
     return { ...f, properties: p }
   })
   if (i == null) return { report, bld: { ...B, features } }

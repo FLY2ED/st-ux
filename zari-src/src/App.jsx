@@ -59,7 +59,7 @@ export default function App() {
   // 지도에서 옮긴 내 자리(건물 번호) · 공실 예산(처음 드는 돈, 만 원)
   const [bld0, setBld0] = useState(null)
   const [spot, setSpot] = useState(null)
-  const [budget, setBudget] = useState(10000)
+  const [budget, setBudget] = useState({ start: 10000, month: 300 })
   const { report: R, bld } = useMemo(() => rebase(report, bld0, spot, DEMO.cost), [report, bld0, spot])
   const tipRef = useRef(null), imRef = useRef(null), markRef = useRef(null), qRef = useRef(null), wordRef = useRef(null)
 
