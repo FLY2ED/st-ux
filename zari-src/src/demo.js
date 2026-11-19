@@ -101,24 +101,32 @@ const EX = {
   ],
 }
 
-export const DEMO = {
-  ...EX,
-  area: S.area, grade: S.grade, insight: S.insight, score: S.score, recommend: S.recommend, trend: S.trend, place: S.place,
-  asOf: { ...EX.asOf, ...S.asOf },
-  sales: { ...EX.sales, ...S.sales },
-  flow: S.flow,
-  people: { ...EX.people, ...S.people },
-  change: { ...EX.change, ...S.change },
-  // 임대료·생존율·경쟁 강도는 예시, 나머지는 실제
-  compare: S.compare.map((c, k) => ({ ...EX.compare[k], ...c })),
+// 서울시 숫자(S: seoul.json 또는 seoulCalc.seoulReport 결과)를 예시 칸과 합친다
+// 매출 자료가 없는 업종(S.missing)은 매출·지수를 예시로 채우고 sample 표시를 단다
+export function mergeDemo(S, name) {
+  const miss = !!S.missing
+  const ch = { ...EX.change, ...Object.fromEntries(Object.entries(S.change).filter(([, v]) => v != null)) }
+  return {
+    ...EX,
+    home: S.home ?? { gu: '노원구' }, cat: S.cat ?? { label: '카페' },
+    area: S.area, insight: S.insight, recommend: S.recommend, trend: S.trend, place: { ...EX.place, ...S.place },
+    grade: { ...S.grade, g: S.grade.g ?? '—' },
+    score: miss || !S.score ? EX.score : S.score,
+    asOf: { ...EX.asOf, ...S.asOf },
+    sales: miss ? { ...EX.sales, stores: 0, seoul: EX.sales.seoul, seoulTicket: 6500, season: EX.sales.months.filter((_, k) => k % 3 === 0).slice(0, 4).map(([m, v], k) => [k + 1 + '분기', v]), vac: 0, sample: true } : { ...EX.sales, ...S.sales },
+    flow: S.flow,
+    people: { ...EX.people, ...S.people },
+    change: ch,
+    // 공릉로 232는 예시 후보 2곳과 비교, 다른 자리는 그 자리 한 줄
+    compare: S.compare.length > 1 ? S.compare.map((c, k) => ({ ...EX.compare[k], ...c }))
+      : [{ ...EX.compare[0], ...S.compare[0], name: name || S.compare[0].name, sub: S.area?.home || '', sales: S.compare[0].sales ?? EX.compare[0].sales }],
+  }
 }
+// 화면들이 같이 읽는 지금 리포트 숫자. setDemo로 통째로 바꾼다
+export const DEMO = mergeDemo(S)
+export const setDemo = (S2, name) => { for (const k of Object.keys(DEMO)) delete DEMO[k]; Object.assign(DEMO, mergeDemo(S2, name)) }
+export const BASE_SEOUL = S
 
 // 프랜차이즈 브랜드 (이름 앞부분으로 찾음)
 export const BRANDS = ['스타벅스', '투썸', '이디야', '메가엠지씨', '컴포즈', '빽다방', '공차', '더벤티', '설빙', '쥬씨', '커피마마', '떼루와']
 export const BRAND_NAME = { 메가엠지씨: '메가커피', 투썸: '투썸플레이스' }
-
-// 문장으로 고르기: 나는 [어디]에 [무슨 가게]를 차릴 거예요. 지금 리포트가 있는 건 공릉로 232 × 카페 하나
-export const PICK = {
-  where: [['공릉로 232', '서울과기대 정문 · 노원구', true], ['공릉역 2번 출구', '7호선 · 노원구', false], ['하계역 1번 출구', '7호선 · 노원구', false]],
-  what: [['카페', '서울 22,726곳', true], ['베이커리', '빵 · 디저트', false], ['음식점', '한식 · 분식 · 양식', false], ['편의점', '프랜차이즈', false]],
-}

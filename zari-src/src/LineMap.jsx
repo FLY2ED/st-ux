@@ -78,7 +78,7 @@ const zoomFor = r => (mob() ? (r > 300 ? 13.9 : 14.6) : r > 300 ? 15.45 : 16.2)
 export const mapPadTop = () => (mob() ? 40 : 0)
 
 // 반경 원(미터) → 위경도 고리
-export const shortAddr = a => a.replace(/^서울\S*\s+\S+구\s+/, '')
+export const shortAddr = a => a.replace(/^서울\S*\s+(\S+구\s+)?/, '')
 const fmtM = d => (d >= 1000 ? (d / 1000).toFixed(1) + 'km' : Math.round(d / 10) * 10 + 'm')
 
 function ring(lon, lat, r, kx, ky) {
@@ -318,7 +318,8 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
 
   // 선택된 카페: 큰 테두리 네모 + 유리 툴팁
   function place(map) {
-    const tip = tipRef.current, i = tip.dataset.i
+    const tip = tipRef.current; if (!tip) return
+    const i = tip.dataset.i
     if (i === '' || i == null) { tip.style.opacity = 0; return }
     const s = report.competitors[+i]
     const p = map.project(ll(s.x, s.y))
@@ -561,7 +562,7 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
       <div ref={tipRef} className="tip glass maptip" />
       <div className="layers" role="group" aria-label="지도에 보이는 것">
         <span className="lg">
-          {[['bcol', '카페·공실', '건물마다 카페·공실·다른 가게를 색으로'], ['shops', '모든 가게', '반경 안 가게를 점으로'], ['flow', '오가는 사람·예시', '사람이 많이 다니는 곳 (예시 값)'], ['place', '역·학교', '가까운 역·학교·버스 정류장']].map(([k, t, d]) => <button key={k} className={layer === k ? 'on' : ''} title={d} onClick={() => setLayer(k)}>{t}</button>)}
+          {[['bcol', `${Q.what}·공실`, `건물마다 ${Q.what}·공실·다른 가게를 색으로`], ['shops', '모든 가게', '반경 안 가게를 점으로'], ['flow', '오가는 사람·예시', '사람이 많이 다니는 곳 (예시 값)'], ['place', '역·학교', '가까운 역·학교·버스 정류장']].map(([k, t, d]) => <button key={k} className={layer === k ? 'on' : ''} title={d} onClick={() => setLayer(k)}>{t}</button>)}
         </span>
         <span className="vw">
           <span className="seg" role="group" aria-label="평면 입체 보기">
@@ -579,16 +580,16 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
       </div>
       <div className={'scale m' + (layer === 'bcol' ? ' on' : '')}>{radius}M · 걸어서 5분</div>
       <div className={'legendmap places bcol' + (layer === 'bcol' ? ' on' : '')}>
-        {BC_KEYS.map(([k, t]) => <span key={k}><i className={'bc-' + k} />{t}</span>)}
+        {BC_KEYS.map(([k, t]) => <span key={k}><i className={'bc-' + k} />{k === 'cafe' ? Q.what : t}</span>)}
       </div>
       {layer === 'place' && walk && (
         <div className="walk glass"><span className="m">NEAREST STATION</span><b>{walk.name}</b><em>직선 {fmtM(walk.d)} · 걸어서 약 <strong className="m">{walk.min}분</strong></em>
-          <div className="iso-n">{ISO.map(([min, r]) => <span key={min}><b className="m">{min}분</b>가게 {inIso(r, false)} · 카페 {inIso(r, true)}</span>)}</div>
+          <div className="iso-n">{ISO.map(([min, r]) => <span key={min}><b className="m">{min}분</b>가게 {inIso(r, false)} · {Q.what} {inIso(r, true)}</span>)}</div>
         </div>
       )}
       {layer === 'flow' && <FlowPlayer fm={fm} setFm={m => { setFm(m); setFt(m === 'h' ? 7 : 0) }} ft={ft} setFt={setFt} play={play} setPlay={setPlay} />}
-      {layer === 'bcol' && <div className="movehint">{Q.moved ? <>공릉로 232에서 {Q.moved}m 옮긴 자리 · <button onClick={() => onMove(null)}>원래 자리로</button></> : '건물을 누르면 내 자리를 옮길 수 있어요'}</div>}
-      {sel && (sel.bld != null ? bld && <BuildingCard b={bld.features.find(f => f.properties.i === sel.bld)?.properties} budget={budget} onMove={i => { setSel(null); onMove(i) }} onClose={() => setSel(null)} />
+      {layer === 'bcol' && <div className="movehint">{Q.moved ? <>{Q.from}에서 {Q.moved}m 옮긴 자리 · <button onClick={() => onMove(null)}>원래 자리로</button></> : '건물을 누르면 내 자리를 옮길 수 있어요'}</div>}
+      {sel && (sel.bld != null ? bld && <BuildingCard what={Q.what} from={Q.from || shortAddr(Q.address)} b={bld.features.find(f => f.properties.i === sel.bld)?.properties} budget={budget} onMove={i => { setSel(null); onMove(i) }} onClose={() => setSel(null)} />
         : <ShopCard sel={sel} report={report} onClose={() => setSel(null)} />)}
     </div>
   )
@@ -618,7 +619,7 @@ function ShopCard({ sel, report, onClose }) {
     const [lo, hi] = DEMO.storeRanges[sel.cafe % DEMO.storeRanges.length]
     extra = (
       <>
-        <div className="sc-row"><span>구분</span><b>{b ? '프랜차이즈 · ' + (BRAND_NAME[b] || b) : '개인 카페'}</b></div>
+        <div className="sc-row"><span>구분</span><b>{b ? '프랜차이즈 · ' + (BRAND_NAME[b] || b) : '개인 가게'}</b></div>
         <div className="sc-row"><span>추정 월매출<em className="eg">예시</em></span><b className="m">{lo.toLocaleString()}–{hi.toLocaleString()}만</b></div>
       </>
     )
@@ -631,7 +632,7 @@ function ShopCard({ sel, report, onClose }) {
   return (
     <div className="shopcard glass" role="dialog" aria-label={name + ' 정보'}>
       <button className="x" onClick={onClose} aria-label="닫기">×</button>
-      <span className="m">{sel.cafe != null ? 'CAFE · 경쟁 가게' : 'SHOP'}</span>
+      <span className="m">{sel.cafe != null ? 'SAME · 경쟁 가게' : 'SHOP'}</span>
       <b className="nm">{name}</b>
       <small>{cat} · {floorTxt(floor)}</small>
       <div className="sc-row"><span>이 자리에서</span><b>{fmtM(d)} · 걸어서 {walkMin(d)}분</b></div>
@@ -642,7 +643,7 @@ function ShopCard({ sel, report, onClose }) {
 }
 
 // 지도에서 누른 건물 설명 (Overture 건물 + 가게 목록을 건물에 맞춘 것)
-function BuildingCard({ b, budget, onMove, onClose }) {
+function BuildingCard({ b, from, what, budget, onMove, onClose }) {
   if (!b) return null
   const n = b.n || 0, c = b.cost
   // 가게·건물 데이터가 처음 자리에서 600m까지라, 옮긴 자리의 걸어서 5분이 그 안에 들 만큼만 옮긴다
@@ -653,7 +654,7 @@ function BuildingCard({ b, budget, onMove, onClose }) {
       <span className="m">{b.tgt ? 'BUILDING · 내 자리' : b.empty ? 'VACANT · 공실 후보' : 'BUILDING · 건물'}</span>
       <b className="nm">{b.name || (b.empty ? '가게가 하나도 없는 상가 건물' : n ? `가게 ${n}곳이 든 건물` : '가게 없는 건물')}</b>
       <small>{fmtM(b.dist || 0)} · 걸어서 {walkMin(b.dist || 0)}분</small>
-      <div className="sc-row"><span>안에 든 가게</span><b>{n}곳{b.cafe ? ` · 카페 ${b.cafe}` : ''}</b></div>
+      <div className="sc-row"><span>안에 든 가게</span><b>{n}곳{b.cafe ? ` · ${what || '같은 업종'} ${b.cafe}` : ''}</b></div>
       {n > 0 && <div className="sc-row"><span>1층 가게</span><b>{b.f1 || 0}곳</b></div>}
       {b.fmax > 1 && <div className="sc-row"><span>가게 있는 층</span><b>1–{b.fmax}층</b></div>}
       {b.top && <div className="sc-row tops"><span>많은 업종</span><b>{b.top.split(' · ').slice(0, 2).map(t => t.replace(/ (\d+)$/, ' $1곳')).join(' · ')}</b></div>}
@@ -663,7 +664,7 @@ function BuildingCard({ b, budget, onMove, onClose }) {
         <div className={'sc-row' + (budget && c.start > budget.start ? ' over' : ' in')}><span>처음 · 보증금 {c.deposit.toLocaleString()}만 포함</span><b className="m">{c.start.toLocaleString()}만{budget ? (c.start > budget.start ? ' · 예산 넘음' : ' · 예산 안') : ''}</b></div>
       </>}
       {movable && <button className="moveto" onClick={() => onMove(b.i)}>여기를 내 자리로 →</button>}
-      {!b.tgt && !movable && <p className="sc-note">공릉로 232에서 {MOVE_MAX}m 안 건물만 내 자리로 옮길 수 있어요</p>}
+      {!b.tgt && !movable && <p className="sc-note">{from}에서 {MOVE_MAX}m 안 건물만 내 자리로 옮길 수 있어요</p>}
     </div>
   )
 }

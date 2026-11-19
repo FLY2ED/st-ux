@@ -3,9 +3,13 @@ import { motion, AnimatePresence } from 'motion/react'
 import PixelMap from './PixelMap.jsx'
 import LineMap from './LineMap.jsx'
 import Report from './Report.jsx'
-import { DEMO, PICK, SEOUL } from './demo.js'
+import { DEMO, SEOUL, setDemo, BASE_SEOUL } from './demo.js'
+import { seoulReport } from './seoulCalc.js'
 import { rebase } from './place.js'
-import Wheel from './Wheel.jsx'
+import Field from './Field.jsx'
+import { search, reverse, findCat } from './search.js'
+import { BASE, isBase, buildReport, buildBuildings, loadCats } from './report.js'
+import { shortAddr } from './LineMap.jsx'
 import { Pin, PIN, PIN_CELLS, SearchIcon, ArrowIcon } from './pin.jsx'
 import { clamp, ioc, INTRO, makeClock, params } from './motion.js'
 
@@ -33,12 +37,28 @@ const NAV = {
   about: { k: 'ABOUT', t: 'ZARI', stats: [['553,374', '서울 가게'], ['4,797', '비교 상권'], ['799', '가게를 맞춘 건물']], body: [
     ['WHY', '서울에서 카페·식당 자리 고르기', '창업하려는 사람이 후보 자리 몇 곳을 같은 기준으로 비교하도록 돕는 서비스예요.'],
     ['HOW', '여러 서비스 기능을 한 화면에', '소상공인365, 서울시 상권분석, 오픈업 같은 서비스의 기능을 모으고, 지도와 리포트가 끊기지 않게 이어 붙였어요.'],
-    ['NOW', '기획 시연', '예시 자리 1곳(공릉로 232 · 카페). 매출·유동인구·주민·개폐업은 서울시 실제 데이터, “예시” 표시가 붙은 칸만 시연용 숫자예요.'],
+    ['NOW', '기획 시연', '서울 어느 주소·업종이든 리포트를 바로 만들어요. 매출·유동인구·주민·개폐업은 서울시 실제 데이터, “예시” 표시가 붙은 칸만 시연용 숫자예요.'],
   ] },
 }
 
 // 받침이 있으면 '을', 없으면 '를'
 const eul = w => ((w.charCodeAt(w.length - 1) - 0xac00) % 28 ? '을' : '를')
+
+// 입력칸이 비었을 때 보여 주는 자리
+const PRESETS = [
+  { label: '공릉로 232', sub: '서울과기대 정문 · 노원구', ...BASE },
+  { label: '홍대입구역', sub: '마포구 양화로 160', address: '서울 마포구 양화로 160', near: '홍대입구역', dong: '서교동', lon: 126.92370, lat: 37.55710 },
+  { label: '성수역', sub: '성동구 아차산로 100', address: '서울 성동구 아차산로 100', near: '성수역', dong: '성수동2가', lon: 127.05590, lat: 37.54460 },
+  { label: '강남역', sub: '강남구 강남대로 396', address: '서울 강남구 강남대로 396', near: '강남역', dong: '역삼동', lon: 127.02760, lat: 37.49790 },
+]
+const strip = ({ label, sub, ...p }) => p
+// 주소창으로 받은 자리: ?lon=&lat=&what=&addr=&near=&dong=
+const fromUrl = () => {
+  const lon = +params.get('lon'), lat = +params.get('lat')
+  if (!lon || !lat) return null
+  return { address: params.get('addr') || `서울 ${lat.toFixed(4)}, ${lon.toFixed(4)}`, near: params.get('near') || '', dong: params.get('dong') || '', lon, lat }
+}
+const labelOf = p => p.near && !/에서 \d+m$/.test(p.near) && /역$|입구$/.test(p.near) ? p.near : shortAddr(p.address)
 
 export default function App() {
   const clock = useMemo(makeClock, [])
@@ -48,10 +68,11 @@ export default function App() {
   const [mapOn, setMapOn] = useState(phase === 'report')
   const [nav, setNav] = useState(params.get('nav'))
   const [mob, setMob] = useState(isMob())
-  const [where, setWhere] = useState('공릉로 232')
-  const [what, setWhat] = useState('카페')
-  const [open, setOpen] = useState(null)
-  const chipRef = useRef(null)
+  const [place, setPlace] = useState(() => fromUrl() || strip(PRESETS[0]))
+  const [where, setWhere] = useState(() => labelOf(place))
+  const [what, setWhat] = useState(params.get('what') || BASE.what)
+  const [busy, setBusy] = useState(false)
+  const loadRef = useRef(null)
   const radius = 300 // 걸어서 5분 안으로 고정
   const [active, setActive] = useState(null)
   const [focus, setFocus] = useState(null)
@@ -65,12 +86,44 @@ export default function App() {
 
   useEffect(() => {
     fetch('./data/seoul-grid.json').then(r => r.json()).then(setGrid)
-    fetch('./data/report-gongneung-cafe.json').then(r => r.json()).then(setReport)
-    fetch('./data/buildings-gongneung.json').then(r => r.json()).then(setBld0)
     const rs = () => setMob(isMob())
     addEventListener('resize', rs)
     return () => removeEventListener('resize', rs)
   }, [])
+
+  // 자리·업종이 바뀌면 리포트와 건물을 새로 만든다(공릉로 232 카페는 미리 만든 파일)
+  useEffect(() => {
+    let off = false
+    const q = { ...place, what }
+    const base = isBase(q)
+    const p = base
+      ? Promise.all(['./data/report-gongneung-cafe.json', './data/buildings-gongneung.json'].map(u => fetch(u).then(r => r.json())))
+      : buildReport(q).then(r => buildBuildings(r).then(b => [r, b]))
+    // 매출·유동인구 등 서울시 상권 숫자: 그 자리에서 걸어서 닿는 상권을 묶어 계산
+    const sp = base ? Promise.resolve(BASE_SEOUL) : seoulReport({ lon: q.lon, lat: q.lat, cat: what }).catch(() => BASE_SEOUL)
+    setBusy(true)
+    loadRef.current = Promise.all([p, sp]).then(([[r, b], S]) => {
+      if (off) return
+      setDemo(S, shortAddr(q.address)); setReport(r); setBld0(b); setSpot(null); setFocus(null); setBusy(false)
+    })
+      .catch(() => { if (!off) setBusy(false) })
+    return () => { off = true }
+  }, [place, what])
+  // 지금 보는 자리를 주소창에 남겨 링크로 나눌 수 있게
+  useEffect(() => {
+    const u = new URLSearchParams(location.search)
+    if (phase === 'report') Object.entries({ view: 'report', lon: place.lon.toFixed(5), lat: place.lat.toFixed(5), what, addr: place.address, near: place.near, dong: place.dong }).forEach(([k, v]) => (v ? u.set(k, v) : u.delete(k)))
+    else ['view', 'lon', 'lat', 'what', 'addr', 'near', 'dong'].forEach(k => u.delete(k))
+    const qs = u.toString()
+    history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '') + location.hash)
+  }, [phase, place, what])
+  const pickPlace = it => { setPlace(strip(it)); setWhere(it.label) }
+  const dropPin = async (lon, lat) => {
+    const p = { lon, lat, address: '서울 · 찾는 중', near: '', dong: '' }
+    setPlace(p); setWhere('지도에서 고른 자리')
+    const r = await reverse(lon, lat)
+    setPlace(cur => (cur === p ? r : cur)); setWhere(w => (w === '지도에서 고른 자리' ? shortAddr(r.address) : w))
+  }
 
   // 인트로: 핀 찍힘 → 착지 → 물결이 퍼지는 동안 핀은 왼쪽 위 로고 자리로 → ZARI → 검색창
   useEffect(() => {
@@ -149,10 +202,13 @@ export default function App() {
     }
     step()
   }
+  // 리포트가 다 만들어지면(서울 어디든 1초 안팎) 핀이 날아가며 확대된다
   const go = () => {
-    if (!report) return
-    setOpen(null)
+    document.activeElement?.blur?.()
     setActive(null)
+    loadRef.current?.then(start)
+  }
+  const start = () => {
     const h0 = markRef.current.getBoundingClientRect()
     if (h0.width) fly(() => h0, pinAt, [63, 71, 87], [255, 255, 255], 1500)
     setPhase('report')
@@ -173,27 +229,20 @@ export default function App() {
   useEffect(() => {
     const key = e => {
       if (e.key !== 'Escape') return
-      if (open) setOpen(null)
-      else if (nav) setNav(null)
+      if (document.activeElement?.closest?.('.fld')) return
+      if (nav) setNav(null)
       else if (phase === 'report') home()
     }
     addEventListener('keydown', key)
     return () => removeEventListener('keydown', key)
-  }, [nav, phase, open])
-  // 고르는 창 밖을 누르면 닫는다
-  useEffect(() => {
-    if (!open) return
-    const down = e => { if (!qRef.current?.contains(e.target) && !e.target.closest?.('.wheel')) setOpen(null) }
-    addEventListener('pointerdown', down)
-    return () => removeEventListener('pointerdown', down)
-  }, [open])
+  }, [nav, phase])
 
   const camera = useMemo(() => ({
     z: phase === 'report' ? 1 : 0,
-    lon: 127.07655, lat: 37.62994,
+    lon: place.lon, lat: place.lat,
     cx: () => (isMob() ? innerWidth / 2 : COL + (innerWidth - COL) / 2),
     cy: () => (isMob() ? (100 + innerHeight * .44) / 2 : innerHeight / 2),
-  }), [phase])
+  }), [phase, place])
 
   // PC 리포트: 지도 위에서 굴려도 왼쪽 글이 내려간다(페이지 전체가 한 번에 스크롤되는 느낌, 원은 고정)
   useEffect(() => {
@@ -214,9 +263,9 @@ export default function App() {
 
   return (
     <div className={`app ${phase} ${mob ? 'mob' : 'desk'}${mapOn ? ' mapon' : ''}`}>
-      <PixelMap grid={grid} clock={clock} camera={camera} tipRef={tipRef} interactive={phase === 'home'} />
+      <PixelMap grid={grid} clock={clock} camera={camera} tipRef={tipRef} interactive={phase === 'home'} pin={place} onPick={dropPin} />
       {report && (
-        <LineMap key={spot ?? 'base'} report={R} bld={bld} radius={radius} active={active} onActive={setActive} onPick={i => { setFocus(i); setActive(i) }}
+        <LineMap key={`${report.query.lon},${report.query.lat},${report.query.cat}:${spot ?? 'base'}`} report={R} bld={bld} radius={radius} active={active} onActive={setActive} onPick={i => { setFocus(i); setActive(i) }}
           shown={mapOn} focus={focus} center={radius} budget={budget} onMove={i => { setActive(null); setFocus(null); setSpot(i) }} />
       )}
 
@@ -237,22 +286,19 @@ export default function App() {
           {'ZARI'.split('').map((c, k) => <span key={k} style={{ '--k': k }}>{c}</span>)}
         </div>
         <div className="qwrap" ref={qRef}>
-          <motion.form layout transition={{ duration: .9, ease: [.65, 0, .35, 1] }} className="pill"
+          <motion.form layout transition={{ duration: .9, ease: [.65, 0, .35, 1] }} className={'pill' + (busy ? ' busy' : '')}
             onSubmit={e => { e.preventDefault(); go() }}>
             <span className="ic"><SearchIcon /></span>
-            <p className="sent" aria-label={`나는 ${where}에 ${what}${eul(what)} 차릴 거예요`}>
+            <div className="sent" aria-label={`나는 ${where}에 ${what}${eul(what)} 차릴 거예요`}>
               <span className="w0">나는 </span>
-              <button type="button" className={'chip' + (open === 'where' ? ' on' : '')} onClick={e => { chipRef.current = e.currentTarget; setOpen(open === 'where' ? null : 'where') }} aria-haspopup="listbox" aria-expanded={open === 'where'}><span className="wb">[</span>{where}<span className="wb">]</span></button>에{' '}
-              <button type="button" className={'chip' + (open === 'what' ? ' on' : '')} onClick={e => { chipRef.current = e.currentTarget; setOpen(open === 'what' ? null : 'what') }} aria-haspopup="listbox" aria-expanded={open === 'what'}><span className="wb">[</span>{what}<span className="wb">]</span></button>{eul(what)}{' '}
+              <Field value={where} label="WHERE · 서울 주소나 장소" placeholder="주소·역 이름" empty="서울 주소나 장소 이름을 쳐 보세요. 지도를 눌러도 돼요"
+                find={q => (q ? search(q) : Promise.resolve(PRESETS))} onPick={pickPlace} />에{' '}
+              <Field value={what} label="WHAT · 무슨 가게" placeholder="업종" empty="업종 이름을 쳐 보세요"
+                find={q => loadCats().then(c => findCat(q, c || []))} onPick={it => setWhat(it.label)} />{eul(what)}{' '}
               <span className="w1">차릴 거예요</span>
-            </p>
-            <button className="go" aria-label="리포트 보기"><ArrowIcon /></button>
+            </div>
+            <button className="go" aria-label="리포트 보기" aria-busy={busy}><ArrowIcon /></button>
           </motion.form>
-          {open && chipRef.current && (
-            <Wheel anchor={chipRef.current} items={PICK[open]} value={open === 'where' ? where : what} scale={1.5}
-              label={open === 'where' ? 'WHERE · 어디에' : 'WHAT · 무슨 가게'}
-              onPick={open === 'where' ? setWhere : setWhat} onClose={() => setOpen(null)} />
-          )}
         </div>
       </div>
 
@@ -267,7 +313,7 @@ export default function App() {
       )}
 
       {saved && phase === 'report' && (
-        <div className="tray glass m"><span>COMPARE 3/3</span><b>공릉로 232 · 공릉역 · 하계역</b><em>담아 둔 후보 자리 3곳 · 카페</em>
+        <div className="tray glass m"><span>COMPARE {DEMO.compare.length}/3</span><b>{DEMO.compare.map(c => c.name).join(' · ')}</b><em>담아 둔 후보 자리 {DEMO.compare.length}곳 · {what}</em>
           <span className="tbw">{nav !== 'compare' && <motion.span layoutId="nav-compare" className="navbg w" transition={MORPH} />}
             <button onClick={() => setNav('compare')}>나란히 보기 →</button></span></div>
       )}
@@ -282,7 +328,7 @@ export default function App() {
         {nav && (
           <motion.aside key={nav} layoutId={'nav-' + nav} transition={MORPH} className={'navp' + (nav === 'compare' ? ' cmp' : '')}>
             <motion.div className="navfade" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: .48, duration: .3 } }} exit={{ opacity: 0, transition: { duration: .12 } }}>
-              {nav === 'compare' ? <Compare close={() => setNav(null)} /> : (
+              {nav === 'compare' ? <Compare what={what} close={() => setNav(null)} /> : (
                 <div className="navin">
                   <button className="x m" onClick={() => setNav(null)} aria-label="닫기">CLOSE ✕</button>
                   <span className="k m">{NAV[nav].k}</span>
@@ -293,7 +339,7 @@ export default function App() {
                   ))}
                   {nav === 'how' && (
                     <button className="cta" style={{ '--i': 5 }} onClick={() => { setNav(null); if (phase === 'home') setTimeout(go, 450) }}>
-                      {phase === 'home' ? '예시 리포트 열기 · 공릉로 232 카페' : '리포트로 돌아가기'}<span className="m">→</span>
+                      {phase === 'home' ? `리포트 열기 · ${where} ${what}` : '리포트로 돌아가기'}<span className="m">→</span>
                     </button>
                   )}
                 </div>
@@ -315,9 +361,9 @@ export default function App() {
 
 // 후보 자리 나란히 비교 (예시 후보 2곳 포함)
 const CMP = [
-  ['카페 수', 'cafes', v => v + '곳', 'min'],
+  ['가게 수', 'cafes', v => v + '곳', 'min'],
   ['경쟁 강도', 'crowd', v => v, null],
-  ['카페 월매출', 'sales', v => v.toLocaleString() + '만', 'max'],
+  ['1곳 월매출', 'sales', v => (v == null ? '—' : v.toLocaleString() + '만'), 'max'],
   ['유동인구/일', 'flow', v => v.toLocaleString(), 'max'],
   ['임대료 ㎡/월 · 예시', 'rent', v => v + '만', 'min'],
   ['3년 생존율 · 예시', 'survive', v => v + '%', 'max'],
@@ -355,14 +401,14 @@ function Circles() {
   )
 }
 
-function Compare({ close }) {
-  const P = DEMO.compare
+function Compare({ what, close }) {
+  const P = DEMO.compare, many = P.length > 1
   return (
     <div className="navin">
       <button className="x m" onClick={close} aria-label="닫기">CLOSE ✕</button>
-      <span className="k m">COMPARE · CAFE · 걸어서 5분</span>
-      <h2>후보 자리 3곳 비교</h2>
-      <Circles />
+      <span className="k m">COMPARE · 걸어서 5분</span>
+      <h2>{many ? `후보 자리 ${P.length}곳 비교` : '담아 둔 자리'}</h2>
+      {many && <Circles />}
       <table className="cmpt">
         <thead><tr><th />{P.map((p, k) => <th key={p.name} className={k === 0 ? 'me' : ''}><b>{p.name}</b><small>{p.sub}</small></th>)}</tr></thead>
         <tbody>
@@ -373,7 +419,7 @@ function Compare({ close }) {
           })}
         </tbody>
       </table>
-      <p className="fine" style={{ marginTop: 18 }}>네모 표시는 그 줄에서 가장 좋은 값이에요. 카페 수·월매출·유동인구·등급은 서울시 상권분석서비스({SEOUL.asOf.sales}) 실제 값이고, 임대료·생존율은 예시예요. 하계역은 따로 잡힌 상권이 없어 가장 가까운 노원 을지대병원 상권으로 셌어요.</p>
+      <p className="fine" style={{ marginTop: 18 }}>네모 표시는 그 줄에서 가장 좋은 값이에요. {what} 가게 수·월매출·유동인구·등급은 서울시 상권분석서비스({DEMO.asOf.sales}) 실제 값이고, 임대료·생존율은 예시예요.{many && ' 하계역은 따로 잡힌 상권이 없어 가장 가까운 노원 을지대병원 상권으로 셌어요.'}</p>
     </div>
   )
 }

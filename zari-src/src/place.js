@@ -53,8 +53,10 @@ export function rebase(report, B, i, C) {
   const cafe = {}
   comp.forEach((s, n) => { if (B.cafe[s.k] != null) cafe[n] = B.cafe[s.k] })
   const name = tf.properties.name
-  const query = { ...Q, lon, lat, moved: d0(dx, dy),
-    address: '서울 노원구 ' + (name || `공릉로 232에서 ${d0(dx, dy)}m`), near: name ? `공릉로 232에서 ${d0(dx, dy)}m` : '지도에서 고른 건물' }
+  // 처음 고른 주소(예: 서울 노원구 공릉로 232)에서 몇 m 옮겼는지로 부른다
+  const w = Q.address.split(' '), head = w.slice(0, w.length > 3 ? 2 : 1).join(' '), from = w.slice(head.split(' ').length).join(' ') || Q.address
+  const query = { ...Q, lon, lat, moved: d0(dx, dy), from,
+    address: head + ' ' + (name || `${from}에서 ${d0(dx, dy)}m`), near: name ? `${from}에서 ${d0(dx, dy)}m` : '지도에서 고른 건물' }
   return {
     report: { ...report, query, shops: report.shops.map(([x, y, ...r]) => [x - dx, y - dy, ...r]), competitors: comp.map(({ k, ...s }) => s) },
     bld: { ...B, cafe, features },

@@ -1,14 +1,16 @@
 import { useEffect, useRef } from 'react'
 import { clamp, ioc, INTRO } from './motion.js'
+import { PIN } from './pin.jsx'
 
 // 서울 전체 가게 픽셀 지도 (200m 칸).
 // - 인트로: 핀 끝에서 물결처럼 칸이 켜진다
 // - 홈: 커서 주변 칸이 켜지고, 칸 위에 유리 툴팁
+// - 홈에서 지도를 누르면 그 자리에 핀을 꽂는다(onPick(lon, lat)) · pin = 지금 고른 자리
 // - 리포트로 갈 때: 고른 자리로 카메라가 확대되며 선 지도로 넘겨 준다
-export default function PixelMap({ grid, clock, camera, tipRef, interactive }) {
+export default function PixelMap({ grid, clock, camera, tipRef, interactive, pin, onPick }) {
   const ref = useRef(null)
-  const live = useRef({ camera, interactive })
-  live.current = { camera, interactive }
+  const live = useRef({ camera, interactive, pin, onPick })
+  live.current = { camera, interactive, pin, onPick }
 
   useEffect(() => {
     if (!grid) return
@@ -81,10 +83,22 @@ export default function PixelMap({ grid, clock, camera, tipRef, interactive }) {
     }
     const move = e => { cur = [e.clientX, e.clientY]; showTip(...cur) }
     const leave = () => { cur = null; tip.style.opacity = 0 }
-    const down = e => { if (live.current.interactive) rings.push({ c: cellAt(e.clientX, e.clientY), r: 0 }) }
+    let press = null
+    const down = e => { if (live.current.interactive) { rings.push({ c: cellAt(e.clientX, e.clientY), r: 0 }); press = [e.clientX, e.clientY] } }
+    // 끌지 않고 누른 곳이 가게 있는 칸 근처면 그 좌표를 내 자리로
+    const up = e => {
+      if (!press || !live.current.interactive || z > .05 || Math.hypot(e.clientX - press[0], e.clientY - press[1]) > 8) return
+      press = null
+      const [gx, gy] = cellAt(e.clientX, e.clientY)
+      let near = 0
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) near += g[(gy + dy) * w + gx + dx] || 0
+      if (gx < 0 || gy < 0 || gx >= w || gy >= h || !near) return
+      live.current.onPick?.(x0 + ((e.clientX * dpr - ox) / s) * st, y1 - ((e.clientY * dpr - oy) / s) * st)
+    }
     c.addEventListener('pointermove', move)
     c.addEventListener('pointerleave', leave)
     c.addEventListener('pointerdown', down)
+    c.addEventListener('pointerup', up)
 
     const tipPt = () => {
       const mh = (mob ? 16 : 22) * 6
@@ -130,6 +144,14 @@ export default function PixelMap({ grid, clock, camera, tipRef, interactive }) {
         x.fillStyle = `rgba(255,255,255,${v * (.35 + .65 * lv[i])})`
         x.fillRect(ox + (i % w) * s - grow / 2, oy + ((i / w) | 0) * s - grow / 2, s * .82 + grow, s * .82 + grow)
       }
+      // 고른 자리 핀(홈에서만): 끝이 그 좌표를 찍는 픽셀 핀
+      const P = live.current.pin
+      if (P && z < .02 && t >= INTRO.end) {
+        const u = Math.round((mob ? 3 : 4) * dpr), px = Math.round(ox + ((P.lon - x0) / st) * s), py = Math.round(oy + ((y1 - P.lat) / st) * s)
+        const L = px - (PIN[0].length * u) / 2, T = py - PIN.length * u
+        x.fillStyle = '#fff'
+        PIN.forEach((row, ry) => [...row].forEach((v, rx) => v === '1' && x.fillRect(L + rx * u, T + ry * u, u, u)))
+      }
       // 확대가 끝나 갈수록 픽셀 지도는 물러나고 선 지도가 받는다
       c.style.opacity = 1 - clamp((z - .7) / .3)
       raf = requestAnimationFrame(frame)
@@ -141,6 +163,7 @@ export default function PixelMap({ grid, clock, camera, tipRef, interactive }) {
       c.removeEventListener('pointermove', move)
       c.removeEventListener('pointerleave', leave)
       c.removeEventListener('pointerdown', down)
+      c.removeEventListener('pointerup', up)
     }
   }, [grid])
 

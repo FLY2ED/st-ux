@@ -1156,6 +1156,24 @@ body{background:url(/bg.webp) center/cover no-repeat fixed #8a8f97}
   .home .pill .go{width:36px;height:36px;margin-left:0}
   .home .pill .go svg{width:16px;height:16px}
 }
+/* 문장 속 입력칸: 글자 길이만큼 자라는 칸(::after 그림자) + 아래 후보 목록 */
+.pill .chip.fld{position:relative;display:inline-flex;align-items:baseline;cursor:text}
+.fld .grow{display:inline-grid;vertical-align:baseline;max-width:min(420px,52vw)}
+/* 홈 문장은 긴 주소가 들어오면 줄을 바꾼다 */
+.home .pill .sent{white-space:normal;text-overflow:clip}
+.home .pill .sent .fld{white-space:nowrap}
+.fld .grow::after{content:attr(data-v) ' ';visibility:hidden;white-space:pre;grid-area:1/1;font:inherit;font-weight:700}
+.fld input{grid-area:1/1;width:0;min-width:100%;text-overflow:ellipsis;font:inherit;font-weight:700;color:#fff;background:none;border:0;padding:0;margin:0;outline:none;caret-color:#fff}
+.fld input::placeholder{color:rgba(255,255,255,.4)}
+.fld.on .grow{box-shadow:inset 0 -2px 0 rgba(255,255,255,.6)}
+.sug{position:absolute;z-index:30;left:0;top:calc(100% + 8px);min-width:280px;max-width:min(440px,86vw);margin:0;padding:6px 0;list-style:none;background:#fff;color:#1f2633;border-radius:0;box-shadow:0 10px 30px rgba(10,20,40,.22);font-size:15px;line-height:1.35;font-weight:400;text-align:left}
+.sug li{padding:8px 14px;cursor:pointer}
+.sug li.on{background:#eef2fb}
+.sug li b{display:block;font-weight:600}
+.sug li small{display:block;margin-top:2px;font-size:12px;color:#8a92a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sug .sug-k{cursor:default;padding:4px 14px 6px;font-size:10px;letter-spacing:.16em;color:#8a92a3}
+.sug .sug-none{cursor:default;color:#8a92a3;font-size:13px}
+@media (max-width:759px){.sug{min-width:220px;font-size:14px}}
 
 /* 지도에서 내 자리 옮기기 · 공실 예산 */
 .movehint{position:absolute;z-index:4;left:32px;bottom:52px;font-size:12px;color:#6b7385;pointer-events:auto}
@@ -1172,3 +1190,6 @@ body{background:url(/bg.webp) center/cover no-repeat fixed #8a8f97}
 .zbud small{flex-basis:100%;font-size:11px;color:#8a92a3}
 @media (max-width:759px){.movehint{left:14px;bottom:auto;top:44px;font-size:11px}}
 .zbud .zb{display:inline-flex;align-items:center;gap:8px}
+/* 리포트를 만드는 동안 → 버튼이 깜빡인다 */
+.pill.busy .go{animation:gobusy 1s steps(2) infinite}
+@keyframes gobusy{50%{opacity:.45}}
