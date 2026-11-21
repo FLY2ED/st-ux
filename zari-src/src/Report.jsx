@@ -382,6 +382,7 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
         </div>
         <p className="fine">세대 수는 상주인구 자료 기준 · 원룸·다세대가 많아요</p>
       </Sec>
+      {D.real.spend ? <Spend sp={D.real.spend} F={F} GU={GU} /> : (
       <Sec className={F} k="SPEND" title={`소득 · ${W} 지출`} demo>
         <div className="kpis two">
           <div><span className="m">INCOME</span><b className="m">{D.people.income}만</b><small>월평균 소득 · 서울 {D.people.incomeSeoul}만</small></div>
@@ -389,7 +390,7 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
         </div>
         <h3>생활비 중 {W} 지출 비중</h3>
         <Rows data={D.people.spend} unit="%" me="20대" />
-      </Sec>
+      </Sec>)}
 
       </Fold>
       <Fold {...fp} id="change" t="개업 · 폐업" d="최근 3년">
@@ -404,6 +405,7 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
           ))}
         </div>
       </Sec>
+      {D.real.survive ? <Survive sv={D.real.survive} F={F} W={W} D={D} /> : <>
       <Sec className={F} k="SURVIVAL" title="살아남은 비율" sub="이 상권 · 서울" demo>
         <div className="surv">
           {D.change.survive.map(([y, a, b]) => (
@@ -416,9 +418,11 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
         <Rows data={D.change.ages} unit="%" />
         <p className="fine">1년 미만이 23% · 새 가게가 자주 들어오는 상권이에요.</p>
       </Sec>
+      </>}
 
       </Fold>
       <Fold {...fp} id="cost" t="임대료 · 손익 계산" d="직접 바꿔 보기">
+      {D.real.rent ? <Rent rt={D.real.rent} C={D.cost} F={F} /> : <>
       <Sec className={F} k="RENT" title="임대료 · 비용" sub="1층 상가 시세 · 2026 상반기" demo>
         <div className="kpis">
           <div><span className="m">RENT</span><b className="m">{D.cost.rent}만</b><small>㎡당 월 · {GU} {D.cost.rentGu}</small></div>
@@ -432,6 +436,7 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
         <h3>다른 곳과 비교</h3>
         <Rows data={[['이 상권', D.cost.rent], [GU, D.cost.rentGu], ['서울', D.cost.rentSeoul]]} unit="만" me="이 상권" wide />
       </Sec>
+      </>}
 
         <Sim className={F} />
       </Fold>
@@ -464,7 +469,7 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
       </div>
 
       <p className="asof">기준 · 매출 {D.asOf.sales} · 인구 {D.asOf.flow} · 가게 {D.asOf.shops} · 임대료 {D.asOf.rent} · 건물 Overture 2026-10</p>
-      <p className="src m">SOURCE · {report.source} · 서울 열린데이터광장 상권분석서비스<br />예시 표시 칸(가게별 매출·임대료·권리금·소득·생존율)은 기획 시연용 숫자</p>
+      <p className="src m">SOURCE · {report.source} · 서울 열린데이터광장 상권분석서비스<br />소득 국세청 · 지출 소비-행정동 · 생존율 인허가 이력 · 임대료 한국부동산원 · 권리금 서울시 상가임대차 실태조사 · 예시 표시 칸은 기획 시연용 숫자</p>
     </div>
   )
 }
@@ -571,4 +576,68 @@ function cdf(z) {
 
 function Bar({ v }) {
   return <span className="bar"><i style={{ left: v * 100 + '%' }} /><u /></span>
+}
+
+// 동 지출(소비-행정동) · 구 소득(국세청)
+function Spend({ sp, F, GU }) {
+  const m = Math.max(...sp.shares.map(x => Math.max(x[1], x[2])))
+  const eok = v => (v / 1e8 >= 10 ? Math.round(v / 1e8) : Math.round(v / 1e7) / 10) + '억'
+  return (
+    <Sec className={F} k="SPEND" title="소득 · 지출" sub={`${GU} 직장인 급여 · ${sp.dong ?? '이 동'}에서 쓰는 돈`}>
+      <div className="kpis two">
+        <div><span className="m">INCOME</span><b className="m">{sp.income ?? '—'}만</b><small>{GU} 사는 직장인 월 급여 · 서울 구 평균 {sp.incomeSeoul}만</small></div>
+        {sp.food != null && <div><span className="m">FOOD</span><b className="m">{eok(sp.food)}</b><small>한 분기 외식 지출{sp.foodGrow != null && ` · 1년 전보다 ${sp.foodGrow >= 0 ? '+' : ''}${sp.foodGrow}%`}</small></div>}
+      </div>
+      {sp.shares?.length > 0 && <>
+        <h3>{sp.dong}에서 쓰는 돈 나누기</h3>
+        <div className="surv wl">
+          {sp.shares.map(([k, a, b]) => (
+            <div key={k}><span>{k}</span><span className="rg2"><i style={{ width: a / m * 100 + '%' }} /><u style={{ left: b / m * 100 + '%' }} /></span><b className="m">{a}%</b></div>
+          ))}
+        </div>
+      </>}
+      <p className="fine">급여: 국세청 근로소득 연말정산(주소지, {sp.incomeAsOf}) · 지출: 서울시 상권분석서비스 소비-행정동({sp.spendAsOf}) · 세로선은 서울 동 가운데값</p>
+    </Sec>
+  )
+}
+
+// 생존율 · 문 연 지: 반경 안 같은 업종 가게의 인허가 개업·폐업 이력
+function Survive({ sv, F, W, D }) {
+  const few = sv.s[1][3] < 15
+  const y1 = sv.ages?.[0][1], y1s = sv.agesSeoul?.[0]
+  return <>
+    <Sec className={F} k="SURVIVAL" title="살아남은 비율" sub={`반경 ${sv.r}m ${W} · 서울`}>
+      <div className="surv">
+        {sv.s.map(([y, a, b, n]) => (
+          <div key={y}><span>{y}</span><span className="rg2"><i style={{ width: (a ?? 0) + '%' }} /><u style={{ left: b + '%' }} /></span><b className="m">{a == null ? '—' : a + '%'}</b></div>
+        ))}
+      </div>
+      <p className="fine">{sv.from}년 뒤 문 연 {W} {sv.s[1][3]}곳 중 3년 뒤에도 영업 중인 비율 {sv.s[1][1] ?? '—'}% · 서울 {sv.s[1][2]}%{few ? ' · 가게가 적어 오차가 커요' : ''} · 가게 평균 영업 {D.change.life}년 · 세로선은 서울 · 행정안전부 인허가 이력({sv.asOf})</p>
+    </Sec>
+    {sv.ages && <Sec className={F} k="AGE" title="지금 가게들이 문 연 지" sub={`반경 ${sv.r}m 영업 중 ${sv.open}곳`}>
+      <Rows data={sv.ages} unit="%" />
+      <p className="fine">1년 미만 {y1}% · 서울 {y1s}%{y1 >= y1s + 5 ? ' · 새 가게가 자주 들어오는 자리예요' : y1 <= y1s - 5 ? ' · 오래 버틴 가게가 많은 자리예요' : ''} · 폐업 신고를 안 한 가게가 남아 있어 오래된 칸이 조금 부풀 수 있어요</p>
+    </Sec>}
+  </>
+}
+
+// 임대료 · 공실률 · 권리금: 가장 가까운 한국부동산원 조사 상권
+function Rent({ rt, C, F }) {
+  const far = rt.dist >= 1.5
+  return <>
+    <Sec className={F} k="RENT" title="임대료 · 비용" sub={`1층 상가 · ${rt.area} 상권 · ${rt.asOf}`}>
+      <div className="kpis">
+        <div><span className="m">RENT</span><b className="m">{rt.rent}만</b><small>㎡당 월 · 서울 {rt.seoul.rent}만</small></div>
+        <div><span className="m">VACANCY</span><b className="m">{rt.vac}%</b><small>빈 가게 비율 · 서울 {rt.seoul.vac}%</small></div>
+        <div><span className="m">PREMIUM</span><b className="m">{fmt(rt.key)}</b><small>권리금 · {rt.keyArea ?? '서울 평균'}(만 원)</small></div>
+      </div>
+      <p className="fine">{C.size}㎡(10평) 기준 월 임대료 약 {won(Math.round(rt.rent * C.size))} 원 · 보증금은 월세 10달치로 셈 · 임대료는 가장 가까운 조사 상권 {rt.area}{rt.dist >= .3 ? `(${rt.dist}km)` : ''} 값{far ? ' · 떨어져 있어 이 자리와 다를 수 있어요' : ''}</p>
+    </Sec>
+    <Sec className={F} k="TREND" title="㎡당 월 임대료 · 분기별" sub={rt.area}>
+      <Line data={rt.trend} fmt={v => v + '만'} />
+      <h3>다른 곳과 비교</h3>
+      <Rows data={[[rt.area, rt.rent], ['서울', rt.seoul.rent]]} unit="만" me={rt.area} wide />
+      <p className="fine">한국부동산원 상업용부동산 임대동향조사({rt.kind === 'small' ? '소규모' : '중대형'} 상가, 1층) · 권리금 서울시 상가임대차 실태조사(2023, 1층 점포)</p>
+    </Sec>
+  </>
 }

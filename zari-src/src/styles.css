@@ -590,6 +590,7 @@ html:not(.ready) .word span,html:not(.ready) .qwrap{opacity:0;transition:none}
 .col .rg2 i{background:var(--fill)}
 .col .rg2 u{width:2px;background:var(--ink)}
 .col .surv b{font-size:12px;color:var(--ink)}
+.surv.wl div{grid-template-columns:64px 1fr 44px}
 .col .stations{gap:12px}
 .col .stations b{font-size:13px}
 .col .stations small{font-size:12px;color:var(--ink-2)}

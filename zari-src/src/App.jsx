@@ -5,6 +5,7 @@ import LineMap from './LineMap.jsx'
 import Report from './Report.jsx'
 import { DEMO, SEOUL, setDemo, BASE_SEOUL } from './demo.js'
 import { seoulReport } from './seoulCalc.js'
+import { addExtra } from './extra.js'
 import { rebase } from './place.js'
 import Field from './Field.jsx'
 import { search, reverse, findCat } from './search.js'
@@ -100,7 +101,8 @@ export default function App() {
       ? Promise.all(['./data/report-gongneung-cafe.json', './data/buildings-gongneung.json'].map(u => fetch(u).then(r => r.json())))
       : buildReport(q).then(r => buildBuildings(r).then(b => [r, b]))
     // 매출·유동인구 등 서울시 상권 숫자: 그 자리에서 걸어서 닿는 상권을 묶어 계산
-    const sp = base ? Promise.resolve(BASE_SEOUL) : seoulReport({ lon: q.lon, lat: q.lat, cat: what }).catch(() => BASE_SEOUL)
+    const sp = (base ? Promise.resolve(BASE_SEOUL) : seoulReport({ lon: q.lon, lat: q.lat, cat: what }).catch(() => BASE_SEOUL))
+      .then(S => addExtra(S, q).catch(() => S))
     setBusy(true)
     loadRef.current = Promise.all([p, sp]).then(([[r, b], S]) => {
       if (off) return
@@ -365,8 +367,8 @@ const CMP = [
   ['경쟁 강도', 'crowd', v => v, null],
   ['1곳 월매출', 'sales', v => (v == null ? '—' : v.toLocaleString() + '만'), 'max'],
   ['유동인구/일', 'flow', v => v.toLocaleString(), 'max'],
-  ['임대료 ㎡/월 · 예시', 'rent', v => v + '만', 'min'],
-  ['3년 생존율 · 예시', 'survive', v => v + '%', 'max'],
+  ['임대료 ㎡/월', 'rent', v => (v == null ? '—' : v + '만'), 'min'],
+  ['3년 생존율', 'survive', v => (v == null ? '—' : v + '%'), 'max'],
   ['상권 등급', 'grade', v => v, null],
 ]
 // 걸어서 5분(300m) 원 안 건물을 업종별로 칠한 작은 지도 + 업종별 가게 수
@@ -419,7 +421,7 @@ function Compare({ what, close }) {
           })}
         </tbody>
       </table>
-      <p className="fine" style={{ marginTop: 18 }}>네모 표시는 그 줄에서 가장 좋은 값이에요. {what} 가게 수·월매출·유동인구·등급은 서울시 상권분석서비스({DEMO.asOf.sales}) 실제 값이고, 임대료·생존율은 예시예요.{many && ' 하계역은 따로 잡힌 상권이 없어 가장 가까운 노원 을지대병원 상권으로 셌어요.'}</p>
+      <p className="fine" style={{ marginTop: 18 }}>네모 표시는 그 줄에서 가장 좋은 값이에요. {what} 가게 수·월매출·유동인구·등급은 서울시 상권분석서비스({DEMO.asOf.sales}) 실제 값이에요. 임대료는 가장 가까운 한국부동산원 조사 상권, 3년 생존율은 반경 500m 인허가 이력으로 셌어요.{many && ' 하계역은 따로 잡힌 상권이 없어 가장 가까운 노원 을지대병원 상권으로 셌어요.'}</p>
     </div>
   )
 }

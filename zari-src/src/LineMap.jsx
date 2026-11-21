@@ -6,6 +6,7 @@ import { Pin } from './pin.jsx'
 import { camState } from './PixelMap.jsx'
 import { DEMO, BRANDS, BRAND_NAME } from './demo.js'
 import { MOVE_MAX } from './place.js'
+import { popCells } from './extra.js'
 
 maplibregl.setWorkerUrl(workerUrl)
 
@@ -202,6 +203,13 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
   const zoomNow = () => (layerRef.current === 'bcol' && box.current ? soloZoom(box.current, radius, Q.lat, (mapRef.current?.getPitch() ?? 0) > 10) : zoomFor(radius))
   const ohSet = useRef(new Set()).current
   const [fm, setFm] = useState('h'), [ft, setFt] = useState(7), [play, setPlay] = useState(true)
+  // 서울 생활인구 250m 칸(평일 시간대 평균). 못 읽으면 예시 층 그대로
+  const [pop, setPop] = useState(null)
+  useEffect(() => {
+    let on = true
+    popCells(Q.lon, Q.lat).then(p => on && p.cells.length && setPop(p)).catch(() => {})
+    return () => { on = false }
+  }, [Q.lon, Q.lat])
 
   // 유동인구 예시 층: 가게가 몰린 곳을 40m 칸으로 번지게 해서 사람이 많은 곳처럼 보여 준다
   function flowCells() {
@@ -387,14 +395,37 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
     if (layer === 'flow') map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomFor(radius), padding: { top: mapPadTop() }, duration: 700 })
   }, [layer, ready, sat])
 
+  // 생활인구 칸을 지도에 올린다: 칸마다 시간대별 사람 수를 가장 붐비는 칸·시간으로 나눈 값(h0..h23)과 하루 평균(d)
+  useEffect(() => {
+    const src = mapRef.current?.getSource('flow')
+    if (!pop || !src) return
+    const mx = Math.max(...pop.cells.flatMap(c => c.h)) || 1
+    const md = Math.max(...pop.cells.map(c => c.h.reduce((a, b) => a + b, 0))) || 1
+    src.setData({ type: 'FeatureCollection', features: pop.cells.map(c => {
+      const hx = 118 / (111320 * Math.cos(c.lat * Math.PI / 180)), hy = 118 / 110540
+      const [x0, x1, y0, y1] = [c.lon - hx, c.lon + hx, c.lat - hy, c.lat + hy]
+      const pr = Object.fromEntries(c.h.map((v, k) => ['h' + k, v / mx]))
+      pr.d = c.h.reduce((a, b) => a + b, 0) / md
+      return { type: 'Feature', properties: pr, geometry: { type: 'Polygon', coordinates: [[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]] } }
+    }) })
+  }, [pop, ready])
+
   // 유동인구 재생: 시간(또는 달)에 따라 칸마다 진하기가 바뀐다
   useEffect(() => {
     const map = mapRef.current
     if (!map?.getLayer('flow')) return
-    const P = PROF[fm], a = at(P.road, ft), b = at(P.gate, ft)
+    const P = PROF[fm]
+    if (pop) {
+      // 시간: 그 시각 사람 수(앞뒤 시간 사이를 이어서) · 월: 하루 평균에 달별 예시 흐름을 곱함
+      const i = Math.floor(ft) % 24, j = (i + 1) % 24, w = ft - Math.floor(ft)
+      const v = fm === 'h' ? ['+', ['*', ['get', 'h' + i], 1 - w], ['*', ['get', 'h' + j], w]] : ['*', ['get', 'd'], at(P.road, ft)]
+      map.setPaintProperty('flow', 'fill-opacity', ['min', .85, ['*', .9, ['sqrt', v]]])
+      return
+    }
+    const a = at(P.road, ft), b = at(P.gate, ft)
     const f = ['+', ['*', a, ['-', 1, ['get', 'm']]], ['*', b, ['get', 'm']]]
     map.setPaintProperty('flow', 'fill-opacity', ['min', .9, ['*', ['get', 'v'], f, f, 1.5]])
-  }, [ft, fm, layer])
+  }, [ft, fm, layer, pop, ready])
   useEffect(() => {
     if (layer !== 'flow' || !play) return
     let raf, t0 = performance.now()
@@ -562,7 +593,7 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
       <div ref={tipRef} className="tip glass maptip" />
       <div className="layers" role="group" aria-label="지도에 보이는 것">
         <span className="lg">
-          {[['bcol', `${Q.what}·공실`, `건물마다 ${Q.what}·공실·다른 가게를 색으로`], ['shops', '모든 가게', '반경 안 가게를 점으로'], ['flow', '오가는 사람·예시', '사람이 많이 다니는 곳 (예시 값)'], ['place', '역·학교', '가까운 역·학교·버스 정류장']].map(([k, t, d]) => <button key={k} className={layer === k ? 'on' : ''} title={d} onClick={() => setLayer(k)}>{t}</button>)}
+          {[['bcol', `${Q.what}·공실`, `건물마다 ${Q.what}·공실·다른 가게를 색으로`], ['shops', '모든 가게', '반경 안 가게를 점으로'], ['flow', pop ? '생활인구' : '오가는 사람·예시', pop ? '250m 칸마다 그 시각에 있는 사람 (평일 평균)' : '사람이 많이 다니는 곳 (예시 값)'], ['place', '역·학교', '가까운 역·학교·버스 정류장']].map(([k, t, d]) => <button key={k} className={layer === k ? 'on' : ''} title={d} onClick={() => setLayer(k)}>{t}</button>)}
         </span>
         <span className="vw">
           <span className="seg" role="group" aria-label="평면 입체 보기">
@@ -587,7 +618,7 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
           <div className="iso-n">{ISO.map(([min, r]) => <span key={min}><b className="m">{min}분</b>가게 {inIso(r, false)} · {Q.what} {inIso(r, true)}</span>)}</div>
         </div>
       )}
-      {layer === 'flow' && <FlowPlayer fm={fm} setFm={m => { setFm(m); setFt(m === 'h' ? 7 : 0) }} ft={ft} setFt={setFt} play={play} setPlay={setPlay} />}
+      {layer === 'flow' && <FlowPlayer fm={fm} setFm={m => { setFm(m); setFt(m === 'h' ? 7 : 0) }} ft={ft} setFt={setFt} play={play} setPlay={setPlay} pop={pop} radius={radius} />}
       {layer === 'bcol' && <div className="movehint">{Q.moved ? <>{Q.from}에서 {Q.moved}m 옮긴 자리 · <button onClick={() => onMove(null)}>원래 자리로</button></> : '건물을 누르면 내 자리를 옮길 수 있어요'}</div>}
       {sel && (sel.bld != null ? bld && <BuildingCard what={Q.what} from={Q.from || shortAddr(Q.address)} b={bld.features.find(f => f.properties.i === sel.bld)?.properties} budget={budget} onMove={i => { setSel(null); onMove(i) }} onClose={() => setSel(null)} />
         : <ShopCard sel={sel} report={report} onClose={() => setSel(null)} />)}
@@ -670,17 +701,21 @@ function BuildingCard({ b, from, what, budget, onMove, onClose }) {
 }
 
 // 유동인구 재생 막대: 시간대 · 월별
-function FlowPlayer({ fm, setFm, ft, setFt, play, setPlay }) {
+// pop: 생활인구 칸이 있으면 시간 막대는 반경 안 칸의 실제 사람 수(그 시각에 있는 사람), 월은 예시
+function FlowPlayer({ fm, setFm, ft, setFt, play, setPlay, pop, radius }) {
   const P = PROF[fm], cur = Math.floor(ft) % P.n
-  const tot = P.road.map((r, i) => r * .6 + P.gate[i] * .4), mx = Math.max(...tot)
+  const real = pop && fm === 'h'
+  const tot = real ? Array.from({ length: 24 }, (_, k) => pop.cells.filter(c => c.d <= radius).reduce((a, c) => a + c.h[k], 0))
+    : P.road.map((r, i) => r * .6 + P.gate[i] * .4)
+  const mx = Math.max(...tot)
   const day = DEMO.flow.day, sum = tot.reduce((a, b) => a + b, 0)
-  const now = fm === 'h' ? Math.round((day * at(tot, ft)) / sum / 10) * 10 : Math.round((day * at(tot, ft)) / mx / 100) * 100
+  const now = real ? Math.round(at(tot, ft) / 10) * 10 : fm === 'h' ? Math.round((day * at(tot, ft)) / sum / 10) * 10 : Math.round((day * at(tot, ft)) / mx / 100) * 100
   return (
     <div className="player glass">
       <div className="pl-top">
         <button className="pp" onClick={() => setPlay(!play)} aria-label={play ? '멈춤' : '재생'}>{play ? <span className="ps" /> : <span className="pl" />}</button>
         <div className="pl-now"><b className="m">{P.lab(ft)}</b><span>{P.note(ft)}</span></div>
-        <div className="pl-n"><b className="m">{now.toLocaleString()}</b><small>{fm === 'h' ? '명 / 시간' : '명 / 하루'}<em className="eg">예시</em></small></div>
+        <div className="pl-n"><b className="m">{now.toLocaleString()}</b><small>{real ? `명 · 반경 ${radius}m 안` : fm === 'h' ? '명 / 시간' : '명 / 하루'}{!real && <em className="eg">예시</em>}</small></div>
         <span className="seg" role="group" aria-label="재생 단위">
           <i className={fm === 'm' ? 'r' : ''} />
           <button className={'m' + (fm === 'h' ? ' on' : '')} onClick={() => setFm('h')}>시간</button>

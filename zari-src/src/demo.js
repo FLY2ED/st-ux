@@ -112,14 +112,19 @@ export function mergeDemo(S, name) {
     area: S.area, insight: S.insight, recommend: S.recommend, trend: S.trend, place: { ...EX.place, ...S.place },
     grade: { ...S.grade, g: S.grade.g ?? '—' },
     score: miss || !S.score ? EX.score : S.score,
-    asOf: { ...EX.asOf, ...S.asOf },
+    asOf: { ...EX.asOf, ...S.asOf, ...(S.real?.rent ? { rent: S.real.rent.asOf } : {}) },
+    real: S.real ?? {},
+    // 임대료·권리금은 가장 가까운 조사 상권 값, 보증금은 월세 10달치(33㎡)로 셈. 실내 공사·장비는 예시
+    cost: S.real?.rent ? { ...EX.cost, rent: S.real.rent.rent, rentSeoul: S.real.rent.seoul.rent, premium: S.real.rent.key,
+      deposit: Math.round(S.real.rent.rent * EX.cost.size * 10 / 100) * 100, trend: S.real.rent.trend, real: true } : EX.cost,
     sales: miss ? { ...EX.sales, stores: 0, seoul: EX.sales.seoul, seoulTicket: 6500, season: EX.sales.months.filter((_, k) => k % 3 === 0).slice(0, 4).map(([m, v], k) => [k + 1 + '분기', v]), vac: 0, sample: true } : { ...EX.sales, ...S.sales },
     flow: S.flow,
     people: { ...EX.people, ...S.people },
     change: ch,
     // 공릉로 232는 예시 후보 2곳과 비교, 다른 자리는 그 자리 한 줄
-    compare: S.compare.length > 1 ? S.compare.map((c, k) => ({ ...EX.compare[k], ...c }))
-      : [{ ...EX.compare[0], ...S.compare[0], name: name || S.compare[0].name, sub: S.area?.home || '', sales: S.compare[0].sales ?? EX.compare[0].sales }],
+    compare: (S.compare.length > 1 ? S.compare.map((c, k) => ({ ...EX.compare[k], ...c }))
+      : [{ ...EX.compare[0], ...S.compare[0], name: name || S.compare[0].name, sub: S.area?.home || '', sales: S.compare[0].sales ?? EX.compare[0].sales }])
+      .map((c, k) => ({ ...c, ...(S.real?.cmp?.[k] ?? {}) })),   // 실제 임대료·3년 생존율(없는 업종은 null → —)
   }
 }
 // 화면들이 같이 읽는 지금 리포트 숫자. setDemo로 통째로 바꾼다
