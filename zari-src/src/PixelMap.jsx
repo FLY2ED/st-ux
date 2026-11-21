@@ -154,6 +154,8 @@ export default function PixelMap({ grid, clock, camera, tipRef, interactive, pin
       }
       // 확대가 끝나 갈수록 픽셀 지도는 물러나고 선 지도가 받는다
       c.style.opacity = 1 - clamp((z - .7) / .3)
+      // 배경이 하얗게 걷히는 동안 흰 칸은 짙은 칸이 되어 원 지도 색으로 넘어간다
+      c.style.filter = z > .001 ? `invert(${clamp(z / .55)})` : ''
       raf = requestAnimationFrame(frame)
     }
     frame()

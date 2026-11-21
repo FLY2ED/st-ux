@@ -217,9 +217,47 @@ export default function App() {
     setActive(null)
     loadRef.current?.then(start)
   }
+  // ZARI 글자 → 왼쪽 위 ZARI, 입력한 문장 → 첫 항목의 '역 · 동 · 업종' 줄
+  const wordAnim = useRef(null)
+  const handoff = () => {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const W = wordRef.current, S = qRef.current.querySelector('.sent'), w0 = W.getBoundingClientRect(), s0 = S.getBoundingClientRect()
+    const fs = parseFloat(getComputedStyle(S).fontSize)
+    const g = document.createElement('div')
+    g.className = 'ghost'
+    const tok = v => `<b><i>[</i>${v.replace(/[<>&]/g, '')}<i>]</i></b>`
+    g.innerHTML = `나는 ${tok(where)}에 ${tok(what)}${eul(what)} 차릴 거예요`
+    g.style.fontSize = fs + 'px'
+    g.style.transform = `translate(${s0.left}px,${s0.top + (s0.height - fs * 1.3) / 2}px)`
+    document.body.appendChild(g)
+    W.classList.add('fly')
+    const H = document.documentElement
+    H.classList.add('handing')
+    setTimeout(() => H.classList.remove('handing'), 1400)
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const b = document.querySelector('.col>.brand')?.getBoundingClientRect()
+      const t = document.querySelector('.col .zi h2 + p')
+      if (b?.height) {
+        const k = b.height / w0.height
+        wordAnim.current = W.animate([
+          { transform: 'none', color: '#f3f6ff', opacity: 1 },
+          { transform: `translate(${b.left - w0.left}px,${b.top - w0.top}px) scale(${k})`, color: '#6b7385', textShadow: 'none', opacity: 1, offset: .8 },
+          { transform: `translate(${b.left - w0.left}px,${b.top - w0.top}px) scale(${k})`, color: '#6b7385', textShadow: 'none', opacity: 0 },
+        ], { duration: 1300, easing: 'cubic-bezier(.65,0,.35,1)', fill: 'forwards' })
+      }
+      if (t) {
+        const r = t.getBoundingClientRect(), k = parseFloat(getComputedStyle(t).fontSize) / fs
+        g.classList.add('on')
+        g.style.transform = `translate(${r.left}px,${r.top + 2}px) scale(${k})`
+        setTimeout(() => (g.style.opacity = 0), 1200)
+      } else g.style.opacity = 0
+      setTimeout(() => g.remove(), 1750)
+    }))
+  }
   const start = () => {
     const h0 = markRef.current.getBoundingClientRect()
     if (h0.width) fly(() => h0, pinAt, [63, 71, 87], [255, 255, 255], 1500)
+    handoff()
     setPhase('report')
     // 픽셀 지도 확대가 2/3쯤 왔을 때 선 지도가 받는다
     setTimeout(() => setMapOn(true), 900)
@@ -230,6 +268,9 @@ export default function App() {
       markRef.current.style.visibility = 'hidden'
       fly(() => p0, () => markRef.current.getBoundingClientRect(), [255, 255, 255], [63, 71, 87], 900, () => (markRef.current.style.visibility = 'visible'))
     }
+    const wa = wordAnim.current
+    if (wa) { wa.reverse(); wa.onfinish = () => { wa.cancel(); wordRef.current.classList.remove('fly') }; wordAnim.current = null }
+    else wordRef.current.classList.remove('fly')
     setNav(null)
     setMapOn(false)
     setPhase('home')
@@ -272,6 +313,7 @@ export default function App() {
 
   return (
     <div className={`app ${phase} ${mob ? 'mob' : 'desk'}${mapOn ? ' mapon' : ''}`}>
+      <div className="sky" />
       <PixelMap grid={grid} clock={clock} camera={camera} tipRef={tipRef} interactive={phase === 'home'} pin={place} onPick={dropPin} />
       {report && (
         <LineMap key={`${report.query.lon},${report.query.lat},${report.query.cat}:${spot ?? 'base'}`} report={R} bld={bld} radius={radius} active={active} onActive={setActive} onPick={i => { setFocus(i); setActive(i) }}
