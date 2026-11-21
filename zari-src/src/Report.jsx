@@ -42,7 +42,7 @@ function useStats(report, radius) {
 }
 
 // 자세히: 누르면 지도까지 덮는 넓은 화면에 칸(타일)으로 펼친다. 위 줄에서 다른 자세히로 바로 넘어간다
-const FOLDS = [['comp', '경쟁'], ['sales', '매출'], ['flow', '유동인구 · 시설'], ['people', '사는·일하는 사람'], ['change', '개업 · 폐업'], ['cost', '임대료 · 손익'], ['good', '좋은 점 · 조심할 점'], ['fit', '맞는 업종']]
+const FOLDS = [['comp', '경쟁'], ['sales', '평균 매출'], ['flow', '유동인구 · 시설'], ['people', '사는·일하는 사람'], ['change', '개업 · 폐업'], ['cost', '임대료 · 손익'], ['good', '좋은 점 · 조심할 점'], ['fit', '맞는 업종']]
 // 자세히는 모두 같은 검은 선 하나로 (항목마다 색을 다르게 하지 않음)
 const FC = Object.fromEntries(FOLDS.map(([k]) => [k, '#16181d']))
 function Fold({ id, t, d, children, open, setOpen }) {
@@ -201,7 +201,7 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
           <li className="zi" data-fk="empty" style={{ '--c': '#f08a3c' }}>
             <span className="zk m"><i />VACANT</span>
             <h2>공실 <em>{vac.length}</em>곳 · 예산 안 <em>{fit.length}</em>곳</h2>
-            <p>상가 건물인데 등록된 가게가 하나도 없는 곳이에요.{fit[0] ? <><br />{fit[0].dist < 60 ? `예산 안 공실이 내 자리 바로 옆 ${fit[0].dist}m에도 있어요.` : `예산 안 공실 중 가장 가까운 곳은 ${fit[0].dist}m.`}</> : vac[0] && <><br />가장 가까운 공실은 {vac[0].dist}m, 예산을 늘려 보세요.</>}</p>
+            <p>상가 건물인데 등록된 가게가 하나도 없는 곳이에요.{vac.some(p => p.closed) && <> 그중 <b>{vac.filter(p => p.closed).length}곳</b>은 최근 3년 사이 가게가 문을 닫은 기록이 있어 공실일 가능성이 높아요.</>}{fit[0] ? <><br />{fit[0].dist < 60 ? `예산 안 공실이 내 자리 바로 옆 ${fit[0].dist}m에도 있어요.` : `예산 안 공실 중 가장 가까운 곳은 ${fit[0].dist}m.`}</> : vac[0] && <><br />가장 가까운 공실은 {vac[0].dist}m, 예산을 늘려 보세요.</>}</p>
             <div className="zbud">
               {[['start', '처음 드는 돈'], ['month', '매달 내는 돈']].map(([k, t]) => (
                 <span key={k} className="zb">{t}
@@ -213,6 +213,18 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
             {bw && <Wheel key={bw} anchor={bRef[bw].current} items={BUDGETS[bw].map(([v, n]) => [n, `공실 ${vac.filter(p => fits(p, { ...budget, [bw]: v })).length}곳`, true])} value={budgetName(bw, budget[bw])}
               label={bw === 'start' ? 'BUDGET · 처음' : 'BUDGET · 매달'}
               onPick={n => setBudget({ ...budget, [bw]: BUDGETS[bw].find(b => b[1] === n)[0] })} onClose={() => setBw(null)} />}
+            {D.real?.listings && (
+              <div className="zpub">
+                <span className="m">PUBLIC · 1.5km 안 공공 모집 공고</span>
+                {D.real.listings.items.slice(0, 3).map(x => (
+                  <a key={x.name} href={x.url} target="_blank" rel="noreferrer">
+                    <b>{x.name}</b> · {x.dist < 1000 ? x.dist + 'm' : (x.dist / 1000).toFixed(1) + 'km'}{x.approx ? '쯤' : ''} · {x.floor}{x.m2 ? ` ${x.m2}㎡` : ''}
+                    <br />보증금 {x.deposit ?? '미확인'} · 월세 {x.rent ?? '미확인'} · {x.until.slice(2).replace(/-/g, '.')} {x.until < D.real.listings.asOf ? '마감됨' : '마감'}{x.only ? ` · ${x.only}` : ''}
+                  </a>
+                ))}
+                <small>공고에 적힌 조건이에요. 지금 비어 있는지는 공고한 곳에 확인해야 해요.</small>
+              </div>
+            )}
           </li>
         )}
         <li className="zi ring" data-fk="cafe">
@@ -235,7 +247,7 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
         )}
         <li className="zi" data-fk="cafe" style={{ '--c': '#3b6fe0' }}>
           <span className="zk m"><i />SALES</span>
-          <h2>월매출 <em>{fmt(D.sales.month)}</em>만</h2>
+          <h2>같은 업종 평균 월매출 <em>{fmt(D.sales.month)}</em>만</h2>
           <p>{D.sales.sample ? <>{W}는 서울시 매출 자료가 없어 <b>예시 숫자</b>예요.</> : <>주변 상권 {SL} {D.sales.stores}곳 평균. 서울 평균 {fmt(D.sales.seoul)}만.</>}{vacOk && <><br />방학이 낀 1·3분기엔 {D.sales.vac}%쯤 줄어요.</>}</p>
         </li>
         {S.top[0] && (
@@ -286,29 +298,13 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
         </div>
       </Sec>
 
-      <Sec className={F} k="STORE SALES" title="가게별 추정 월매출" sub="카드 결제로 추정한 범위 · 가까운 순" demo>
-        <div className="ranges">
-          {S.near.slice(0, 8).map((s, k) => {
-            const [lo, hi] = D.storeRanges[k % D.storeRanges.length]
-            return (
-              <div key={s.i} className={active === s.i ? 'on' : ''} onMouseEnter={() => setActive(s.i)} onMouseLeave={() => setActive(null)} onClick={() => pick(s.i)}>
-                <span className="nm">{s.name}</span>
-                <span className="rg"><i style={{ left: (lo / 2600) * 100 + '%', width: ((hi - lo) / 2600) * 100 + '%' }} /></span>
-                <b className="m">{fmt(lo)}–{fmt(hi)}</b>
-              </div>
-            )
-          })}
-        </div>
-        <p className="fine">단위 만 원 · 막대 끝은 월 2,600만 원</p>
-      </Sec>
-
       <Sec className={F} k="MIX" title="주변 업종 구성" sub="반경 안 가게를 업종별로 센 것">
         <Rows data={S.top} me={Q.what} />
       </Sec>
 
       </Fold>
-      <Fold {...fp} id="sales" t="매출 자세히" d="분기 · 요일 · 시간 · 손님 나이">
-      <Sec className={F} k="SALES" title={`${SL} 추정 매출`} demo={D.sales.sample} sub={D.sales.sample ? `${W}는 서울시 매출 자료가 없어 예시 숫자` : `주변 상권 ${D.area.n}곳 ${SL} ${D.sales.stores}곳 평균 · ${D.asOf.sales}`}>
+      <Fold {...fp} id="sales" t="주변 같은 업종 평균 매출 · 추세" d="분기 · 요일 · 시간 · 손님 나이">
+      <Sec className={F} k="SALES" title={`주변 상권 ${SL} 평균 매출`} demo={D.sales.sample} sub={D.sales.sample ? `${W}는 서울시 매출 자료가 없어 예시 숫자` : `주변 상권 ${D.area.n}곳 ${SL} ${D.sales.stores}곳 평균 · ${D.asOf.sales}`}>
         <div className="kpis">
           <div><span className="m">MONTH</span><b className="m">{fmt(D.sales.month)}</b><small>만 원 · 서울 {fmt(D.sales.seoul)}</small></div>
           <div><span className="m">TICKET</span><b className="m">{fmt(D.sales.ticket)}</b><small>결제 1건 · 서울 {fmt(D.sales.seoulTicket)}원</small></div>
@@ -474,18 +470,42 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
   )
 }
 
+// 통계청 서비스업조사 2024(DT_3KB9001) [이름, 매출 대비 영업비용 %, 인건비 %, 임차료 %, 1곳당 월 인건비(만 원)]
+// 카페·한식·미용실은 서울 세세업종 값(1곳당 인건비 = 인건비 총액 ÷ 사업체 수 ÷ 12), 다른 음식점은 전국 음식점 및 주점업 전체 비율
+const KOSIS = {
+  CS100010: ['서울 커피 전문점', 89.49, 13.82, 4.63, 306],
+  CS100001: ['서울 한식 일반 음식점', 93.15, 14.18, 5.38, 407],
+  CS200028: ['서울 두발 미용업', 85.29, 14.88, 9.28, 126],
+}
+const KOSIS_FOOD = ['전국 음식점 및 주점업', 91.76, 14.42, 4.96, null]
+const costRatio = () => {
+  const c = DEMO.cat?.code ?? (DEMO.cat?.label === '카페' ? 'CS100010' : null)
+  return KOSIS[c] ?? (c?.startsWith('CS1000') ? KOSIS_FOOD : null)
+}
+
 // 매출·손익 계산: 값을 바꾸면 바로 다시 셈
 // 매출·손익 계산식: 계산기와 비용 띠가 같이 쓴다
+// 업종 비율이 있으면 인건비·재료와 기타는 매출 × 통계청 비율, 임대료는 이 상권 시세 × 면적
 function plan(size = 10, ticket = 6800, guests = 110) {
   const sales = Math.round((ticket * guests * 30) / 10000)
   const rent = Math.round(DEMO.cost.rent * size * 3.3)
-  const cost = Math.round(sales * .33)
-  const labor = Math.round(260 + size * 12)
-  const etc = Math.round(sales * .08 + 40)
-  const profit = sales - rent - cost - labor - etc
-  const fixed = rent + labor + 40
-  const be = Math.ceil((fixed * 10000) / (ticket * 30 * (1 - .33 - .08)))
-  const R = [['재료비', cost], ['임대료', rent], ['인건비', labor], ['기타', etc]]
+  const K = costRatio()
+  let profit, be, R
+  if (K) {
+    // 인건비는 손님 수와 덜 같이 움직여서 1곳당 평균으로 고정(없는 업종은 매출 × 비율)
+    const labor = K[4] ?? Math.round((sales * K[2]) / 100), v = (K[1] - K[2] - K[3]) / 100, other = Math.round(sales * v)
+    profit = sales - rent - labor - other
+    be = Math.ceil(((rent + labor) * 10000) / (ticket * 30 * (1 - v)))
+    R = [['재료·기타', other], ['임대료', rent], ['인건비', labor]]
+  } else {
+    const cost = Math.round(sales * .33)
+    const labor = Math.round(260 + size * 12)
+    const etc = Math.round(sales * .08 + 40)
+    profit = sales - rent - cost - labor - etc
+    const fixed = rent + labor + 40
+    be = Math.ceil((fixed * 10000) / (ticket * 30 * (1 - .33 - .08)))
+    R = [['재료비', cost], ['임대료', rent], ['인건비', labor], ['기타', etc]]
+  }
   // 처음 드는 돈: 보증금은 돌려받으니 회수 기간에서 뺀다
   const C0 = DEMO.cost, interior = C0.interior * size
   const start = [['보증금', C0.deposit], ['권리금', C0.premium], ['인테리어', interior], ['장비', C0.equip]]
@@ -494,16 +514,16 @@ function plan(size = 10, ticket = 6800, guests = 110) {
   // 이 매출이 이 상권 카페 가운데 어디쯤인지: 평균 둘레로 퍼진 분포(표준편차 평균의 35%)로 셈
   const z = (sales - DEMO.sales.month) / (DEMO.sales.month * .35)
   const top = Math.min(99, Math.max(1, Math.round((1 - cdf(z)) * 100)))
-  return { sales, profit, be, R, start, total, payback, top, C0 }
+  return { sales, profit, be, R, start, total, payback, top, C0, K }
 }
 
 function Sim({ className }) {
   const [size, setSize] = useState(10)
   const [ticket, setTicket] = useState(6800)
   const [guests, setGuests] = useState(110)
-  const { sales, profit, be, R, start, total, payback, top, C0 } = plan(size, ticket, guests)
+  const { sales, profit, be, R, start, total, payback, top, C0, K } = plan(size, ticket, guests)
   return (
-    <Sec className={className} k="SIMULATOR" title="매출 · 손익 계산" sub="값을 바꾸면 바로 다시 계산해요" demo>
+    <Sec className={className} k="SIMULATOR" title="매출 · 손익 계산" sub="값을 바꾸면 바로 다시 계산해요" demo={!K}>
       <div className="sim">
         <label><span>면적</span><input type="range" min="6" max="30" value={size} onChange={e => setSize(+e.target.value)} /><b className="m">{size}평</b></label>
         <label><span>1명이 쓰는 돈</span><input type="range" min="3000" max="15000" step="100" value={ticket} onChange={e => setTicket(+e.target.value)} /><b className="m">{fmt(ticket)}</b></label>
@@ -521,7 +541,8 @@ function Sim({ className }) {
       <p className="note">하루 <b>{be}명</b> 넘게 와야 손해가 없어요.</p>
       <h3>이 매출은 이 상권 같은 업종 중</h3>
       <div className="pctl"><span className="rg"><i style={{ left: 100 - top + '%' }} /></span><b className="m">상위 {top}%</b></div>
-      <h3>처음 드는 돈</h3>
+      {K && <p className="fine">비용 비율은 통계청 서비스업조사 2024 {K[0]} 실제 값이에요. 재료와 기타는 매출의 {Math.round((K[1] - K[2] - K[3]) * 10) / 10}%, 인건비는 {K[4] ? `1곳 평균 월 ${K[4]}만` : `매출의 ${K[2]}%`}, 임대료는 이 상권 시세로 셈해요. 인건비는 직원 급여라 사장님 몫은 남는 돈에 들어 있어요.</p>}
+      <h3>처음 드는 돈{K && <em className="eg">예시</em>}</h3>
       <div className="mix wide">
         {start.map(([n, v]) => <div key={n}><span>{n}</span><i style={{ width: (v / total) * 100 + '%' }} /><b className="m">{won(v)}</b></div>)}
       </div>

@@ -1,0 +1,11 @@
+{
+  "asOf": "2026-11-21",
+  "note": "공공 모집 공고에 실제로 적힌 조건만 옮김. 모두 마감된 공고이며 지금 비어 있는지는 확인하지 않음",
+  "items": [
+    { "name": "노원 청년가게 3호점", "by": "노원구", "addr": "노원구 동일로191가길 5", "floor": "1층", "m2": 33, "deposit": "전액 지원", "rent": "전액 지원", "fee": "본인 부담", "until": "2026-11-10", "posted": "2026-10-21", "lon": 127.0714, "lat": 37.6252, "approx": true, "only": "음식점·카페 제외", "url": "https://startup.kw.ac.kr/communication/notice.php?BoardMode=view&UID=467&CURRENT_PAGE=1" },
+    { "name": "노원 청년가게 4호점", "by": "노원구", "addr": "노원구 동일로191가길 5", "floor": "2층", "m2": 59, "deposit": "전액 지원", "rent": "전액 지원", "fee": "본인 부담", "until": "2026-11-10", "posted": "2026-10-21", "lon": 127.0714, "lat": 37.6252, "approx": true, "only": "음식점·카페 제외", "url": "https://startup.kw.ac.kr/communication/notice.php?BoardMode=view&UID=467&CURRENT_PAGE=1" },
+    { "name": "노원 청년가게 15호점", "by": "노원구", "addr": "노원구 동일로173가길 98", "floor": "1층", "m2": 33, "deposit": "전액 지원", "rent": "전액 지원", "fee": "본인 부담", "until": "2026-08-14", "posted": "2026-07-31", "lon": 127.07248, "lat": 37.62274, "only": "음식점·카페 제외", "url": "https://nwjob.kr/18?bmode=view&idx=172806876" },
+    { "name": "노원 청년가게 11호점", "by": "노원구", "addr": "노원구 동일로173가길 81", "floor": "2층", "m2": null, "deposit": null, "rent": null, "fee": null, "until": "2025-04-24", "posted": "2025-04-10", "lon": 127.07239, "lat": 37.6219, "only": null, "url": "https://13center.kr/gwbbs/board.php?bo_table=bbs02&wr_id=139" },
+    { "name": "SH 중계1단지 상가 B44", "by": "SH 서울주택도시공사", "addr": "노원구 동일로207길 17", "floor": "지하", "m2": 14.2, "deposit": "166만", "rent": "월 3.9만(부가세 별도)", "fee": null, "until": "2026-07-15", "posted": "2026-06-22", "lon": null, "lat": null, "only": "지하 좌판", "url": "https://www.i-sh.co.kr/app/lay2/program/S1T294C300/www/brd/m_256/view.do?multi_itm_seq=16&seq=305977" }
+  ]
+}

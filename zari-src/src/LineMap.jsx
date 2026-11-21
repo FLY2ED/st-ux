@@ -423,9 +423,9 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
     if (!map?.getLayer('flow')) return
     const P = PROF[fm]
     if (pop) {
-      // 시간: 그 시각 사람 수(앞뒤 시간 사이를 이어서) · 월: 하루 평균에 달별 예시 흐름을 곱함
+      // 시간: 그 시각 사람 수(앞뒤 시간 사이를 이어서) · 월: 하루 평균에 이 동의 달별 계절 계수(없으면 예시 흐름)를 곱함
       const i = Math.floor(ft) % 24, j = (i + 1) % 24, w = ft - Math.floor(ft)
-      const v = fm === 'h' ? ['+', ['*', ['get', 'h' + i], 1 - w], ['*', ['get', 'h' + j], w]] : ['*', ['get', 'd'], at(P.road, ft)]
+      const v = fm === 'h' ? ['+', ['*', ['get', 'h' + i], 1 - w], ['*', ['get', 'h' + j], w]] : ['*', ['get', 'd'], at(DEMO.real?.season?.m ?? P.road, ft)]
       map.setPaintProperty('flow', 'fill-opacity', ['min', .85, ['*', .9, ['sqrt', v]]])
       return
     }
@@ -654,11 +654,13 @@ function ShopCard({ sel, report, onClose }) {
     const s = report.competitors[sel.cafe]
     ;({ name, floor, x, y } = s); cat = Q.what
     const b = BRANDS.find(b => name.startsWith(b))
-    const [lo, hi] = DEMO.storeRanges[sel.cafe % DEMO.storeRanges.length]
+    // 가게 하나의 매출은 공개 자료가 없어 붙이지 않고, 주변 상권 같은 업종 평균만 보여 준다
+    const SA = DEMO.sales
     extra = (
       <>
         <div className="sc-row"><span>구분</span><b>{b ? '프랜차이즈 · ' + (BRAND_NAME[b] || b) : '개인 가게'}</b></div>
-        <div className="sc-row"><span>추정 월매출<em className="eg">예시</em></span><b className="m">{lo.toLocaleString()}–{hi.toLocaleString()}만</b></div>
+        <div className="sc-row"><span>주변 같은 업종 평균{SA.sample && <em className="eg">예시</em>}</span><b className="m">월 {SA.month.toLocaleString()}만</b></div>
+        <p className="sc-note">이 가게 매출은 공개되지 않아요{SA.sample ? '' : ` · 주변 상권 ${SA.stores}곳 평균`}</p>
       </>
     )
   } else {
@@ -692,6 +694,7 @@ function BuildingCard({ b, from, what, budget, onMove, onClose }) {
       <span className="m">{b.tgt ? 'BUILDING · 내 자리' : b.empty ? 'VACANT · 공실 후보' : 'BUILDING · 건물'}</span>
       <b className="nm">{b.name || (b.empty ? '가게가 하나도 없는 상가 건물' : n ? `가게 ${n}곳이 든 건물` : '가게 없는 건물')}</b>
       <small>{fmtM(b.dist || 0)} · 걸어서 {walkMin(b.dist || 0)}분</small>
+      {b.empty && <div className={'sc-row' + (b.closed ? ' hot' : '')}><span>최근 3년 폐업{b.closed ? <em className="eg">공실 가능성 높음</em> : null}</span><b>{b.closed ? `${b.closed}곳 · 마지막 ${b.closedLast}` : '기록 없음'}</b></div>}
       <div className="sc-row"><span>안에 든 가게</span><b>{n}곳{b.cafe ? ` · ${what || '같은 업종'} ${b.cafe}` : ''}</b></div>
       {n > 0 && <div className="sc-row"><span>1층 가게</span><b>{b.f1 || 0}곳</b></div>}
       {b.fmax > 1 && <div className="sc-row"><span>가게 있는 층</span><b>1–{b.fmax}층</b></div>}
@@ -708,21 +711,28 @@ function BuildingCard({ b, from, what, budget, onMove, onClose }) {
 }
 
 // 유동인구 재생 막대: 시간대 · 월별
-// pop: 생활인구 칸이 있으면 시간 막대는 반경 안 칸의 실제 사람 수(그 시각에 있는 사람), 월은 예시
+// pop: 생활인구 칸이 있으면 시간 막대는 반경 안 칸의 실제 사람 수(그 시각에 있는 사람)
+// 월: 반경 안 하루 평균(24시각 평균)에 이 동의 2025년 달별 계절 계수(10월 = 1)를 곱함
 function FlowPlayer({ fm, setFm, ft, setFt, play, setPlay, pop, radius }) {
   const P = PROF[fm], cur = Math.floor(ft) % P.n
-  const real = pop && fm === 'h'
-  const tot = real ? Array.from({ length: 24 }, (_, k) => pop.cells.filter(c => c.d <= radius).reduce((a, c) => a + c.h[k], 0))
-    : P.road.map((r, i) => r * .6 + P.gate[i] * .4)
+  const SE = DEMO.real?.season?.m
+  const realH = pop && fm === 'h', realM = pop && SE && fm === 'm', real = realH || realM
+  const hrs = pop ? Array.from({ length: 24 }, (_, k) => pop.cells.filter(c => c.d <= radius).reduce((a, c) => a + c.h[k], 0)) : null
+  const avg = hrs ? hrs.reduce((a, b) => a + b, 0) / 24 : 0
+  const tot = realH ? hrs : realM ? SE.map(f => avg * f) : P.road.map((r, i) => r * .6 + P.gate[i] * .4)
   const mx = Math.max(...tot)
   const day = DEMO.flow.day, sum = tot.reduce((a, b) => a + b, 0)
   const now = real ? Math.round(at(tot, ft) / 10) * 10 : fm === 'h' ? Math.round((day * at(tot, ft)) / sum / 10) * 10 : Math.round((day * at(tot, ft)) / mx / 100) * 100
+  // 달별 차이는 10% 안팎이라 막대는 가장 적은 달의 80%를 바닥으로 그린다
+  const lo = realM ? Math.min(...tot) * .8 : 0
+  const pct = realM ? Math.round((SE[cur] - 1) * 100) : 0
+  const note = realM ? (cur === 9 ? '기준 달' : pct === 0 ? '10월과 비슷해요' : `10월보다 ${Math.abs(pct)}% ${pct > 0 ? '많아요' : '적어요'}`) : P.note(ft)
   return (
     <div className="player glass">
       <div className="pl-top">
         <button className="pp" onClick={() => setPlay(!play)} aria-label={play ? '멈춤' : '재생'}>{play ? <span className="ps" /> : <span className="pl" />}</button>
-        <div className="pl-now"><b className="m">{P.lab(ft)}</b><span>{P.note(ft)}</span></div>
-        <div className="pl-n"><b className="m">{now.toLocaleString()}</b><small>{real ? `명 · 반경 ${radius}m 안` : fm === 'h' ? '명 / 시간' : '명 / 하루'}{!real && <em className="eg">예시</em>}</small></div>
+        <div className="pl-now"><b className="m">{P.lab(ft)}</b><span>{note}</span></div>
+        <div className="pl-n"><b className="m">{now.toLocaleString()}</b><small>{realH ? `명 · 반경 ${radius}m 안` : realM ? `명 · 반경 ${radius}m 평일 평균` : fm === 'h' ? '명 / 시간' : '명 / 하루'}{!real && <em className="eg">예시</em>}</small></div>
         <span className="seg" role="group" aria-label="재생 단위">
           <i className={fm === 'm' ? 'r' : ''} />
           <button className={'m' + (fm === 'h' ? ' on' : '')} onClick={() => setFm('h')}>시간</button>
@@ -736,7 +746,7 @@ function FlowPlayer({ fm, setFm, ft, setFt, play, setPlay, pop, radius }) {
         const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up) }
         addEventListener('pointermove', mv); addEventListener('pointerup', up)
       }}>
-        {tot.map((v, i) => <i key={i} className={i === cur ? 'on' : ''} style={{ height: 12 + (v / mx) * 88 + '%' }} />)}
+        {tot.map((v, i) => <i key={i} className={i === cur ? 'on' : ''} style={{ height: 12 + ((v - lo) / (mx - lo || 1)) * 88 + '%' }} />)}
         <u style={{ left: (ft / P.n) * 100 + '%' }} />
       </div>
       <div className="pl-x m">{fm === 'h' ? ['0', '6', '12', '18', '24'].map(t => <span key={t}>{t}</span>) : ['1', '4', '7', '10', '12'].map(t => <span key={t}>{t}</span>)}</div>

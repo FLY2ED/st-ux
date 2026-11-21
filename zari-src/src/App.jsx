@@ -5,7 +5,7 @@ import LineMap from './LineMap.jsx'
 import Report from './Report.jsx'
 import { DEMO, SEOUL, setDemo, BASE_SEOUL } from './demo.js'
 import { seoulReport } from './seoulCalc.js'
-import { addExtra } from './extra.js'
+import { addExtra, closures } from './extra.js'
 import { rebase } from './place.js'
 import Field from './Field.jsx'
 import { search, reverse, findCat } from './search.js'
@@ -34,14 +34,16 @@ const NAV = {
     ['REAL', 'Overture Maps 건물', '가게를 건물에 맞춰 건물마다 든 가게·카페·층을 세요. 카페에 올리거나 건물을 누르면 보여요.'],
     ['REAL', '서울 열린데이터광장 상권분석서비스', `추정매출 ${SEOUL.asOf.sales} · 유동·상주·직장 인구 ${SEOUL.asOf.flow} · 집객 시설 · 아파트 · 점포 개폐업. 내 자리에서 600m 안 상권 ${SEOUL.area.n}곳을 합쳐 서울 상권과 견줘요.`],
     ['REAL', '한국부동산원 임대동향 · 서울시 상가임대차 실태조사', '임대료·공실률 2026년 3분기(가장 가까운 조사 상권) · 권리금 2023년 조사. 공실 월세도 이 임대료로 셈해요.'],
-    ['REAL', '인허가 이력 · 서울 생활인구', '반경 500m 같은 업종 가게의 1·3·5년 생존율과 문 연 지 · 250m 칸 시간대별 사람 수(2026년 10월 평일)'],
+    ['REAL', '인허가 이력 · 서울 생활인구', '반경 500m 같은 업종 가게의 1·3·5년 생존율과 문 연 지 · 공실 후보 건물의 최근 3년 폐업 · 250m 칸 시간대별 사람 수(2026년 10월 평일) · 동별 달마다 변화(2025년)'],
     ['REAL', '국세청 · 소비-행정동', '구별 직장인 급여 · 동별 지출 구성'],
-    ['SAMPLE', '가게별 매출 · 공실 매물 조건 · 손익', '카드사·매물 데이터라 공개 자료가 없어 시연용 예시예요. 보증금은 월세 10달치, 공사·장비비는 예시 값으로 셈해요.'],
+    ['REAL', '통계청 서비스업조사 2024', '매출 대비 인건비·임차료·영업비용 비율. 카페·한식·미용실은 서울 값, 다른 음식점은 전국 음식점 전체 값으로 손익을 셈해요.'],
+    ['REAL', '노원구 청년가게 · SH 임대상가 공고', '공공 모집 공고에 적힌 층·넓이·보증금·월세·마감일. 지난 공고라 지금 비어 있는지는 확인이 필요해요.'],
+    ['SAMPLE', '가게 하나하나의 매출 · 민간 공실 매물 조건 · 공사비', '공개 자료가 없어요. 가게 카드엔 주변 같은 업종 평균만 보여 주고, 공실 보증금은 월세 10달치, 인테리어·장비비는 예시 값으로 셈해요.'],
   ] },
   about: { k: 'ABOUT', t: 'ZARI', stats: [['553,374', '서울 가게'], ['4,797', '비교 상권'], ['799', '가게를 맞춘 건물']], body: [
     ['WHY', '서울에서 카페·식당 자리 고르기', '창업하려는 사람이 후보 자리 몇 곳을 같은 기준으로 비교하도록 돕는 서비스예요.'],
     ['HOW', '여러 서비스 기능을 한 화면에', '소상공인365, 서울시 상권분석, 오픈업 같은 서비스의 기능을 모으고, 지도와 리포트가 끊기지 않게 이어 붙였어요.'],
-    ['NOW', '기획 시연', '서울 어느 주소·업종이든 리포트를 바로 만들어요. 매출·유동인구·주민·개폐업·임대료·생존율은 공공 실제 데이터, “예시” 표시가 붙은 칸만 시연용 숫자예요.'],
+    ['NOW', '기획 시연', '서울 어느 주소·업종이든 리포트를 바로 만들어요. 매출·유동인구·주민·개폐업·임대료·생존율·업종 비용 비율은 공공 실제 데이터, “예시” 표시가 붙은 칸만 시연용 숫자예요.'],
   ] },
 }
 
@@ -103,11 +105,13 @@ export default function App() {
     const p = base
       ? Promise.all(['./data/report-gongneung-cafe.json', './data/buildings-gongneung.json'].map(u => fetch(u).then(r => r.json())))
       : buildReport(q).then(r => buildBuildings(r).then(b => [r, b]))
+    // 공실 후보 건물에 최근 3년 폐업 기록을 붙인다
+    const pc = p.then(([r, b]) => closures(b).catch(() => b).then(b2 => [r, b2]))
     // 매출·유동인구 등 서울시 상권 숫자: 그 자리에서 걸어서 닿는 상권을 묶어 계산
     const sp = (base ? Promise.resolve(BASE_SEOUL) : seoulReport({ lon: q.lon, lat: q.lat, cat: what }).catch(() => BASE_SEOUL))
       .then(S => addExtra(S, q).catch(() => S))
     setBusy(true)
-    loadRef.current = Promise.all([p, sp]).then(([[r, b], S]) => {
+    loadRef.current = Promise.all([pc, sp]).then(([[r, b], S]) => {
       if (off) return
       setDemo(S, shortAddr(q.address)); setReport(r); setBld0(b); setSpot(null); setFocus(null); setBusy(false)
     })

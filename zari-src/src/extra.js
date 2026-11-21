@@ -16,7 +16,7 @@ async function spend(homeCode, gu) {
   const pays = Object.values(D.gu)
   const out = {
     income: guPay ? rnd(guPay / 12) : null, incomeSeoul: rnd(pays.reduce((a, b) => a + b, 0) / pays.length / 12),
-    incomeAsOf: D.guAsOf, spendAsOf: D.asOf,
+    incomeAsOf: D.guAsOf, spendAsOf: D.asOf, dc,
   }
   if (d) {
     const v = d.slice(1, 1 + D.keys.length), t = v.reduce((a, b) => a + b, 0)
@@ -105,6 +105,20 @@ export async function addExtra(S, { lon, lat }) {
   if (sv.status === 'fulfilled' && sv.value) real.survive = sv.value
   if (rt.status === 'fulfilled') real.rent = rt.value
   if (cmp.status === 'fulfilled') real.cmp = cmp.value
+  // 동별 계절 계수(pop/season.json, scripts/build_season.py): 각 달 평일 생활인구 ÷ 10월
+  const dc = real.spend?.dc
+  if (dc) {
+    const se = await get('pop/season.json').catch(() => null)
+    if (se?.dong[dc]) real.season = { m: se.dong[dc], asOf: se.asOf, dong: real.spend.dong }
+  }
+  // 공공 모집 공고(listings.json): 자리에서 1.5km 안, 공고에 적힌 조건만
+  const L = await get('listings.json').catch(() => null)
+  if (L) {
+    const kx = 111320 * Math.cos(lat * Math.PI / 180), ky = 110540
+    const items = L.items.filter(x => x.lon).map(x => ({ ...x, dist: rnd(Math.hypot((x.lon - lon) * kx, (x.lat - lat) * ky)) }))
+      .filter(x => x.dist <= 1500).sort((a, b) => a.dist - b.dist)
+    if (items.length) real.listings = { asOf: L.asOf, items }
+  }
   return { ...S, real }
 }
 
@@ -119,4 +133,46 @@ export async function popCells(lon, lat, R = 900) {
     .map(([lo, la, ...h]) => ({ lon: lo, lat: la, h, d: Math.hypot((lo - lon) * kx, (la - lat) * ky) }))
     .filter(c => c.d <= R)
   return { asOf: I.asOf, days: I.days, cells }
+}
+
+// 공실 후보 건물에 최근 3년 폐업 기록(lic/)을 붙인다: 건물 안이나 가운데서 15m 안에 있던 가게가 문을 닫았으면 공실일 가능성이 높다
+const inRing = (r, x, y) => {
+  let o = false
+  for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+    const [xi, yi] = r[i], [xj, yj] = r[j]
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) o = !o
+  }
+  return o
+}
+export async function closures(B) {
+  const em = B?.features.filter(f => f.properties.empty)
+  if (!em?.length) return B
+  const I = await get('lic/index.json')
+  const T = I.tile, has = new Set(I.tiles)
+  const now = (+I.asOf.slice(0, 4) - 2000) * 12 + +I.asOf.slice(4) - 1, since = now - 36
+  const box = em.map(f => {
+    const r = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates[0][0]
+    const c = r.slice(1).reduce((a, q) => [a[0] + q[0] / (r.length - 1), a[1] + q[1] / (r.length - 1)], [0, 0])
+    return { f, r, c, n: 0, last: 0 }
+  })
+  const names = [...new Set(box.map(b => `${Math.floor(b.c[0] / T)}_${Math.floor(b.c[1] / T)}`))].filter(n => has.has(n))
+  const tiles = await Promise.all(names.map(n => get(`lic/t/${n}.json`).then(a => [n, a])))
+  const lat0 = box[0].c[1], kx = 111320 * Math.cos(lat0 * Math.PI / 180), ky = 110540
+  for (const [n, a] of tiles) {
+    const [x0, y0] = n.split('_').map(Number)
+    for (let i = 0; i < a.length; i += 5) {
+      const c = a[i + 4]
+      if (!c || c < since) continue
+      const lo = (x0 * 1000 + a[i + 1]) / 1e5, la = (y0 * 1000 + a[i + 2]) / 1e5
+      for (const b of box) {
+        if (Math.hypot((lo - b.c[0]) * kx, (la - b.c[1]) * ky) > 60) continue
+        if (inRing(b.r, lo, la) || Math.hypot((lo - b.c[0]) * kx, (la - b.c[1]) * ky) <= 15) { b.n++; b.last = Math.max(b.last, c) }
+      }
+    }
+  }
+  const hit = new Map(box.filter(b => b.n).map(b => [b.f, b]))
+  return { ...B, features: B.features.map(f => {
+    const b = hit.get(f)
+    return b ? { ...f, properties: { ...f.properties, closed: b.n, closedLast: `${2000 + Math.floor(b.last / 12)}년 ${(b.last % 12) + 1}월` } } : f
+  }) }
 }
