@@ -253,7 +253,7 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
       map.addLayer({ id: 'iso', type: 'line', source: 'iso', layout: { visibility: 'none' }, paint: { 'line-color': '#fff', 'line-width': ['case', ['==', ['get', 'min'], 5], 1.6, 1], 'line-opacity': .8 } })
       // 반경만 보기: 원 안에 흑백 위성
       map.addLayer({ id: 'sat', type: 'raster', source: 'sat', layout: { visibility: 'none' },
-        paint: { 'raster-saturation': -1, 'raster-brightness-max': .75, 'raster-contrast': .1 } })
+        paint: { 'raster-saturation': -1, 'raster-brightness-max': .75, 'raster-contrast': .1, 'raster-opacity': 0, 'raster-opacity-transition': { duration: 450, delay: 0 } } })
       map.addSource('radius', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'radius-fill', type: 'fill', source: 'radius', paint: { 'fill-color': W + '.06)' } })
       map.addLayer({ id: 'radius', type: 'line', source: 'radius', paint: { 'line-color': '#fff', 'line-width': 1.6, 'line-dasharray': [2, 2] } })
@@ -367,8 +367,9 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
     // 도로 선을 색 건물 위로 올린다
     for (const id of ROADS) map.moveLayer(id, 'ob-hi')
     setH(map, kOf.get(map) ?? 0)
-    vis('sat', solo && sat); clip(map)
-    map.setPaintProperty('radius-fill', 'fill-color', solo ? (sat ? 'rgba(14,16,20,.35)' : LAND) : W + '.06)')
+    // 위성 층은 건물 색 지도에선 늘 켜 두고(타일을 미리 받음) 투명도만 바꾼다 → 스위치 누를 때 번쩍이지 않게
+    vis('sat', solo); clip(map)
+    satPaint(map, solo)
     map.setPaintProperty('radius', 'line-opacity', solo ? 0 : 1)
     drawPins(map)
     map.setPaintProperty('cafes', 'icon-opacity', solo ? 0 : ['case', ['<=', ['get', 'd'], radius], 1, .45])
@@ -393,7 +394,13 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
       map.once('moveend', () => map.once('idle', find))
     }
     if (layer === 'flow') map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomFor(radius), padding: { top: mapPadTop() }, duration: 700 })
-  }, [layer, ready, sat])
+  }, [layer, ready])
+  function satPaint(map, solo) {
+    map.setPaintProperty('sat', 'raster-opacity', solo && sat ? 1 : 0)
+    map.setPaintProperty('radius-fill', 'fill-color-transition', { duration: 450, delay: 0 })
+    map.setPaintProperty('radius-fill', 'fill-color', solo ? (sat ? 'rgba(14,16,20,.35)' : LAND) : W + '.06)')
+  }
+  useEffect(() => { const map = mapRef.current; if (map?.getLayer('sat')) satPaint(map, layerRef.current === 'bcol') }, [sat])
 
   // 생활인구 칸을 지도에 올린다: 칸마다 시간대별 사람 수를 가장 붐비는 칸·시간으로 나눈 값(h0..h23)과 하루 평균(d)
   useEffect(() => {
@@ -691,8 +698,8 @@ function BuildingCard({ b, from, what, budget, onMove, onClose }) {
       {b.top && <div className="sc-row tops"><span>많은 업종</span><b>{b.top.split(' · ').slice(0, 2).map(t => t.replace(/ (\d+)$/, ' $1곳')).join(' · ')}</b></div>}
       {c && <>
         <div className="sc-row"><span>1칸 넓이</span><b>약 {c.py}평 ({c.m2}㎡)</b></div>
-        <div className={'sc-row' + (budget && c.month > budget.month ? ' over' : ' in')}><span>매달 · 월세+관리비<em className="eg">예시</em></span><b className="m">{c.month.toLocaleString()}만{budget ? (c.month > budget.month ? ' · 예산 넘음' : ' · 예산 안') : ''}</b></div>
-        <div className={'sc-row' + (budget && c.start > budget.start ? ' over' : ' in')}><span>처음 · 보증금 {c.deposit.toLocaleString()}만 포함</span><b className="m">{c.start.toLocaleString()}만{budget ? (c.start > budget.start ? ' · 예산 넘음' : ' · 예산 안') : ''}</b></div>
+        <div className={'sc-row' + (budget && c.month > budget.month ? ' over' : ' in')}><span>매달 · 월세+관리비{!c.real && <em className="eg">예시</em>}</span><b className="m">{c.month.toLocaleString()}만{budget ? (c.month > budget.month ? ' · 예산 넘음' : ' · 예산 안') : ''}</b></div>
+        <div className={'sc-row' + (budget && c.start > budget.start ? ' over' : ' in')}><span>처음 · 보증금 {c.deposit.toLocaleString()}만 포함<em className="eg">추정</em></span><b className="m">{c.start.toLocaleString()}만{budget ? (c.start > budget.start ? ' · 예산 넘음' : ' · 예산 안') : ''}</b></div>
       </>}
       {movable && <button className="moveto" onClick={() => onMove(b.i)}>여기를 내 자리로 →</button>}
       {!b.tgt && !movable && <p className="sc-note">{from}에서 {MOVE_MAX}m 안 건물만 내 자리로 옮길 수 있어요</p>}

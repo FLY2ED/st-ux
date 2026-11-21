@@ -1095,6 +1095,11 @@ body{background:url(/bg.webp) center/cover no-repeat fixed #8a8f97}
 [data-lv=b] .mapwrap .layers .seg i{display:none}
 [data-lv=b] .mapwrap .layers .seg button{width:auto;padding:6px 0}
 [data-lv=b] .mapwrap .layers .seg button.on{color:#16181d}
+/* 어두운 지도(모든 가게·생활인구·역·학교)에선 글자를 흰색 계열로 */
+:root[data-lv=b]:not(.solo) .mapwrap .layers button{color:rgba(255,255,255,.6);transition:color .3s,box-shadow .3s}
+:root[data-lv=b]:not(.solo) .mapwrap .layers button:hover,:root[data-lv=b]:not(.solo) .mapwrap .layers .seg button.on{color:#fff}
+:root[data-lv=b]:not(.solo) .mapwrap .layers button.on{color:#fff;box-shadow:inset 0 -2px 0 #fff}
+:root[data-lv=b]:not(.solo) .mapwrap .layers .vw{box-shadow:inset 1px 0 0 rgba(255,255,255,.35)}
 /* c: 오른쪽 위 세로 목록 */
 [data-lv=c] .mapwrap .layers{flex-direction:column;align-items:flex-end;gap:14px}
 [data-lv=c] .mapwrap .layers .lg{flex-direction:column;align-items:flex-end}

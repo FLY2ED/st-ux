@@ -24,7 +24,7 @@ export function vacancyCost(m2, C) {
   const start = deposit + Math.round(C.interior * py) + C.equip
   // 매달 내는 돈 = 월세 + 관리비
   const fee = Math.round((C.fee ?? 1) * py)
-  return { m2: Math.round(m2), py: Math.round(py), rent, deposit, start, fee, month: rent + fee }
+  return { m2: Math.round(m2), py: Math.round(py), rent, deposit, start, fee, month: rent + fee, real: !!C.real }
 }
 
 // base 리포트를 건물 i로 옮긴 리포트·건물 데이터. i가 없으면 그대로
