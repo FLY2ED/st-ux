@@ -6,7 +6,7 @@ const SIGNS = '../midterm/data/signs/'
 const once = f => { let p; return () => (p ??= f()) }
 const json = u => fetch(u).then(r => (r.ok ? r.json() : null)).catch(() => null)
 export const loadCats = once(() => json('./data/cats.json'))
-const loadCmp = once(() => json('./data/cmp.json'))
+export const loadCmp = once(() => json('./data/cmp.json'))
 const tiles = new Map()
 const tile = k => (tiles.has(k) ? tiles.get(k) : tiles.set(k, json(SIGNS + k + '.json').then(d => d || [])).get(k))
 

@@ -15,12 +15,12 @@ export const BUDGETS = {
   month: [[150, '150만 원'], [200, '200만 원'], [300, '300만 원'], [400, '400만 원'], [500, '500만 원']],
 }
 const budgetName = (k, v) => BUDGETS[k].find(b => b[0] === v)?.[1] ?? won(v) + ' 원'
-const fits = (p, b) => p.cost && p.cost.start <= b.start && p.cost.month <= b.month
+export const fits = (p, b) => p.cost && p.cost.start <= b.start && p.cost.month <= b.month
 // 제목 안 숫자만 Michroma로
 const num = t => { const m = String(t).match(/^(.*?)(\d[\d,.]*)(.*)$/); return m ? <>{m[1]}<em>{m[2]}</em>{m[3]}</> : t }
 
 // 반경 안 숫자는 화면에서 다시 센다(반경 바꾸기)
-function useStats(report, radius) {
+export function useStats(report, radius) {
   return useMemo(() => {
     const { shops, cats, query: Q } = report
     const inR = shops.filter(([x, y]) => Math.hypot(x, y) <= radius)
@@ -464,7 +464,7 @@ const costRatio = () => {
 // 매출·손익 계산: 값을 바꾸면 바로 다시 셈
 // 매출·손익 계산식: 계산기와 비용 띠가 같이 쓴다
 // 업종 비율이 있으면 인건비·재료와 기타는 매출 × 통계청 비율, 임대료는 이 상권 시세 × 면적. 비율이 없는 업종은 남는 돈을 셈하지 않는다
-function plan(size = 10, ticket = 6800, guests = 110) {
+export function plan(size = 10, ticket = 6800, guests = 110) {
   const sales = Math.round((ticket * guests * 30) / 10000)
   const m2 = size * 3.3
   const rent = Math.round(DEMO.cost.rent * m2)
