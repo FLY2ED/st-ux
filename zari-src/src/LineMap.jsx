@@ -319,8 +319,8 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
         // 유동인구: 칸 대신 칸 가운데 점을 번지게 그린 안개
         map.addSource('flowpt', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
         map.addLayer({ id: 'flow-heat', type: 'heatmap', source: 'flowpt', layout: { visibility: 'none' }, paint: {
-          'heatmap-radius': 160, 'heatmap-intensity': 1.6, 'heatmap-opacity': 0, 'heatmap-weight': ['get', 'd'],
-          'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(247,247,247,0)', .25, 'rgba(190,196,208,.18)', .6, 'rgba(225,228,235,.45)', 1, 'rgba(247,247,247,.72)'] } })
+          'heatmap-radius': 160, 'heatmap-intensity': 2.6, 'heatmap-opacity': 0, 'heatmap-weight': ['get', 'd'],
+          'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(247,247,247,0)', .2, 'rgba(190,196,208,.14)', .55, 'rgba(225,228,235,.5)', 1, 'rgba(250,250,250,.85)'] } })
       }
       setRadius(map, radius)
       setReady(true)
@@ -530,7 +530,8 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
       const i = Math.floor(ft) % 24, j = (i + 1) % 24, w = ft - Math.floor(ft)
       const v = fm === 'h' || !DEMO.real?.season ? ['+', ['*', ['get', 'h' + i], 1 - w], ['*', ['get', 'h' + j], w]] : ['*', ['get', 'd'], at(DEMO.real.season.m, ft)]
       map.setPaintProperty('flow', 'fill-opacity', ['min', .85, ['*', .9, ['sqrt', v]]])
-      if (map.getLayer('flow-heat')) map.setPaintProperty('flow-heat', 'heatmap-weight', ['sqrt', v])
+      // 안개는 사람 수를 그대로(제곱근을 씌우면 새벽과 낮 차이가 눌려 시간이 흘러도 거의 같아 보인다)
+      if (map.getLayer('flow-heat')) map.setPaintProperty('flow-heat', 'heatmap-weight', v)
     }
   }, [ft, fm, layer, pop, ready])
   useEffect(() => {
