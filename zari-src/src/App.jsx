@@ -36,14 +36,15 @@ const NAV = {
     ['REAL', '한국부동산원 임대동향 · 서울시 상가임대차 실태조사', '임대료·공실률 2026년 3분기(가장 가까운 조사 상권) · 권리금 2023년 조사. 공실 월세도 이 임대료로 셈해요.'],
     ['REAL', '인허가 이력 · 서울 생활인구', '반경 500m 같은 업종 가게의 1·3·5년 생존율과 문 연 지 · 공실 후보 건물의 최근 3년 폐업 · 250m 칸 시간대별 사람 수(2026년 10월 평일) · 동별 달마다 변화(2025년)'],
     ['REAL', '국세청 · 소비-행정동', '구별 직장인 급여 · 동별 지출 구성'],
-    ['REAL', '통계청 서비스업조사 2024', '매출 대비 인건비·임차료·영업비용 비율. 카페·한식·미용실은 서울 값, 다른 음식점은 전국 음식점 전체 값으로 손익을 셈해요.'],
+    ['REAL', '통계청 서비스업조사 2024', '매출 대비 인건비·임차료·영업비용 비율. 카페·한식·미용실은 서울 세세업종 값, 다른 음식점은 전국 음식점 전체 값, 소매·학원·운동·오락·세탁·네일 같은 업종은 서울 산업 중분류 값으로 손익을 셈해요. 맞는 비율이 없는 업종(의원·숙박 등)은 손익을 셈하지 않아요.'],
     ['REAL', '노원구 청년가게 · SH 임대상가 공고', '공공 모집 공고에 적힌 층·넓이·보증금·월세·마감일. 지난 공고라 지금 비어 있는지는 확인이 필요해요.'],
-    ['SAMPLE', '가게 하나하나의 매출 · 민간 공실 매물 조건 · 공사비', '공개 자료가 없어요. 가게 카드엔 주변 같은 업종 평균만 보여 주고, 공실 보증금은 월세 10달치, 인테리어·장비비는 예시 값으로 셈해요.'],
+    ['REAL', '서울시 상가임대차 실태조사 2023', '가장 가까운 조사 상권(1km 안, 없으면 서울 평균)의 ㎡당 보증금·시설투자비·공용관리비로 공실 비용과 처음 드는 돈을 셈해요.'],
+    ['NONE', '가게 하나하나의 매출 · 민간 공실 매물 조건', '공개 자료가 없어 보여 주지 않아요. 가게 카드엔 주변 같은 업종 평균만, 매출 자료가 없는 업종은 매출 칸을 숨겨요.'],
   ] },
   about: { k: 'ABOUT', t: 'ZARI', stats: [['553,374', '서울 가게'], ['4,797', '비교 상권'], ['799', '가게를 맞춘 건물']], body: [
     ['WHY', '서울에서 카페·식당 자리 고르기', '창업하려는 사람이 후보 자리 몇 곳을 같은 기준으로 비교하도록 돕는 서비스예요.'],
     ['HOW', '여러 서비스 기능을 한 화면에', '소상공인365, 서울시 상권분석, 오픈업 같은 서비스의 기능을 모으고, 지도와 리포트가 끊기지 않게 이어 붙였어요.'],
-    ['NOW', '기획 시연', '서울 어느 주소·업종이든 리포트를 바로 만들어요. 매출·유동인구·주민·개폐업·임대료·생존율·업종 비용 비율은 공공 실제 데이터, “예시” 표시가 붙은 칸만 시연용 숫자예요.'],
+    ['NOW', '기획 시연', '서울 어느 주소·업종이든 리포트를 바로 만들어요. 매출·유동인구·주민·개폐업·임대료·생존율·업종 비용 비율·창업 비용은 모두 공공 실제 데이터이고, 자료가 없는 칸은 숨겨요.'],
   ] },
 }
 
@@ -386,7 +387,7 @@ export default function App() {
                   <h2>{NAV[nav].t}</h2>
                   {NAV[nav].stats && <div className="nstats">{NAV[nav].stats.map(([v, l], i) => <div key={l} style={{ '--i': i }}><b className="m">{v}</b><small>{l}</small></div>)}</div>}
                   {NAV[nav].body.map(([a, b, c], i) => (
-                    <div key={i} className={'item' + (a === 'SAMPLE' ? ' eg2' : '')} style={{ '--i': i }}><span className="m">{a}</span><b>{b}</b><p>{c}</p></div>
+                    <div key={i} className={'item' + (a === 'NONE' ? ' eg2' : '')} style={{ '--i': i }}><span className="m">{a}</span><b>{b}</b><p>{c}</p></div>
                   ))}
                   {nav === 'how' && (
                     <button className="cta" style={{ '--i': 5 }} onClick={() => { setNav(null); if (phase === 'home') setTimeout(go, 450) }}>
@@ -410,12 +411,11 @@ export default function App() {
   )
 }
 
-// 후보 자리 나란히 비교 (예시 후보 2곳 포함)
+// 후보 자리 나란히 비교
 const CMP = [
   ['가게 수', 'cafes', v => v + '곳', 'min'],
-  ['경쟁 강도', 'crowd', v => v, null],
   ['1곳 월매출', 'sales', v => (v == null ? '—' : v.toLocaleString() + '만'), 'max'],
-  ['유동인구/일', 'flow', v => v.toLocaleString(), 'max'],
+  ['유동인구/일', 'flow', v => (v == null ? '—' : v.toLocaleString()), 'max'],
   ['임대료 ㎡/월', 'rent', v => (v == null ? '—' : v + '만'), 'min'],
   ['3년 생존율', 'survive', v => (v == null ? '—' : v + '%'), 'max'],
   ['상권 등급', 'grade', v => v, null],
@@ -464,7 +464,7 @@ function Compare({ what, close }) {
         <thead><tr><th />{P.map((p, k) => <th key={p.name} className={k === 0 ? 'me' : ''}><b>{p.name}</b><small>{p.sub}</small></th>)}</tr></thead>
         <tbody>
           {CMP.map(([l, key, f, best]) => {
-            const vs = P.map(p => p[key])
+            const vs = P.map(p => p[key]).filter(v => v != null)
             const b = best === 'max' ? Math.max(...vs) : best === 'min' ? Math.min(...vs) : null
             return <tr key={key}><th>{l}</th>{P.map((p, k) => <td key={k} className={(p[key] === b ? 'best ' : '') + (k === 0 ? 'me' : '')}>{f(p[key])}</td>)}</tr>
           })}

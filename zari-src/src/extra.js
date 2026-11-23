@@ -69,7 +69,8 @@ async function survive(lon, lat, code) {
   }
 }
 
-// 임대료 · 공실률 · 권리금: 가장 가까운 부동산원 조사 상권 값(rent.json, scripts/build_rent.py)
+// 임대료 · 공실률: 가장 가까운 부동산원 조사 상권 값(rent.json, scripts/build_rent.py)
+// 권리금 · 보증금 · 시설투자비 · 관리비: 서울시 상가임대차 실태조사(2023) 상권 값
 async function rent(lon, lat) {
   const J = await get('rent.json')
   const kx = 111320 * Math.cos(lat * Math.PI / 180), ky = 110540
@@ -78,9 +79,11 @@ async function rent(lon, lat) {
   return {
     area: name, dist: r1(d / 1000), rent: r1(r), vac, kind, asOf: J.asOf,
     trend: J.q.map((q, k) => [q, r1(tr[k])]),
-    // 권리금: 1km 안 실태조사 상권이 있으면 그 값, 없으면 서울 평균
-    ...(([k, kd]) => (kd <= 1000 ? { key: k[3], keyArea: k[0] } : { key: J.seoul.key, keyArea: null }))(
-      J.keys.map(k => [k, Math.hypot((k[1] - lon) * kx, (k[2] - lat) * ky)]).sort((p, q) => p[1] - q[1])[0]),
+    // 1km 안 실태조사 상권이 있으면 그 값, 없으면 서울 평균. 점포당 보증금·시설투자비를 그 상권 평균 넓이로 나눠 ㎡당으로
+    ...(([k, kd]) => {
+      const [keyArea, key, dep, fac, m2, fee] = kd <= 1000 ? [k[0], ...k.slice(3)] : [null, J.seoul.key, J.seoul.dep, J.seoul.fac, J.seoul.m2, J.seoul.fee]
+      return { key, keyArea, depM2: r1(dep / m2), facM2: r1(fac / m2), feeM2: fee, svM2: m2 }
+    })(J.keys.map(k => [k, Math.hypot((k[1] - lon) * kx, (k[2] - lat) * ky)]).sort((p, q) => p[1] - q[1])[0]),
     seoul: { rent: r1(J.seoul.rent), vac: J.seoul.vac, key: J.seoul.key },
   }
 }

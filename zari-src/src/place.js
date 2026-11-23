@@ -1,4 +1,4 @@
-// 지도에서 내 자리를 다른 건물로 옮기기 · 공실 비용 추정
+// 지도에서 내 자리를 다른 건물로 옮기기 · 공실 비용
 // 가게·건물 데이터는 공릉로 232에서 600m까지 있으므로, 옮긴 자리의 걸어서 5분(300m)이 그 안에 들도록 250m까지만 옮긴다
 export const MOVE_MAX = 250
 
@@ -15,16 +15,15 @@ function area(f, kx, ky) {
   return Math.abs(s) / 2
 }
 
-// 공실 1칸 처음 드는 돈(만 원): 권리금이 없고, 보증금은 월세 10달치로 셈
+// 공실 1칸 처음 드는 돈(만 원): 권리금이 없고, 보증금·시설투자비는 서울시 상가임대차 실태조사(2023) 상권 평균을 ㎡당으로 바꿔 넓이만큼
 // 1칸 넓이는 건물 바닥의 60%를 20~99㎡ 안으로 (1층 상가 한 칸 크기)
 export function vacancyCost(m2, C) {
   const rent = Math.round(C.rent * m2)
-  const deposit = rent * 10
-  const py = m2 / 3.3
-  const start = deposit + Math.round(C.interior * py) + C.equip
-  // 매달 내는 돈 = 월세 + 관리비
-  const fee = Math.round((C.fee ?? 1) * py)
-  return { m2: Math.round(m2), py: Math.round(py), rent, deposit, start, fee, month: rent + fee, real: !!C.real }
+  const deposit = Math.round(C.depM2 * m2)
+  const fac = Math.round(C.facM2 * m2)
+  // 매달 내는 돈 = 월세 + 공용관리비
+  const fee = Math.round(C.feeM2 * m2)
+  return { m2: Math.round(m2), py: Math.round(m2 / 3.3), rent, deposit, fac, start: deposit + fac, fee, month: rent + fee }
 }
 
 // base 리포트를 건물 i로 옮긴 리포트·건물 데이터. i가 없으면 그대로

@@ -88,20 +88,16 @@ function ring(lon, lat, r, kx, ky) {
   return pts
 }
 
-// 유동인구 재생(예시): 역·큰길 쪽(출퇴근)과 학교 앞(낮 수업) 두 흐름을 섞는다
-const nz = a => { const m = Math.max(...a); return a.map(v => v / m) }
+// 유동인구 재생 막대의 시각 이름·설명 (사람 수는 서울 생활인구 칸에서 읽는다)
 const PROF = {
   h: {
-    n: 24, road: nz([2, 1, 1, 1, 1, 3, 8, 16, 20, 12, 9, 10, 12, 11, 10, 11, 14, 19, 22, 18, 13, 9, 6, 4]),
-    gate: nz([1, 0, 0, 0, 0, 1, 3, 7, 12, 16, 20, 24, 26, 24, 22, 20, 16, 12, 9, 7, 5, 3, 2, 1]),
+    n: 24,
     lab: h => `${Math.floor(h)}시`,
     note: h => (h < 6 ? '새벽' : h < 10 ? '출근 · 등교' : h < 11 ? '오전' : h < 14 ? '점심 · 수업 사이' : h < 17 ? '오후 수업' : h < 21 ? '퇴근 · 하교' : '저녁'),
   },
   m: {
-    n: 12, road: [.9, .88, .97, 1, 1, .98, .95, .93, .98, 1, .97, .95],
-    gate: [.35, .3, 1, 1, .98, .85, .4, .35, .97, 1, .95, .6],
+    n: 12,
     lab: m => `${Math.floor(m) + 1}월`,
-    note: m => ([0, 1, 6, 7].includes(Math.floor(m)) ? '방학 · 학교 앞이 비어요' : [2, 8].includes(Math.floor(m)) ? '개강' : [11].includes(Math.floor(m)) ? '종강' : '학기 중'),
   },
 }
 const at = (arr, t) => { const n = arr.length, i = Math.floor(t) % n, f = t - Math.floor(t); return arr[i] * (1 - f) + arr[(i + 1) % n] * f }
@@ -203,7 +199,7 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
   const zoomNow = () => (layerRef.current === 'bcol' && box.current ? soloZoom(box.current, radius, Q.lat, (mapRef.current?.getPitch() ?? 0) > 10) : zoomFor(radius))
   const ohSet = useRef(new Set()).current
   const [fm, setFm] = useState('h'), [ft, setFt] = useState(7), [play, setPlay] = useState(true)
-  // 서울 생활인구 250m 칸(평일 시간대 평균). 못 읽으면 예시 층 그대로
+  // 서울 생활인구 250m 칸(평일 시간대 평균). 못 읽으면 유동인구 층 버튼을 숨긴다
   const [pop, setPop] = useState(null)
   useEffect(() => {
     let on = true
@@ -211,24 +207,7 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
     return () => { on = false }
   }, [Q.lon, Q.lat])
 
-  // 유동인구 예시 층: 가게가 몰린 곳을 40m 칸으로 번지게 해서 사람이 많은 곳처럼 보여 준다
-  function flowCells() {
-    const C = 40, N = 15, g = {}
-    for (const [x, y] of report.shops) {
-      const gx = Math.floor(x / C), gy = Math.floor(y / C)
-      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-        const k = gx + dx + ',' + (gy + dy), w = 1 / (1 + dx * dx + dy * dy)
-        g[k] = (g[k] || 0) + w
-      }
-    }
-    const max = Math.max(...Object.values(g))
-    return Object.entries(g).filter(([k, v]) => { const [a, b] = k.split(',').map(Number); return Math.hypot(a + .5, b + .5) <= N && v / max > .12 }).map(([k, v]) => {
-      const [a, b] = k.split(',').map(Number), x0 = a * C + 2, y0 = b * C + 2, x1 = x0 + C - 4, y1 = y0 + C - 4
-      // 학교 앞(이 자리)에 가까울수록 낮 수업 흐름을 더 따른다
-      const m = Math.max(0, Math.min(1, 1.3 - Math.hypot(a * C + C / 2, b * C + C / 2) / 260))
-      return { type: 'Feature', properties: { v: Math.pow(v / max, 1.3), m }, geometry: { type: 'Polygon', coordinates: [[ll(x0, y0), ll(x1, y0), ll(x1, y1), ll(x0, y1), ll(x0, y0)]] } }
-    })
-  }
+  // 유동인구 층 자리 잡기: 생활인구 칸을 읽기 전 빈 층(버튼은 생활인구를 읽은 뒤에만 보인다)
 
   useEffect(() => {
     const map = new maplibregl.Map({
@@ -275,7 +254,7 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
       const cafes = report.competitors.map((s, i) => ({
         type: 'Feature', geometry: { type: 'Point', coordinates: ll(s.x, s.y) }, properties: { i, d: s.dist },
       }))
-      map.addSource('flow', { type: 'geojson', data: { type: 'FeatureCollection', features: flowCells() } })
+      map.addSource('flow', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'flow', type: 'fill', source: 'flow', layout: { visibility: 'none' }, paint: { 'fill-color': INK, 'fill-opacity': ['*', ['get', 'v'], .8] } })
       map.addSource('shops', { type: 'geojson', data: { type: 'FeatureCollection', features: shops } })
       map.addSource('cafes', { type: 'geojson', data: { type: 'FeatureCollection', features: cafes } })
@@ -421,17 +400,12 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
   useEffect(() => {
     const map = mapRef.current
     if (!map?.getLayer('flow')) return
-    const P = PROF[fm]
     if (pop) {
-      // 시간: 그 시각 사람 수(앞뒤 시간 사이를 이어서) · 월: 하루 평균에 이 동의 달별 계절 계수(없으면 예시 흐름)를 곱함
+      // 시간: 그 시각 사람 수(앞뒤 시간 사이를 이어서) · 월: 하루 평균에 이 동의 달별 계절 계수를 곱함(계수가 없으면 시간만)
       const i = Math.floor(ft) % 24, j = (i + 1) % 24, w = ft - Math.floor(ft)
-      const v = fm === 'h' ? ['+', ['*', ['get', 'h' + i], 1 - w], ['*', ['get', 'h' + j], w]] : ['*', ['get', 'd'], at(DEMO.real?.season?.m ?? P.road, ft)]
+      const v = fm === 'h' || !DEMO.real?.season ? ['+', ['*', ['get', 'h' + i], 1 - w], ['*', ['get', 'h' + j], w]] : ['*', ['get', 'd'], at(DEMO.real.season.m, ft)]
       map.setPaintProperty('flow', 'fill-opacity', ['min', .85, ['*', .9, ['sqrt', v]]])
-      return
     }
-    const a = at(P.road, ft), b = at(P.gate, ft)
-    const f = ['+', ['*', a, ['-', 1, ['get', 'm']]], ['*', b, ['get', 'm']]]
-    map.setPaintProperty('flow', 'fill-opacity', ['min', .9, ['*', ['get', 'v'], f, f, 1.5]])
   }, [ft, fm, layer, pop, ready])
   useEffect(() => {
     if (layer !== 'flow' || !play) return
@@ -600,7 +574,7 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
       <div ref={tipRef} className="tip glass maptip" />
       <div className="layers" role="group" aria-label="지도에 보이는 것">
         <span className="lg">
-          {[['bcol', `${Q.what}·공실`, `건물마다 ${Q.what}·공실·다른 가게를 색으로`], ['shops', '모든 가게', '반경 안 가게를 점으로'], ['flow', pop ? '생활인구' : '오가는 사람·예시', pop ? '250m 칸마다 그 시각에 있는 사람 (평일 평균)' : '사람이 많이 다니는 곳 (예시 값)'], ['place', '역·학교', '가까운 역·학교·버스 정류장']].map(([k, t, d]) => <button key={k} className={layer === k ? 'on' : ''} title={d} onClick={() => setLayer(k)}>{t}</button>)}
+          {[['bcol', `${Q.what}·공실`, `건물마다 ${Q.what}·공실·다른 가게를 색으로`], ['shops', '모든 가게', '반경 안 가게를 점으로'], ...(pop ? [['flow', '생활인구', '250m 칸마다 그 시각에 있는 사람 (평일 평균)']] : []), ['place', '역·학교', '가까운 역·학교·버스 정류장']].map(([k, t, d]) => <button key={k} className={layer === k ? 'on' : ''} title={d} onClick={() => setLayer(k)}>{t}</button>)}
         </span>
         <span className="vw">
           <span className="seg" role="group" aria-label="평면 입체 보기">
@@ -625,7 +599,7 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
           <div className="iso-n">{ISO.map(([min, r]) => <span key={min}><b className="m">{min}분</b>가게 {inIso(r, false)} · {Q.what} {inIso(r, true)}</span>)}</div>
         </div>
       )}
-      {layer === 'flow' && <FlowPlayer fm={fm} setFm={m => { setFm(m); setFt(m === 'h' ? 7 : 0) }} ft={ft} setFt={setFt} play={play} setPlay={setPlay} pop={pop} radius={radius} />}
+      {layer === 'flow' && pop && <FlowPlayer fm={fm} setFm={m => { setFm(m); setFt(m === 'h' ? 7 : 0) }} ft={ft} setFt={setFt} play={play} setPlay={setPlay} pop={pop} radius={radius} />}
       {layer === 'bcol' && <div className="movehint">{Q.moved ? <>{Q.from}에서 {Q.moved}m 옮긴 자리 · <button onClick={() => onMove(null)}>원래 자리로</button></> : '건물을 누르면 내 자리를 옮길 수 있어요'}</div>}
       {sel && (sel.bld != null ? bld && <BuildingCard what={Q.what} from={Q.from || shortAddr(Q.address)} b={bld.features.find(f => f.properties.i === sel.bld)?.properties} budget={budget} onMove={i => { setSel(null); onMove(i) }} onClose={() => setSel(null)} />
         : <ShopCard sel={sel} report={report} onClose={() => setSel(null)} />)}
@@ -659,8 +633,8 @@ function ShopCard({ sel, report, onClose }) {
     extra = (
       <>
         <div className="sc-row"><span>구분</span><b>{b ? '프랜차이즈 · ' + (BRAND_NAME[b] || b) : '개인 가게'}</b></div>
-        <div className="sc-row"><span>주변 같은 업종 평균{SA.sample && <em className="eg">예시</em>}</span><b className="m">월 {SA.month.toLocaleString()}만</b></div>
-        <p className="sc-note">이 가게 매출은 공개되지 않아요{SA.sample ? '' : ` · 주변 상권 ${SA.stores}곳 평균`}</p>
+        {!SA.none && <div className="sc-row"><span>주변 같은 업종 평균</span><b className="m">월 {SA.month.toLocaleString()}만</b></div>}
+        <p className="sc-note">이 가게 매출은 공개되지 않아요{SA.none ? '' : ` · 주변 상권 ${SA.stores}곳 평균`}</p>
       </>
     )
   } else {
@@ -701,8 +675,8 @@ function BuildingCard({ b, from, what, budget, onMove, onClose }) {
       {b.top && <div className="sc-row tops"><span>많은 업종</span><b>{b.top.split(' · ').slice(0, 2).map(t => t.replace(/ (\d+)$/, ' $1곳')).join(' · ')}</b></div>}
       {c && <>
         <div className="sc-row"><span>1칸 넓이</span><b>약 {c.py}평 ({c.m2}㎡)</b></div>
-        <div className={'sc-row' + (budget && c.month > budget.month ? ' over' : ' in')}><span>매달 · 월세+관리비{!c.real && <em className="eg">예시</em>}</span><b className="m">{c.month.toLocaleString()}만{budget ? (c.month > budget.month ? ' · 예산 넘음' : ' · 예산 안') : ''}</b></div>
-        <div className={'sc-row' + (budget && c.start > budget.start ? ' over' : ' in')}><span>처음 · 보증금 {c.deposit.toLocaleString()}만 포함<em className="eg">추정</em></span><b className="m">{c.start.toLocaleString()}만{budget ? (c.start > budget.start ? ' · 예산 넘음' : ' · 예산 안') : ''}</b></div>
+        <div className={'sc-row' + (budget && c.month > budget.month ? ' over' : ' in')}><span>매달 · 월세 {c.rent.toLocaleString()}만+관리비</span><b className="m">{c.month.toLocaleString()}만{budget ? (c.month > budget.month ? ' · 예산 넘음' : ' · 예산 안') : ''}</b></div>
+        <div className={'sc-row' + (budget && c.start > budget.start ? ' over' : ' in')}><span>처음 · 보증금 {c.deposit.toLocaleString()}만+시설비</span><b className="m">{c.start.toLocaleString()}만{budget ? (c.start > budget.start ? ' · 예산 넘음' : ' · 예산 안') : ''}</b></div>
       </>}
       {movable && <button className="moveto" onClick={() => onMove(b.i)}>여기를 내 자리로 →</button>}
       {!b.tgt && !movable && <p className="sc-note">{from}에서 {MOVE_MAX}m 안 건물만 내 자리로 옮길 수 있어요</p>}
@@ -714,29 +688,29 @@ function BuildingCard({ b, from, what, budget, onMove, onClose }) {
 // pop: 생활인구 칸이 있으면 시간 막대는 반경 안 칸의 실제 사람 수(그 시각에 있는 사람)
 // 월: 반경 안 하루 평균(24시각 평균)에 이 동의 2025년 달별 계절 계수(10월 = 1)를 곱함
 function FlowPlayer({ fm, setFm, ft, setFt, play, setPlay, pop, radius }) {
-  const P = PROF[fm], cur = Math.floor(ft) % P.n
   const SE = DEMO.real?.season?.m
-  const realH = pop && fm === 'h', realM = pop && SE && fm === 'm', real = realH || realM
-  const hrs = pop ? Array.from({ length: 24 }, (_, k) => pop.cells.filter(c => c.d <= radius).reduce((a, c) => a + c.h[k], 0)) : null
-  const avg = hrs ? hrs.reduce((a, b) => a + b, 0) / 24 : 0
-  const tot = realH ? hrs : realM ? SE.map(f => avg * f) : P.road.map((r, i) => r * .6 + P.gate[i] * .4)
+  if (!SE) fm = 'h'   // 달별 계수가 없는 동은 시간 막대만
+  const P = PROF[fm], cur = Math.floor(ft) % P.n
+  const realH = fm === 'h', realM = fm === 'm'
+  const hrs = Array.from({ length: 24 }, (_, k) => pop.cells.filter(c => c.d <= radius).reduce((a, c) => a + c.h[k], 0))
+  const avg = hrs.reduce((a, b) => a + b, 0) / 24
+  const tot = realH ? hrs : SE.map(f => avg * f)
   const mx = Math.max(...tot)
-  const day = DEMO.flow.day, sum = tot.reduce((a, b) => a + b, 0)
-  const now = real ? Math.round(at(tot, ft) / 10) * 10 : fm === 'h' ? Math.round((day * at(tot, ft)) / sum / 10) * 10 : Math.round((day * at(tot, ft)) / mx / 100) * 100
+  const now = Math.round(at(tot, ft) / 10) * 10
   // 달별 차이는 10% 안팎이라 막대는 가장 적은 달의 80%를 바닥으로 그린다
   const lo = realM ? Math.min(...tot) * .8 : 0
   const pct = realM ? Math.round((SE[cur] - 1) * 100) : 0
-  const note = realM ? (cur === 9 ? '기준 달' : pct === 0 ? '10월과 비슷해요' : `10월보다 ${Math.abs(pct)}% ${pct > 0 ? '많아요' : '적어요'}`) : P.note(ft)
+  const note = realM ? (cur === 9 ? '기준 달' : pct === 0 ? '10월과 비슷해요' : `10월보다 ${Math.abs(pct)}% ${pct > 0 ? '많아요' : '적어요'}`) : PROF.h.note(ft)
   return (
     <div className="player glass">
       <div className="pl-top">
         <button className="pp" onClick={() => setPlay(!play)} aria-label={play ? '멈춤' : '재생'}>{play ? <span className="ps" /> : <span className="pl" />}</button>
         <div className="pl-now"><b className="m">{P.lab(ft)}</b><span>{note}</span></div>
-        <div className="pl-n"><b className="m">{now.toLocaleString()}</b><small>{realH ? `명 · 반경 ${radius}m 안` : realM ? `명 · 반경 ${radius}m 평일 평균` : fm === 'h' ? '명 / 시간' : '명 / 하루'}{!real && <em className="eg">예시</em>}</small></div>
+        <div className="pl-n"><b className="m">{now.toLocaleString()}</b><small>{realH ? `명 · 반경 ${radius}m 안` : realM ? `명 · 반경 ${radius}m 평일 평균` : fm === 'h' ? '명 / 시간' : '명 / 하루'}</small></div>
         <span className="seg" role="group" aria-label="재생 단위">
           <i className={fm === 'm' ? 'r' : ''} />
           <button className={'m' + (fm === 'h' ? ' on' : '')} onClick={() => setFm('h')}>시간</button>
-          <button className={'m' + (fm === 'm' ? ' on' : '')} onClick={() => setFm('m')}>월</button>
+          {SE && <button className={'m' + (fm === 'm' ? ' on' : '')} onClick={() => setFm('m')}>월</button>}
         </span>
       </div>
       <div className="pl-bars" onPointerDown={e => {

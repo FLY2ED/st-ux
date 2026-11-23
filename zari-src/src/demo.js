@@ -1,129 +1,43 @@
 // 리포트 숫자. 서울 열린데이터광장 상권분석서비스에서 뽑은 값(seoul.json, scripts/build_seoul.py)으로 덮어쓰고,
-// 공공 데이터가 없는 칸(임대료·권리금·가게별 매출·소득·생존율·배달)만 아래 예시 숫자로 남긴다.
+// 실제 자료를 못 불러올 때만 아래 기본값을 쓴다. 비용 기본값은 서울시 상가임대차 실태조사(2023) 서울 평균.
 import S from './seoul.json'
 
 export const SEOUL = S
 const EX = {
-  grade: { g: 'B+', t: '대학가 낮 장사 자리', s: '평일 낮 손님은 많지만 방학·주말에 크게 줄어요.' },
-
-  // 자동 해설: 칸별 숫자에서 뽑은 좋은 점 · 조심할 점
-  insight: {
-    good: ['유동인구가 서울 상권 평균의 1.7배예요.', '최근 3년 개업이 폐업보다 많아 상권이 커지고 있어요.', '임대료가 서울 평균보다 ㎡당 0.7만 원 낮아요.'],
-    warn: ['방학인 1·2·7·8월 매출이 학기 중보다 30% 가까이 줄어요.', '주말 매출이 평일의 60% 수준이에요.'],
-  },
   asOf: { sales: '2026년 2분기', shops: '2026년 9월', rent: '2026년 상반기' },
-
-  // 상권 지수 5가지 (100점, 서울 평균 50)
-  score: [
-    ['남는 돈', 58], ['고른 매출', 44], ['손님 모으기', 71], ['오래 버티기', 47], ['커지는 정도', 62],
-  ],
-
-  sales: {
-    month: 2140, seoul: 2380, ticket: 6800, perDay: 105,
-    // 분기별 카페 1곳 평균 월매출(만 원)
-    quarters: [['24.3Q', 1880], ['24.4Q', 2010], ['25.1Q', 1720], ['25.2Q', 2260], ['25.3Q', 1950], ['25.4Q', 2120], ['26.1Q', 1840], ['26.2Q', 2140]],
-    week: [['월', 15], ['화', 16], ['수', 16], ['목', 17], ['금', 16], ['토', 11], ['일', 9]],
-    hours: [['06–11', 18], ['11–14', 27], ['14–17', 24], ['17–21', 22], ['21–24', 8], ['0–6', 1]],
-    age: [['10대', 6], ['20대', 41], ['30대', 19], ['40대', 15], ['50대', 12], ['60대+', 7]],
-    female: 58,
-    delivery: 17,
-    // 월별 매출 지수(연평균 100) · 방학이 비수기
-    months: [['1', 74], ['2', 71], ['3', 118], ['4', 121], ['5', 119], ['6', 108], ['7', 79], ['8', 76], ['9', 117], ['10', 120], ['11', 114], ['12', 93]],
-  },
-
-  // 가게별 추정 월매출 범위(만 원): 가까운 순서 이름 뒤에 붙인다
-  storeRanges: [[1400, 2100], [600, 1000], [900, 1500], [500, 900], [1100, 1700], [700, 1200], [800, 1300], [1600, 2400], [900, 1400], [1200, 1800], [500, 800], [600, 1100], [400, 700]],
-
-  flow: {
-    day: 41200, seoul: 23600,
-    hours: [['06–11', 17], ['11–14', 24], ['14–17', 21], ['17–21', 26], ['21–24', 10], ['0–6', 2]],
-    week: [['월', 16], ['화', 16], ['수', 16], ['목', 16], ['금', 15], ['토', 11], ['일', 10]],
-    age: [['10대', 8], ['20대', 38], ['30대', 15], ['40대', 14], ['50대', 13], ['60대+', 12]],
-    female: 49,
-  },
-
-  people: {
-    live: 18400, work: 6900, house: 8200, student: 11200,
-    // 연령대별 카페 지출 비중(%) · 소비 성향
-    spend: [['20대', 9.4], ['30대', 6.1], ['40대', 4.3], ['50대', 3.2]],
-    income: 382, incomeSeoul: 431, tier: 6, cafeSpend: 4.1,
-  },
-
-  // 주변 시설 (서울 상권분석서비스 집객시설·아파트 항목을 따름)
-  place: {
-    stations: [['공릉역', '7호선 · 하루 타고 내리는 사람 3.4만', 11], ['태릉입구역', '6·7호선 · 하루 타고 내리는 사람 4.1만', 17], ['석계역', '1·6호선 · 하루 타고 내리는 사람 5.2만', 24]],
-    bus: 11, busLines: 16,
-    schools: [['대학교', 1], ['고등학교', 2], ['중학교', 2], ['초등학교', 2]],
-    apt: { complex: 7, house: 4850, price: 6.8, sizes: [['60㎡ 이하', 46], ['60–85㎡', 38], ['85㎡ 넘음', 16]] },
-    etc: [['병원', 24], ['은행', 4], ['관공서', 3], ['슈퍼·마트', 6]],
-  },
-
-  change: {
-    state: '커지는 중', stateNote: '개업이 폐업보다 많고, 카페 매출도 늘고 있어요.',
-    states: ['줄어드는 중', '그대로', '커지는 중', '자주 바뀜'],
-    years: [['2023', 9, 6], ['2024', 11, 7], ['2025', 12, 8], ['2026 상반기', 6, 3]],
-    survive: [['1년', 81, 77], ['3년', 54, 53], ['5년', 36, 39]],
-    life: 3.4, lifeSeoul: 3.1,
-    // 지금 영업 중인 카페가 문 연 지 몇 년 됐나(%)
-    ages: [['1년 미만', 23], ['1–3년', 38], ['3–5년', 24], ['5년 넘음', 15]],
-  },
-
+  // 비용: 서울시 상가임대차 실태조사(2023) 서울 평균. 월세 ㎡당 6.24만, 점포당 보증금 5,365만·권리금 6,438만·시설투자비 5,229만(평균 60.2㎡), 공용관리비 ㎡당 0.29만
   cost: {
-    rent: 4.9, rentGu: 4.2, rentSeoul: 5.6, deposit: 3500, premium: 4000, size: 33,
-    // ㎡당 월 임대료(만 원) 반기별
-    trend: [['23 상', 4.4], ['23 하', 4.5], ['24 상', 4.5], ['24 하', 4.7], ['25 상', 4.8], ['25 하', 4.8], ['26 상', 4.9]],
-    interior: 230, equip: 2500,
-    // 관리비: 평당 월 1만 원(예시)
-    fee: 1,
+    rent: 6.24, rentSeoul: 6.24, premium: 6438, size: 33,
+    depM2: 89.1, facM2: 86.9, feeM2: 0.29, keyArea: null,
   },
-
-  recommend: [
-    ['토스트·샌드위치', 86, '아침·점심 대학생 수요, 가게 2곳뿐'],
-    ['디저트 카페', 78, '20대 여성 비중 높음, 주변 5곳'],
-    ['김밥·분식', 74, '손님 1명이 쓰는 돈은 적지만 손님이 빨리 바뀜'],
-    ['스터디 카페', 69, '시험 기간 수요, 2층 이상 자리'],
-    ['카페', 61, '수요는 크지만 이미 많음'],
-  ],
-
-  trend: [
-    ['공릉동 경춘선숲길', '+18%', '카페·디저트 개업 늘어남'],
-    ['하계역 주변', '+11%', '주변이 주택가, 저녁 매출'],
-    ['노원역 문화의거리', '+7%', '20대 유동인구 늘어남'],
-    ['태릉입구역', '+5%', '6·7호선 환승'],
-    ['상계동 수락산역', '+4%', '등산객 주말 매출'],
-  ],
-
-  // 비교함: 지금 자리 + 예시 후보 2곳
-  compare: [
-    { name: '공릉로 232', sub: '서울과기대 정문', cafes: 13, crowd: '보통', sales: 2140, flow: 41200, rent: 4.9, survive: 54, grade: 'B+' },
-    { name: '공릉역 2번 출구', sub: '동일로 1074', cafes: 20, crowd: '많음', sales: 2460, flow: 52800, rent: 6.1, survive: 49, grade: 'B' },
-    { name: '하계역 1번 출구', sub: '노원구 하계동', cafes: 10, crowd: '적음', sales: 1720, flow: 28300, rent: 3.6, survive: 58, grade: 'B' },
-  ],
 }
 
-// 서울시 숫자(S: seoul.json 또는 seoulCalc.seoulReport 결과)를 예시 칸과 합친다
-// 매출 자료가 없는 업종(S.missing)은 매출·지수를 예시로 채우고 sample 표시를 단다
+// 보증금은 33㎡ 기준(100만 원 단위)
+function costOf(rt) {
+  const c = rt ? { ...EX.cost, rent: rt.rent, rentSeoul: rt.seoul.rent, premium: rt.key, depM2: rt.depM2, facM2: rt.facM2, feeM2: rt.feeM2,
+    keyArea: rt.keyArea, trend: rt.trend, real: true } : { ...EX.cost }
+  return { ...c, deposit: Math.round(c.depM2 * c.size / 100) * 100 }
+}
+
+// 서울시 숫자(S: seoul.json 또는 seoulCalc.seoulReport 결과)를 화면이 읽는 모양으로 묶는다
+// 매출 자료가 없는 업종(S.missing)은 매출·지수 칸을 비워 두고(sales.none) 화면에서 숨긴다
 export function mergeDemo(S, name) {
   const miss = !!S.missing
-  const ch = { ...EX.change, ...Object.fromEntries(Object.entries(S.change).filter(([, v]) => v != null)) }
   return {
-    ...EX,
     home: S.home ?? { gu: '노원구' }, cat: S.cat ?? { label: '카페' },
-    area: S.area, insight: S.insight, recommend: S.recommend, trend: S.trend, place: { ...EX.place, ...S.place },
+    area: S.area, insight: S.insight, recommend: S.recommend, trend: S.trend, place: S.place,
     grade: { ...S.grade, g: S.grade.g ?? '—' },
-    score: miss || !S.score ? EX.score : S.score,
+    score: miss ? null : S.score ?? null,
     asOf: { ...EX.asOf, ...S.asOf, ...(S.real?.rent ? { rent: S.real.rent.asOf } : {}) },
     real: S.real ?? {},
-    // 임대료·권리금은 가장 가까운 조사 상권 값, 보증금은 월세 10달치(33㎡)로 셈. 실내 공사·장비는 예시
-    cost: S.real?.rent ? { ...EX.cost, rent: S.real.rent.rent, rentSeoul: S.real.rent.seoul.rent, premium: S.real.rent.key,
-      deposit: Math.round(S.real.rent.rent * EX.cost.size * 10 / 100) * 100, trend: S.real.rent.trend, real: true } : EX.cost,
-    sales: miss ? { ...EX.sales, stores: 0, seoul: EX.sales.seoul, seoulTicket: 6500, season: EX.sales.months.filter((_, k) => k % 3 === 0).slice(0, 4).map(([m, v], k) => [k + 1 + '분기', v]), vac: 0, sample: true } : { ...EX.sales, ...S.sales },
+    // 임대료는 가장 가까운 부동산원 조사 상권, 권리금·보증금·시설투자비·관리비는 가까운 실태조사 상권(없으면 서울 평균)
+    cost: costOf(S.real?.rent),
+    sales: miss ? { none: true, month: null, seoul: null, stores: 0, vac: 0 } : S.sales,
     flow: S.flow,
-    people: { ...EX.people, ...S.people },
-    change: ch,
-    // 공릉로 232는 예시 후보 2곳과 비교, 다른 자리는 그 자리 한 줄
-    compare: (S.compare.length > 1 ? S.compare.map((c, k) => ({ ...EX.compare[k], ...c }))
-      : [{ ...EX.compare[0], ...S.compare[0], name: name || S.compare[0].name, sub: S.area?.home || '', sales: S.compare[0].sales ?? EX.compare[0].sales }])
+    people: S.people,
+    change: S.change,
+    // 공릉로 232는 실제 후보 2곳과 비교, 다른 자리는 그 자리 한 줄
+    compare: (S.compare.length > 1 ? S.compare : [{ ...S.compare[0], name: name || S.compare[0].name, sub: S.area?.home || '' }])
       .map((c, k) => ({ ...c, ...(S.real?.cmp?.[k] ?? {}) })),   // 실제 임대료·3년 생존율(없는 업종은 null → —)
   }
 }

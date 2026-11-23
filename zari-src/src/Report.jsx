@@ -68,11 +68,11 @@ function Fold({ id, t, d, children, open, setOpen }) {
   )
 }
 
-function Sec({ id, k, title, sub, children, i = 0, demo, className = '' }) {
+function Sec({ id, k, title, sub, children, i = 0, className = '' }) {
   return (
     <section id={id} className={'sec ' + className} style={{ '--i': i }}>
       <header>
-        <span className="k m">{k}{demo && <span className="eg">예시</span>}</span>
+        <span className="k m">{k}</span>
         <h2>{title}</h2>{sub && <p>{sub}</p>}
       </header>
       {children}
@@ -83,7 +83,7 @@ function Sec({ id, k, title, sub, children, i = 0, demo, className = '' }) {
 export default function Report({ report, bld, budget, setBudget, radius, active, setActive, pick, saved, onSave }) {
   const { query: Q, compare: C } = report
   // W: 고른 업종(가게 수·경쟁) · SL: 서울시 매출 자료의 업종 이름 · GU: 자리가 든 구
-  const W = Q.what, SL = DEMO.cat?.label || W, GU = DEMO.home?.gu || '이 구', vacOk = !DEMO.sales.sample && DEMO.sales.vac >= 5
+  const W = Q.what, SL = DEMO.cat?.label || W, GU = DEMO.home?.gu || '이 구', vacOk = !DEMO.sales.none && DEMO.sales.vac >= 5
   const S = useStats(report, radius)
   const [more, setMore] = useState(false)
   const [alarm, setAlarm] = useState(false)
@@ -208,7 +208,7 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
                   <button ref={bRef[k]} className={'chip' + (bw === k ? ' on' : '')} onClick={() => setBw(bw === k ? null : k)} aria-haspopup="listbox" aria-expanded={bw === k}>{budgetName(k, budget[k])} 안</button>
                 </span>
               ))}
-              <small>처음: 권리금 없이 보증금·인테리어·장비 · 매달: 월세+관리비<span className="eg">추정</span></small>
+              <small>처음: 권리금 없이 보증금·시설투자비 · 매달: 월세+관리비 · 서울시 상가임대차 실태조사 {DEMO.cost.keyArea ?? '서울'} 평균</small>
             </div>
             {bw && <Wheel key={bw} anchor={bRef[bw].current} items={BUDGETS[bw].map(([v, n]) => [n, `공실 ${vac.filter(p => fits(p, { ...budget, [bw]: v })).length}곳`, true])} value={budgetName(bw, budget[bw])}
               label={bw === 'start' ? 'BUDGET · 처음' : 'BUDGET · 매달'}
@@ -247,8 +247,9 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
         )}
         <li className="zi" data-fk="cafe" style={{ '--c': '#3b6fe0' }}>
           <span className="zk m"><i />SALES</span>
-          <h2>같은 업종 평균 월매출 <em>{fmt(D.sales.month)}</em>만</h2>
-          <p>{D.sales.sample ? <>{W}는 서울시 매출 자료가 없어 <b>예시 숫자</b>예요.</> : <>주변 상권 {SL} {D.sales.stores}곳 평균. 서울 평균 {fmt(D.sales.seoul)}만.</>}{vacOk && <><br />방학이 낀 1·3분기엔 {D.sales.vac}%쯤 줄어요.</>}</p>
+          {D.sales.none ? <><h2>같은 업종 매출 자료 없음</h2>
+          <p>{W}는 서울시 상권분석서비스가 매출을 내지 않는 업종이에요.</p></> : <><h2>같은 업종 평균 월매출 <em>{fmt(D.sales.month)}</em>만</h2>
+          <p>주변 상권 {SL} {D.sales.stores}곳 평균. 서울 평균 {fmt(D.sales.seoul)}만.{vacOk && <><br />방학이 낀 1·3분기엔 {D.sales.vac}%쯤 줄어요.</>}</p></>}
         </li>
         {S.top[0] && (
           <li className="zi" data-fk="shop" style={{ '--c': '#6b7180' }}>
@@ -260,16 +261,16 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
         <li className="zi" data-fk="tgt" style={{ '--c': '#3b6fe0' }}>
           <span className="zk m"><i />COST</span>
           <h2>처음 <em>{(P.total / 10000).toFixed(1)}</em>억{P.payback ? <>, <em>{P.payback}</em>개월</> : null}</h2>
-          <p>10평 기준 보증금·권리금·인테리어·장비.<br />{P.payback ? `한 달 ${fmt(P.profit)}만 남으면 ${P.payback}개월에 되찾아요.` : '지금 값으로는 되찾지 못해요.'}<span className="eg">예시</span></p>
+          <p>10평 기준 보증금·권리금·시설투자비.<br />{!P.K ? '이 업종은 통계청 비용 비율이 없어 회수 기간은 셈하지 않아요.' : P.payback ? `한 달 ${fmt(P.profit)}만 남으면 ${P.payback}개월에 되찾아요.` : '지금 값으로는 되찾지 못해요.'}</p>
         </li>
       </ol>
 
       <span className="zk m zmore">MORE</span>
       <div className="folds">
       <Fold {...fp} id="comp" t="경쟁 자세히" d={`서울 상권과 비교 · ${W} 목록`}>
-      <Sec className={F} k="INDEX" title="상권 지수" sub={`${SL} 3곳 넘는 서울 상권 가운데 순위를 100점으로 · 점선은 서울 가운데(50)`}>
+      {D.score && <Sec className={F} k="INDEX" title="상권 지수" sub={`${SL} 3곳 넘는 서울 상권 가운데 순위를 100점으로 · 점선은 서울 가운데(50)`}>
         <div className="radarw"><Radar data={D.score} /></div>
-      </Sec>
+      </Sec>}
 
       <Sec className={F} k="COMPETITION" title="경쟁 강도" sub={`가게 30곳 넘는 서울 상권 ${fmt(C.cells)}곳과 비교 · 걸어서 5분(300m) 기준`}>
         <div className="signal">
@@ -303,8 +304,8 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
       </Sec>
 
       </Fold>
-      <Fold {...fp} id="sales" t="주변 같은 업종 평균 매출 · 추세" d="분기 · 요일 · 시간 · 손님 나이">
-      <Sec className={F} k="SALES" title={`주변 상권 ${SL} 평균 매출`} demo={D.sales.sample} sub={D.sales.sample ? `${W}는 서울시 매출 자료가 없어 예시 숫자` : `주변 상권 ${D.area.n}곳 ${SL} ${D.sales.stores}곳 평균 · ${D.asOf.sales}`}>
+      {!D.sales.none && <Fold {...fp} id="sales" t="주변 같은 업종 평균 매출 · 추세" d="분기 · 요일 · 시간 · 손님 나이">
+      <Sec className={F} k="SALES" title={`주변 상권 ${SL} 평균 매출`} sub={`주변 상권 ${D.area.n}곳 ${SL} ${D.sales.stores}곳 평균 · ${D.asOf.sales}`}>
         <div className="kpis">
           <div><span className="m">MONTH</span><b className="m">{fmt(D.sales.month)}</b><small>만 원 · 서울 {fmt(D.sales.seoul)}</small></div>
           <div><span className="m">TICKET</span><b className="m">{fmt(D.sales.ticket)}</b><small>결제 1건 · 서울 {fmt(D.sales.seoulTicket)}원</small></div>
@@ -326,7 +327,7 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
         <Split a="여성" b="남성" v={D.sales.female} />
       </Sec>
 
-      </Fold>
+      </Fold>}
       <Fold {...fp} id="flow" t="유동인구 · 주변 시설" d={`하루 ${fmt(D.flow.day)}명 · 역 · 학교`}>
       <Sec className={F} k="FOOT TRAFFIC" title="유동인구" sub={`주변 상권 ${D.area.n}곳 하루 평균 · ${D.asOf.flow}`}>
         <div className="kpis two">
@@ -365,7 +366,6 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
         <div className="places-grid">
           {[...D.place.schools, ...D.place.etc].map(([n, v]) => <div key={n}><b className="m">{v}</b><small>{n}</small></div>)}
         </div>
-        <p className="fine">서울과기대 정문 앞 · 원룸·소형 아파트가 많아 1인 손님 비중이 높아요.</p>
       </Sec>
 
       </Fold>
@@ -378,15 +378,7 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
         </div>
         <p className="fine">세대 수는 상주인구 자료 기준 · 원룸·다세대가 많아요</p>
       </Sec>
-      {D.real.spend ? <Spend sp={D.real.spend} F={F} GU={GU} /> : (
-      <Sec className={F} k="SPEND" title={`소득 · ${W} 지출`} demo>
-        <div className="kpis two">
-          <div><span className="m">INCOME</span><b className="m">{D.people.income}만</b><small>월평균 소득 · 서울 {D.people.incomeSeoul}만</small></div>
-          <div><span className="m">CAFE SPEND</span><b className="m">{D.people.cafeSpend}만</b><small>1명 한 달 {W} 지출</small></div>
-        </div>
-        <h3>생활비 중 {W} 지출 비중</h3>
-        <Rows data={D.people.spend} unit="%" me="20대" />
-      </Sec>)}
+      {D.real.spend && <Spend sp={D.real.spend} F={F} GU={GU} />}
 
       </Fold>
       <Fold {...fp} id="change" t="개업 · 폐업" d="최근 3년">
@@ -394,45 +386,18 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
         <div className="signal four">
           {D.change.states.map(t => <div key={t} className={t === D.change.state ? 'on' : ''}><i />{t}</div>)}
         </div>
-        <p className="note">{D.change.stateNote}</p>
+        {D.change.stateNote && <p className="note">{D.change.stateNote}</p>}
         <div className="oc">
           {D.change.years.map(([y, o, c]) => (
             <div key={y}><span>{y}</span><i className="o" style={{ width: o * 7 + 'px' }} /><b className="m">+{o}</b><i className="c" style={{ width: c * 7 + 'px' }} /><b className="m">−{c}</b></div>
           ))}
         </div>
       </Sec>
-      {D.real.survive ? <Survive sv={D.real.survive} F={F} W={W} D={D} /> : <>
-      <Sec className={F} k="SURVIVAL" title="살아남은 비율" sub="이 상권 · 서울" demo>
-        <div className="surv">
-          {D.change.survive.map(([y, a, b]) => (
-            <div key={y}><span>{y}</span><span className="rg2"><i style={{ width: a + '%' }} /><u style={{ left: b + '%' }} /></span><b className="m">{a}%</b></div>
-          ))}
-        </div>
-        <p className="fine">가게 평균 영업 {D.change.life}년 · 서울 {D.change.lifeSeoul}년 (실제) · 생존율 막대는 예시 · 세로선은 서울</p>
-      </Sec>
-      <Sec className={F} k="AGE" title="지금 가게들이 문 연 지" demo>
-        <Rows data={D.change.ages} unit="%" />
-        <p className="fine">1년 미만이 23% · 새 가게가 자주 들어오는 상권이에요.</p>
-      </Sec>
-      </>}
+      {D.real.survive && <Survive sv={D.real.survive} F={F} W={W} D={D} />}
 
       </Fold>
       <Fold {...fp} id="cost" t="임대료 · 손익 계산" d="직접 바꿔 보기">
-      {D.real.rent ? <Rent rt={D.real.rent} C={D.cost} F={F} /> : <>
-      <Sec className={F} k="RENT" title="임대료 · 비용" sub="1층 상가 시세 · 2026 상반기" demo>
-        <div className="kpis">
-          <div><span className="m">RENT</span><b className="m">{D.cost.rent}만</b><small>㎡당 월 · {GU} {D.cost.rentGu}</small></div>
-          <div><span className="m">DEPOSIT</span><b className="m">{fmt(D.cost.deposit)}</b><small>보증금 만 원</small></div>
-          <div><span className="m">PREMIUM</span><b className="m">{fmt(D.cost.premium)}</b><small>권리금 · 앞 가게에 주는 돈(만 원)</small></div>
-        </div>
-        <p className="fine">{D.cost.size}㎡(10평) 기준 월 임대료 약 {won(Math.round(D.cost.rent * D.cost.size))} 원</p>
-      </Sec>
-      <Sec className={F} k="TREND" title="㎡당 월 임대료 · 반기별" demo>
-        <Line data={D.cost.trend} fmt={v => v + '만'} />
-        <h3>다른 곳과 비교</h3>
-        <Rows data={[['이 상권', D.cost.rent], [GU, D.cost.rentGu], ['서울', D.cost.rentSeoul]]} unit="만" me="이 상권" wide />
-      </Sec>
-      </>}
+      {D.real.rent && <Rent rt={D.real.rent} C={D.cost} F={F} />}
 
         <Sim className={F} />
       </Fold>
@@ -465,7 +430,7 @@ export default function Report({ report, bld, budget, setBudget, radius, active,
       </div>
 
       <p className="asof">기준 · 매출 {D.asOf.sales} · 인구 {D.asOf.flow} · 가게 {D.asOf.shops} · 임대료 {D.asOf.rent} · 건물 Overture 2026-10</p>
-      <p className="src m">SOURCE · {report.source} · 서울 열린데이터광장 상권분석서비스<br />소득 국세청 · 지출 소비-행정동 · 생존율 인허가 이력 · 임대료 한국부동산원 · 권리금 서울시 상가임대차 실태조사 · 예시 표시 칸은 기획 시연용 숫자</p>
+      <p className="src m">SOURCE · {report.source} · 서울 열린데이터광장 상권분석서비스<br />소득 국세청 · 지출 소비-행정동 · 생존율 인허가 이력 · 임대료 한국부동산원 · 권리금·보증금·시설투자비·관리비 서울시 상가임대차 실태조사(2023) · 업종 비용 비율 통계청 서비스업조사(2024)</p>
     </div>
   )
 }
@@ -478,42 +443,48 @@ const KOSIS = {
   CS200028: ['서울 두발 미용업', 85.29, 14.88, 9.28, 126],
 }
 const KOSIS_FOOD = ['전국 음식점 및 주점업', 91.76, 14.42, 4.96, null]
+// 같은 조사 서울 산업 중분류(DT_3KB9001 시도/산업별 총괄 2024): 매출 대비 영업비용·인건비·임차료 %. 1곳당 인건비는 큰 점포가 섞여 매출 비율로 셈
+const KOSIS_GROUP = {
+  retail: ['서울 소매업(자동차 제외)', 95.72, 7.26, 1.88, null],
+  edu: ['서울 교육 서비스업', 86.48, 21.2, 6.97, null],
+  fun: ['서울 스포츠·오락 서비스업', 86.36, 11.69, 4.83, null],
+  svc: ['서울 기타 개인 서비스업', 89.67, 17.18, 8.76, null],
+}
+// 서울시 서비스 업종 코드 → 산업 중분류 (학원 01–05 · 오락·운동 16–21·24·37·39·45 · 네일·피부·세탁 29–31). 의원·법무·숙박 등은 맞는 비율이 없어 뺌
+const CS2_GROUP = { edu: [1, 2, 3, 4, 5], fun: [16, 17, 18, 19, 20, 21, 24, 37, 39, 45], svc: [29, 30, 31] }
 const costRatio = () => {
   const c = DEMO.cat?.code ?? (DEMO.cat?.label === '카페' ? 'CS100010' : null)
-  return KOSIS[c] ?? (c?.startsWith('CS1000') ? KOSIS_FOOD : null)
+  if (KOSIS[c]) return KOSIS[c]
+  if (c?.startsWith('CS1000')) return KOSIS_FOOD
+  if (c?.startsWith('CS3')) return KOSIS_GROUP.retail
+  const g = c?.startsWith('CS2') && Object.keys(CS2_GROUP).find(k => CS2_GROUP[k].includes(+c.slice(-2)))
+  return g ? KOSIS_GROUP[g] : null
 }
 
 // 매출·손익 계산: 값을 바꾸면 바로 다시 셈
 // 매출·손익 계산식: 계산기와 비용 띠가 같이 쓴다
-// 업종 비율이 있으면 인건비·재료와 기타는 매출 × 통계청 비율, 임대료는 이 상권 시세 × 면적
+// 업종 비율이 있으면 인건비·재료와 기타는 매출 × 통계청 비율, 임대료는 이 상권 시세 × 면적. 비율이 없는 업종은 남는 돈을 셈하지 않는다
 function plan(size = 10, ticket = 6800, guests = 110) {
   const sales = Math.round((ticket * guests * 30) / 10000)
-  const rent = Math.round(DEMO.cost.rent * size * 3.3)
+  const m2 = size * 3.3
+  const rent = Math.round(DEMO.cost.rent * m2)
   const K = costRatio()
-  let profit, be, R
+  let profit = null, be = null, R = null
   if (K) {
     // 인건비는 손님 수와 덜 같이 움직여서 1곳당 평균으로 고정(없는 업종은 매출 × 비율)
     const labor = K[4] ?? Math.round((sales * K[2]) / 100), v = (K[1] - K[2] - K[3]) / 100, other = Math.round(sales * v)
     profit = sales - rent - labor - other
-    be = Math.ceil(((rent + labor) * 10000) / (ticket * 30 * (1 - v)))
+    be = K[4] ? Math.ceil(((rent + labor) * 10000) / (ticket * 30 * (1 - v))) : Math.ceil((rent * 10000) / (ticket * 30 * (1 - v - K[2] / 100)))
     R = [['재료·기타', other], ['임대료', rent], ['인건비', labor]]
-  } else {
-    const cost = Math.round(sales * .33)
-    const labor = Math.round(260 + size * 12)
-    const etc = Math.round(sales * .08 + 40)
-    profit = sales - rent - cost - labor - etc
-    const fixed = rent + labor + 40
-    be = Math.ceil((fixed * 10000) / (ticket * 30 * (1 - .33 - .08)))
-    R = [['재료비', cost], ['임대료', rent], ['인건비', labor], ['기타', etc]]
   }
-  // 처음 드는 돈: 보증금은 돌려받으니 회수 기간에서 뺀다
-  const C0 = DEMO.cost, interior = C0.interior * size
-  const start = [['보증금', C0.deposit], ['권리금', C0.premium], ['인테리어', interior], ['장비', C0.equip]]
-  const total = start.reduce((a, [, v]) => a + v, 0), sunk = total - C0.deposit
+  // 처음 드는 돈: 보증금·시설투자비는 서울시 상가임대차 실태조사 상권 평균(㎡당) × 면적, 권리금은 그 상권 점포 평균. 보증금은 돌려받으니 회수 기간에서 뺀다
+  const C0 = DEMO.cost, deposit = Math.round(C0.depM2 * m2 / 10) * 10, fac = Math.round(C0.facM2 * m2 / 10) * 10
+  const start = [['보증금', deposit], ['권리금', C0.premium], ['시설·인테리어', fac]]
+  const total = start.reduce((a, [, v]) => a + v, 0), sunk = total - deposit
   const payback = profit > 0 ? Math.ceil(sunk / profit) : null
-  // 이 매출이 이 상권 카페 가운데 어디쯤인지: 평균 둘레로 퍼진 분포(표준편차 평균의 35%)로 셈
-  const z = (sales - DEMO.sales.month) / (DEMO.sales.month * .35)
-  const top = Math.min(99, Math.max(1, Math.round((1 - cdf(z)) * 100)))
+  // 이 매출이 이 상권 같은 업종 가운데 어디쯤인지: 평균 둘레로 퍼진 분포(표준편차 평균의 35%)로 셈. 매출 자료가 없으면 뺌
+  const M = DEMO.sales.none ? null : DEMO.sales.month
+  const top = M ? Math.min(99, Math.max(1, Math.round((1 - cdf((sales - M) / (M * .35))) * 100))) : null
   return { sales, profit, be, R, start, total, payback, top, C0, K }
 }
 
@@ -523,31 +494,35 @@ function Sim({ className }) {
   const [guests, setGuests] = useState(110)
   const { sales, profit, be, R, start, total, payback, top, C0, K } = plan(size, ticket, guests)
   return (
-    <Sec className={className} k="SIMULATOR" title="매출 · 손익 계산" sub="값을 바꾸면 바로 다시 계산해요" demo={!K}>
+    <Sec className={className} k="SIMULATOR" title="매출 · 손익 계산" sub="값을 바꾸면 바로 다시 계산해요">
       <div className="sim">
         <label><span>면적</span><input type="range" min="6" max="30" value={size} onChange={e => setSize(+e.target.value)} /><b className="m">{size}평</b></label>
         <label><span>1명이 쓰는 돈</span><input type="range" min="3000" max="15000" step="100" value={ticket} onChange={e => setTicket(+e.target.value)} /><b className="m">{fmt(ticket)}</b></label>
         <label><span>하루 손님</span><input type="range" min="30" max="300" value={guests} onChange={e => setGuests(+e.target.value)} /><b className="m">{guests}명</b></label>
       </div>
-      <div className="kpis two">
+      <div className={'kpis' + (K ? ' two' : ' one')}>
         <div><span className="m">SALES</span><b className="m">{won(sales)}</b><small>월 예상 매출</small></div>
-        <div className={profit < 0 ? 'neg' : ''}><span className="m">PROFIT</span><b className="m">{profit < 0 ? '−' : ''}{won(Math.abs(profit))}</b><small>월 남는 돈</small></div>
+        {K && <div className={profit < 0 ? 'neg' : ''}><span className="m">PROFIT</span><b className="m">{profit < 0 ? '−' : ''}{won(Math.abs(profit))}</b><small>월 남는 돈</small></div>}
       </div>
-      <div className="stack">
-        {R.map(([n, v]) => <i key={n} style={{ flex: v }} title={n} />)}
-        <i className="p" style={{ flex: Math.max(profit, 0) }} />
-      </div>
-      <div className="legend">{R.map(([n, v]) => <span key={n}>{n} {won(v)}</span>)}</div>
-      <p className="note">하루 <b>{be}명</b> 넘게 와야 손해가 없어요.</p>
-      <h3>이 매출은 이 상권 같은 업종 중</h3>
-      <div className="pctl"><span className="rg"><i style={{ left: 100 - top + '%' }} /></span><b className="m">상위 {top}%</b></div>
+      {K ? <>
+        <div className="stack">
+          {R.map(([n, v]) => <i key={n} style={{ flex: v }} title={n} />)}
+          <i className="p" style={{ flex: Math.max(profit, 0) }} />
+        </div>
+        <div className="legend">{R.map(([n, v]) => <span key={n}>{n} {won(v)}</span>)}</div>
+        <p className="note">하루 <b>{be}명</b> 넘게 와야 손해가 없어요.</p>
+      </> : <p className="note">이 업종은 통계청 서비스업조사에 맞는 비용 비율이 없어 남는 돈은 셈하지 않아요. 월세는 약 <b>{won(Math.round(C0.rent * size * 3.3))} 원</b>이에요.</p>}
+      {top != null && <>
+        <h3>이 매출은 이 상권 같은 업종 중</h3>
+        <div className="pctl"><span className="rg"><i style={{ left: 100 - top + '%' }} /></span><b className="m">상위 {top}%</b></div>
+      </>}
       {K && <p className="fine">비용 비율은 통계청 서비스업조사 2024 {K[0]} 실제 값이에요. 재료와 기타는 매출의 {Math.round((K[1] - K[2] - K[3]) * 10) / 10}%, 인건비는 {K[4] ? `1곳 평균 월 ${K[4]}만` : `매출의 ${K[2]}%`}, 임대료는 이 상권 시세로 셈해요. 인건비는 직원 급여라 사장님 몫은 남는 돈에 들어 있어요.</p>}
-      <h3>처음 드는 돈{K && <em className="eg">예시</em>}</h3>
+      <h3>처음 드는 돈</h3>
       <div className="mix wide">
         {start.map(([n, v]) => <div key={n}><span>{n}</span><i style={{ width: (v / total) * 100 + '%' }} /><b className="m">{won(v)}</b></div>)}
       </div>
-      <p className="note">모두 <b>{won(total)} 원</b>{payback ? <> · 보증금을 빼고 <b>{payback}개월</b>이면 되찾아요.</> : ' · 지금 값으로는 되찾지 못해요.'}</p>
-      <p className="fine">인테리어 평당 {C0.interior}만 · 장비 {fmt(C0.equip)}만 · 권리금은 주변 시세</p>
+      <p className="note">모두 <b>{won(total)} 원</b>{!K ? '' : payback ? <> · 보증금을 빼고 <b>{payback}개월</b>이면 되찾아요.</> : ' · 지금 값으로는 되찾지 못해요.'}</p>
+      <p className="fine">서울시 상가임대차 실태조사(2023) {C0.keyArea ? `${C0.keyArea} 상권` : '서울'} 점포 평균: 보증금 ㎡당 {C0.depM2}만 · 시설투자비(인테리어·장비) ㎡당 {C0.facM2}만을 {size}평에 맞추고, 권리금은 점포 평균 그대로예요.</p>
     </Sec>
   )
 }
@@ -633,7 +608,7 @@ function Survive({ sv, F, W, D }) {
           <div key={y}><span>{y}</span><span className="rg2"><i style={{ width: (a ?? 0) + '%' }} /><u style={{ left: b + '%' }} /></span><b className="m">{a == null ? '—' : a + '%'}</b></div>
         ))}
       </div>
-      <p className="fine">{sv.from}년 뒤 문 연 {W} {sv.s[1][3]}곳 중 3년 뒤에도 영업 중인 비율 {sv.s[1][1] ?? '—'}% · 서울 {sv.s[1][2]}%{few ? ' · 가게가 적어 오차가 커요' : ''} · 가게 평균 영업 {D.change.life}년 · 세로선은 서울 · 행정안전부 인허가 이력({sv.asOf})</p>
+      <p className="fine">{sv.from}년 뒤 문 연 {W} {sv.s[1][3]}곳 중 3년 뒤에도 영업 중인 비율 {sv.s[1][1] ?? '—'}% · 서울 {sv.s[1][2]}%{few ? ' · 가게가 적어 오차가 커요' : ''} {D.change.life != null ? ` · 가게 평균 영업 ${D.change.life}년` : ''} · 세로선은 서울 · 행정안전부 인허가 이력({sv.asOf})</p>
     </Sec>
     {sv.ages && <Sec className={F} k="AGE" title="지금 가게들이 문 연 지" sub={`반경 ${sv.r}m 영업 중 ${sv.open}곳`}>
       <Rows data={sv.ages} unit="%" />
@@ -652,7 +627,7 @@ function Rent({ rt, C, F }) {
         <div><span className="m">VACANCY</span><b className="m">{rt.vac}%</b><small>빈 가게 비율 · 서울 {rt.seoul.vac}%</small></div>
         <div><span className="m">PREMIUM</span><b className="m">{fmt(rt.key)}</b><small>권리금 · {rt.keyArea ?? '서울 평균'}(만 원)</small></div>
       </div>
-      <p className="fine">{C.size}㎡(10평) 기준 월 임대료 약 {won(Math.round(rt.rent * C.size))} 원 · 보증금은 월세 10달치로 셈 · 임대료는 가장 가까운 조사 상권 {rt.area}{rt.dist >= .3 ? `(${rt.dist}km)` : ''} 값{far ? ' · 떨어져 있어 이 자리와 다를 수 있어요' : ''}</p>
+      <p className="fine">{C.size}㎡(10평) 기준 월 임대료 약 {won(Math.round(rt.rent * C.size))} 원 · 보증금 약 {fmt(C.deposit)}만(실태조사 {rt.keyArea ?? '서울'} 평균 ㎡당 {rt.depM2}만) · 임대료는 가장 가까운 조사 상권 {rt.area}{rt.dist >= .3 ? `(${rt.dist}km)` : ''} 값{far ? ' · 떨어져 있어 이 자리와 다를 수 있어요' : ''}</p>
     </Sec>
     <Sec className={F} k="TREND" title="㎡당 월 임대료 · 분기별" sub={rt.area}>
       <Line data={rt.trend} fmt={v => v + '만'} />

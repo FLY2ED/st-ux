@@ -139,5 +139,5 @@ export async function buildBuildings(report) {
     if (i === tgt) p.tgt = 1
     return { type: 'Feature', properties: p, geometry: o.g }
   })
-  return { type: 'FeatureCollection', source: 'Overture Maps 건물 · 공실은 가게 없는 상가 건물로 추정', cafe, features }
+  return { type: 'FeatureCollection', source: 'Overture Maps 건물 · 공실은 가게 없는 상가 건물', cafe, features }
 }
