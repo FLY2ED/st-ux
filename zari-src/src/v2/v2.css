@@ -175,11 +175,12 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
   transition:--mr .7s var(--ease),inset 0s .72s}
 /* 넓게 보기: 지도 칸을 화면 전체로 넓히고(원 가운데는 그대로) 원을 화면 끝까지 키운다.
    원 바깥은 흰 막으로 덮고, 문장이 있는 왼쪽은 조금 더 하얗게 */
-.lens .veil{position:absolute;inset:-378px -1208px;pointer-events:none;opacity:0;transition:opacity .5s var(--ease) .5s;
-  background:linear-gradient(90deg,rgba(247,247,247,.5) 0 1000px,rgba(247,247,247,0) 1180px)}
-.lens .veil svg{position:absolute;inset:0;width:100%;height:100%;transform:scale(3.2);will-change:transform;transition:transform 1s cubic-bezier(.5,0,.75,0)}
-.read.wide .veil svg{transform:none;transition:transform 1.6s cubic-bezier(.25,.6,.2,1) .15s}
-.read.wide .disc{inset:-378px -1208px;--mr:1900px;transition:--mr 1s var(--ease),inset 0s}
+.lens .veil{position:absolute;inset:calc(var(--wy,378px) * -1) calc(var(--wx,1208px) * -1);overflow:hidden;pointer-events:none;opacity:0;transition:opacity .5s var(--ease) .5s;
+  background:linear-gradient(90deg,rgba(247,247,247,.5) 0 calc(var(--wx,1208px) - 208px),rgba(247,247,247,0) calc(var(--wx,1208px) - 28px))}
+/* 구운 덮개 그림(1/4 크기)을 원래 크기 3160×1500으로 늘려 가운데에 둔다 */
+.lens .veil img{position:absolute;left:50%;top:50%;width:3160px;height:1500px;margin:-750px 0 0 -1580px;max-width:none;transform:scale(3.2);transition:transform 1s cubic-bezier(.5,0,.75,0)}
+.read.wide .veil img{transform:none;transition:transform 1.6s cubic-bezier(.25,.6,.2,1) .15s}
+.read.wide .disc{inset:calc(var(--wy,378px) * -1) calc(var(--wx,1208px) * -1);--mr:var(--wm,1900px);transition:--mr 1s var(--ease),inset 0s}
 .read.wide .veil{opacity:1;transition:opacity .4s var(--ease)}
 /* 자세히 문장일 때: 원 지도는 물러나고 오른쪽에 그 문장 그림 */
 .read.pics .lens{opacity:0;transform:scale(.94);pointer-events:none}
@@ -400,7 +401,7 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
   .fan li.on span{font-size:30px}
   .what .ask{left:20px;right:20px;top:auto;bottom:14px;width:auto}
   .wheel.zoom{animation-name:zinm,zsoft}
-  .lens .veil svg{display:none}
+  .lens .veil img{display:none}
   .what .wheel .wd.c{opacity:1}
   .wnum{left:20px;top:calc(44vh + 172px);transform:none;text-align:left}
   .wnum b{font-size:30px}
@@ -418,7 +419,7 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
   .band p{left:3000px;font-size:20px;height:44px;line-height:44px}
   .go .fd,.gmap{margin-left:-290px;margin-top:-6vh}
   .lens,.read.wide .lens{left:6vw;top:64px;width:88vw;height:88vw;--R:44vw}
-  .read.wide .disc,.lens .veil{inset:-100vh -6vw}
+  .read.wide .disc,.lens .veil{inset:calc(var(--wy,100vh) * -1) calc(var(--wx,6vw) * -1)}
   .lens .veil{background:radial-gradient(circle calc(var(--R) + 1px) at 50% 50%,rgba(247,247,247,0) calc(var(--R) - .5px),rgba(247,247,247,.85) var(--R))}
   .rvis{left:calc(20px / var(--mk));top:calc(64px / var(--mk));height:calc(88vw / var(--mk));clip-path:inset(0 -100vw);zoom:var(--mk)}
   .rvis .pv{top:-130px;bottom:auto;height:900px}

@@ -501,6 +501,8 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
     if (!bare || !map || !ready) return
     const on = !!ctl?.look && LOOK.has(layer)
     roam(map, on)
+    // 넓게 볼 땐 화면만큼 큰 지도를 그리므로 레티나에서 해상도를 1.5배로 묶어 가볍게
+    if (map.setPixelRatio) map.setPixelRatio(ctl?.look ? Math.min(devicePixelRatio, 1.5) : devicePixelRatio)
     if (!ctl?.look && map.__looked) { map.easeTo({ center: [Q.lon, Q.lat], zoom: homeZoom(), ...tilt(), duration: 700 }); map.__moved = false }
     map.__looked = !!ctl?.look
   }, [ctl?.look, layer, ready])

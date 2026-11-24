@@ -8,6 +8,18 @@ import { moreParts } from './More.jsx'
 const TABS = [['bcol', null, -118], ['shops', '모든 가게', -99], ['flow', '생활인구', -81], ['place', '역·학교', -62]]
 const MODES = [['flat', '평면', 98], ['3d', '입체', 90], ['sat', '위성', 82]]
 const noop = () => {}
+// 넓게 보기 덮개: 가장자리가 구름처럼 일렁이는 흰 막(가운데가 뚫림). 필터가 무거워 처음 한 번만 1/4 크기 그림으로 굽는다
+const VEIL = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3160 1500" width="790" height="375"><defs><filter id="c" x="-40%" y="-40%" width="180%" height="180%"><feTurbulence type="fractalNoise" baseFrequency=".0032" numOctaves="3" seed="7"/><feDisplacementMap in="SourceGraphic" scale="240" xChannelSelector="R" yChannelSelector="G"/><feGaussianBlur stdDeviation="44"/></filter><mask id="m"><rect width="3160" height="1500" fill="#fff"/><circle cx="1580" cy="750" r="560" fill="#000" filter="url(#c)"/></mask></defs><rect width="3160" height="1500" fill="#F7F7F7" fill-opacity=".92" mask="url(#m)"/></svg>'
+let veilUrl = null
+function bakeVeil() {
+  if (veilUrl) return Promise.resolve(veilUrl)
+  return new Promise(ok => {
+    const im = new Image()
+    im.onload = () => { const c = document.createElement('canvas'); c.width = 790; c.height = 375; c.getContext('2d').drawImage(im, 0, 0, 790, 375); veilUrl = c.toDataURL('image/png'); ok(veilUrl) }
+    im.onerror = () => ok(null)
+    im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(VEIL)
+  })
+}
 const TOUCH = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
 
 // 그림이 바뀔 때 점 잇기: 앞 화면(원 지도 또는 앞 그림)의 점 자리에서 다음 그림의 점 자리로 점들이 날아가 앉는다
@@ -64,6 +76,18 @@ export default function Read(ctx) {
   }
   // 넓게 보기: 지도 칸이 화면만큼 커진 뒤(켤 때 바로, 끌 때 원이 다 줄어든 뒤) 지도 크기를 다시 잰다
   useEffect(() => { window.__map?.resize(); const t = setTimeout(() => window.__map?.resize(), 760); return () => clearTimeout(t) }, [wide])
+  // 넓게 볼 때 지도 칸은 화면을 덮을 만큼만(원 가운데를 그대로 두고 위아래·좌우 같은 폭으로). 화면 밖까지 그리면 무겁다
+  const lensRef = useRef(null)
+  const [span, setSpan] = useState(null)
+  const measure = () => {
+    const el = lensRef.current; if (!el) return null
+    const r = el.getBoundingClientRect(), s = r.width / el.offsetWidth || 1, R = el.offsetWidth / 2
+    const wx = Math.ceil(Math.max(r.left, innerWidth - r.right, 0) / s) + 2, wy = Math.ceil(Math.max(r.top, innerHeight - r.bottom, 0) / s) + 2
+    return { '--wx': wx + 'px', '--wy': wy + 'px', '--wm': Math.ceil(Math.hypot(wx + R, wy + R)) + 'px' }
+  }
+  const [veilImg, setVeilImg] = useState(veilUrl)
+  useEffect(() => { bakeVeil().then(setVeilImg) }, [])
+  const toggleWide = () => { if (!wide) setSpan(measure()); setWide(w => !w) }
   const ty = useRef(null)
   const touch = { onTouchStart: e => { ty.current = e.touches[0].clientY }, onTouchEnd: e => { if (ty.current == null) return; const dy = ty.current - e.changedTouches[0].clientY; if (Math.abs(dy) > 40) go(i + Math.sign(dy)); ty.current = null } }
   const cur = P[i]
@@ -122,25 +146,13 @@ export default function Read(ctx) {
           )
         })}
       </div>
-      <div className={'lens' + (free ? ' free' : '')} onWheel={e => free && e.stopPropagation()}>
+      <div ref={lensRef} style={span || undefined} className={'lens' + (free ? ' free' : '')} onWheel={e => free && e.stopPropagation()}>
         <div className="disc">
           <LineMap report={report} bld={bld} radius={300} center={300} shown budget={budget} bare ctl={ctl} pts={F.pts}
             active={null} focus={null} onActive={noop} onPick={noop} onMove={noop} />
         </div>
         {/* 넓게 보기 덮개: 가장자리가 구름처럼 일렁이는 흰 막. 바깥에서부터 안으로 스르륵 덮인다 */}
-        <i className="veil">
-          <svg viewBox="0 0 3160 1500" aria-hidden="true">
-            <defs>
-              <filter id="cloud" x="-40%" y="-40%" width="180%" height="180%">
-                <feTurbulence type="fractalNoise" baseFrequency=".0032" numOctaves="3" seed="7" />
-                <feDisplacementMap in="SourceGraphic" scale="240" xChannelSelector="R" yChannelSelector="G" />
-                <feGaussianBlur stdDeviation="44" />
-              </filter>
-              <mask id="vmask"><rect width="3160" height="1500" fill="#fff" /><circle cx="1580" cy="750" r="560" fill="#000" filter="url(#cloud)" /></mask>
-            </defs>
-            <rect width="3160" height="1500" fill="#F7F7F7" fillOpacity=".92" mask="url(#vmask)" />
-          </svg>
-        </i>
+        <i className="veil">{veilImg && <img src={veilImg} alt="" />}</i>
         <p className="look">{free ? '끌어서 둘러보기 · 휠로 확대' : TOUCH ? '끌어서 옮기기 · 두 손가락으로 돌리기' : '끌어서 옮기기 · 오른쪽 버튼으로 끌면 ' + (mode === 'flat' ? '돌려요' : '돌리고 기울여요')}</p>
         <div className="ring" role="group" aria-label="지도에 보이는 것">
           {TABS.map(([k, t, a]) => (
@@ -161,7 +173,7 @@ export default function Read(ctx) {
       <div className="bridge" ref={br} aria-hidden="true" />
       <div className="ctrls">
         <button onClick={onBack}>← 원으로 돌아가기</button>
-        {!cur.vis && <button onClick={() => setWide(w => !w)}>{wide ? '작게 보기 ↙' : '넓게 보기 ↗'}</button>}
+        {!cur.vis && <button onClick={toggleWide}>{wide ? '작게 보기 ↙' : '넓게 보기 ↗'}</button>}
         {cur.vis && <button onClick={() => go(P0.length - 1)}>↑ 지도로</button>}
       </div>
     </div>
