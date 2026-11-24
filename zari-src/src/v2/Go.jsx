@@ -180,7 +180,7 @@ export default function Go({ ready, drawn, report: R, bld, what, place, budget, 
       {inner && (
         <div className="gmap" aria-hidden="true">
           <i className="gcover" style={{ left: inner.L.cx, top: inner.L.cy, width: inner.L.R * 2 + 16, height: inner.L.R * 2 + 16 }} />
-          {inner.dots.map((d, j) => <i key={j} className={'gd ' + (d.k || 'off')} style={{ left: d.x, top: d.y, '--d': (.7 + d.i * .05).toFixed(3) + 's', '--w': d.w.toFixed(3) }} />)}
+          {inner.dots.map((d, j) => <i key={j} className={'gd ' + (d.k || 'off')} style={{ left: d.x, top: d.y, '--d': (.7 + d.i * .05).toFixed(3) + 's', '--w': d.w.toFixed(3), '--z': (((j * 0.6180339) % 1) * .45).toFixed(3) + 's' }} />)}
         </div>
       )}
       {SPOKES.map((d, i) => <i key={i} ref={el => { dots.current[i] = el; if (el && !el.style.left) put(el, d, 0) }} className="fd" style={{ animationDelay: (.15 + (i % 12) * .05 + (Math.cos(d.a) >= 0 ? .25 : 0)) + 's' }} />)}

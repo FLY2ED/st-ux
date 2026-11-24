@@ -494,10 +494,11 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
   }, [ctl?.look, layer, ready])
   // 밖에서 정하는 밝힐 건물(fk)
   useEffect(() => { if (ctl?.fk && ready) { fkRef.current = ctl.fk; focusNow(mapRef.current) } }, [ctl?.fk, ready, bld])
-  // 리포트가 가려져 있는 동안은 빈 건물 색, 드러나면 내 자리에서부터 천천히 칠해진다
+  // 리포트가 가려져 있는 동안은 빈 건물 색
   const offRef = useRef(!!ctl?.off)
   offRef.current = !!ctl?.off
-  useEffect(() => { if (ready && bare) focusNow(mapRef.current, ctl?.off ? undefined : { D: 1700, delay: 250 }) }, [ctl?.off, ready])
+  // 드러날 때는 번지지 않고 바로 칠해 둔다 (위 덮개가 통째로 옅어지며 지도가 나타난다)
+  useEffect(() => { if (ready && bare) focusNow(mapRef.current, ctl?.off ? undefined : { now: true }) }, [ctl?.off, ready])
   function satPaint(map, solo) {
     map.setPaintProperty('sat', 'raster-opacity', solo && sat ? 1 : 0)
     map.setPaintProperty('radius-fill', 'fill-color-transition', { duration: 450, delay: 0 })
@@ -673,7 +674,7 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
     map.__dep = deep ? 1 : (map.__dep || 0) + 1
     map.__bc = next; map.__bk = key
     cancelAnimationFrame(map.__paint)
-    if (!prev || matchMedia('(prefers-reduced-motion: reduce)').matches) { map.__dep = 0; return put(next) }
+    if (!prev || o.now || matchMedia('(prefers-reduced-motion: reduce)').matches) { map.__dep = 0; return put(next) }
     const t0 = performance.now() + (o.delay || 0), D = o.D || 1000, MAX = 420, BAND = 200
     const dist = ['coalesce', ['get', 'dist'], 0]
     const step = () => {
