@@ -51,15 +51,14 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 @keyframes zin{from{--cx:560px;--cy:450px;--R:330px;--od:26px;--odm:40px;--push:34px}}
 @keyframes zinm{from{--cx:24px;--cy:44vh;--R:150px;--od:18px;--odm:18px;--push:8px}}
 .wheel.filled .wd.c{opacity:0}
-/* 업종을 고르면 바퀴가 문처럼 비스듬히 돌며 점들이 저마다 다른 깊이로 화면 앞으로 떠올랐다가, 다음 화면 자리에서 다시 판판하게 앉는다 */
-@property --dk{syntax:'<number>';inherits:true;initial-value:0}
-@property --ty{syntax:'<angle>';inherits:true;initial-value:0deg}
-.wheel{--dk:0;--ty:0deg;perspective:1100px}
-.wheel .spin{transform-style:preserve-3d;rotate:0 1 0 var(--ty)}
-.wheel .wd,.wheel .wb{translate:0 0 calc(var(--dk) * var(--j,0) * 340px)}
-.home.what.leave .wheel{--dk:.3;--ty:-9deg;transition:--dk .34s cubic-bezier(.3,0,.2,1),--ty .34s cubic-bezier(.3,0,.2,1)}
-.wheel.zoom{animation:zin 1.15s cubic-bezier(.6,.05,.25,1) backwards,zdep 1.15s cubic-bezier(.45,0,.3,1) backwards}
-@keyframes zdep{0%{--dk:.3;--ty:-9deg}45%{--dk:1;--ty:-28deg}100%{--dk:0;--ty:0deg}}
+/* 업종을 고르면: 바퀴가 숨을 고르듯 살짝 움츠렸다가, 부드럽게 흐려지며 커지고 도착하면서 다시 또렷해진다 */
+@property --bl{syntax:'<length>';inherits:true;initial-value:0px}
+@property --sc{syntax:'<number>';inherits:true;initial-value:1}
+.wheel{--bl:0px;--sc:1}
+.wheel .spin{filter:blur(var(--bl));scale:var(--sc)}
+.home.what.leave .wheel{--sc:.965;--bl:.8px;transition:--sc .34s cubic-bezier(.4,0,.2,1),--bl .34s cubic-bezier(.4,0,.2,1)}
+.wheel.zoom{animation:zin 1.15s cubic-bezier(.6,.05,.25,1) backwards,zsoft 1.15s cubic-bezier(.4,0,.2,1) backwards}
+@keyframes zsoft{0%{--sc:.965;--bl:.8px}40%{--bl:4px}100%{--sc:1;--bl:0px}}
 .home.where{animation:none}
 .where::before,.where .addr,.where .tail,.where .next{animation:fade .6s var(--ease) .3s backwards}
 
@@ -397,7 +396,7 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
   .fan li span{font-size:22px}
   .fan li.on span{font-size:30px}
   .what .ask{left:20px;right:20px;top:auto;bottom:14px;width:auto}
-  .wheel.zoom{animation-name:zinm,zdep}
+  .wheel.zoom{animation-name:zinm,zsoft}
   .lens .veil svg{display:none}
   .what .wheel .wd.c{opacity:1}
   .wnum{left:20px;top:calc(44vh + 172px);transform:none;text-align:left}
