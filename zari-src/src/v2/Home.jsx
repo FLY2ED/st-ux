@@ -48,9 +48,9 @@ export function Wheel({ k, zoom, n }) {
   return (
     <div className={'wheel' + (zoom ? ' zoom' : '') + (on ? ' filled' : '')} style={{ '--rot': -k * STEP + 'deg' }} aria-hidden="true">
       <div className="spin">
-        {GRID.map(([f, a], j) => <i key={j} className={'wd' + (f <= CORE ? ' c' : '') + (on?.has(j) ? ' on' : '')} style={{ '--a': a + 'deg', '--f': f, '--q': (f * .5).toFixed(2) + 's' }} />)}
+        {GRID.map(([f, a], j) => <i key={j} className={'wd' + (f <= CORE ? ' c' : '') + (on?.has(j) ? ' on' : '')} style={{ '--a': a + 'deg', '--f': f, '--q': (f * .5).toFixed(2) + 's', '--j': (((j * .6180339) % 1) * 1.4 - .4).toFixed(2) }} />)}
         {/* 고른 업종의 점만 글 쪽으로 살짝 비켜 나온다 */}
-        {Array.from({ length: BIG }, (_, j) => <i key={'b' + j} className={'wb' + (j === m ? ' on' : '')} style={{ '--a': j * STEP + 'deg', '--q': (.5 + j * .012).toFixed(3) + 's' }} />)}
+        {Array.from({ length: BIG }, (_, j) => <i key={'b' + j} className={'wb' + (j === m ? ' on' : '')} style={{ '--a': j * STEP + 'deg', '--q': (.5 + j * .012).toFixed(3) + 's', '--j': j === m ? 0 : (((j * .7548776) % 1) * 1.2 - .2).toFixed(2) }} />)}
       </div>
     </div>
   )
