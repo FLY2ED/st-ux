@@ -75,6 +75,24 @@ const Head = ({ y, t, b, s }) => <div className="phead" style={{ top: y }}><span
 const Note = ({ y, children }) => <p className="pnote" style={{ top: y }}>{children}</p>
 
 // 손익: 값을 바꾸면 바로 다시 센다. 월 매출 점을 재료·인건비·임대료·남는 돈으로 나눠 칠한다
+// 손익 값 조절: 얇은 선 위의 점을 끌거나 방향키로 바꾼다
+function Slide({ t, v, set, lo, hi, st, s }) {
+  const ref = useRef(null)
+  const clamp = x => Math.min(hi, Math.max(lo, x))
+  const at = x => { const r = ref.current.getBoundingClientRect(); const p = Math.min(1, Math.max(0, (x - r.left) / r.width)); set(clamp(lo + Math.round(p * (hi - lo) / st) * st)) }
+  const key = e => {
+    const d = { ArrowRight: st, ArrowUp: st, ArrowLeft: -st, ArrowDown: -st, PageUp: st * 10, PageDown: -st * 10 }[e.key]
+    const n = e.key === 'Home' ? lo : e.key === 'End' ? hi : d ? clamp(v + d) : null
+    if (n != null) { e.preventDefault(); set(n) }
+  }
+  return (
+    <div ref={ref} className="sl" role="slider" tabIndex={0} aria-label={t} aria-valuemin={lo} aria-valuemax={hi} aria-valuenow={v} aria-valuetext={s}
+      style={{ '--p': (v - lo) / (hi - lo) }} onKeyDown={key}
+      onPointerDown={e => { e.preventDefault(); e.currentTarget.focus(); e.currentTarget.setPointerCapture(e.pointerId); at(e.clientX) }}
+      onPointerMove={e => { if (e.currentTarget.hasPointerCapture(e.pointerId)) at(e.clientX) }}><i /></div>
+  )
+}
+
 function Calc() {
   const [size, setSize] = useState(10), [ticket, setTicket] = useState(6800), [guests, setGuests] = useState(110)
   const { sales, profit, R, start, payback } = plan(size, ticket, guests)
@@ -89,7 +107,7 @@ function Calc() {
     <div className="calc">
       <Note y={70}>값을 바꾸면 바로 다시 계산해요</Note>
       {S.map(([t, v, set, lo, hi, st, s], r) => (
-        <label key={t} style={{ top: 112 + r * 58 }}><span>{t}</span><input type="range" min={lo} max={hi} step={st} value={v} onChange={e => set(+e.target.value)} /><b>{s}</b></label>
+        <label key={t} style={{ top: 112 + r * 58 }}><span>{t}</span><Slide t={t} v={v} set={set} lo={lo} hi={hi} st={st} s={s} /><b>{s}</b></label>
       ))}
       <Note y={318}>월 예상 매출 {fmt(sales)}만 · 점 하나 {fmt(u)}만</Note>
       <div className="grid" style={{ top: 370 }}>{dots.slice(0, 45).map(({ c, j }) => <i key={j} className={c} style={{ left: (j % 15) * 42, top: Math.floor(j / 15) * 42, '--j': j }} />)}</div>

@@ -42,8 +42,11 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 .home.what.leave .fan li:not(.on) span{filter:blur(8px)}
 .wheel .wb.on{--s:var(--odm);transform:rotate(var(--a)) translateX(calc(var(--R) + var(--push,34px)))}
 @keyframes wdin{from{opacity:0}}
-.wheel.zoom{--cx:-880px;--R:1100px;--r:500px;--od:48px;--id:0px;--odm:60px;--lw:1.4px;--lwm:2.2px;--push:0px;animation:zin 1s var(--ease) backwards}
+/* 바퀴가 왼쪽으로 커지며 넘어감: 처음에 튀지 않게 천천히 출발해서 천천히 멈춘다.
+   큰 점은 자기 전환을 끄고 바퀴와 같이 움직인다(켜 두면 매 프레임 바뀌는 목표를 쫓느라 뒤처지고 끝나서도 미끄러진다) */
+.wheel.zoom{--cx:-880px;--R:1100px;--r:500px;--od:48px;--id:0px;--odm:60px;--lw:1.4px;--lwm:2.2px;--push:0px;animation:zin 1.15s cubic-bezier(.6,.05,.25,1) backwards}
 .wheel.zoom .wd,.wheel.zoom .wb{animation:none}
+.wheel.zoom .wb{transition:none}
 @property --push{syntax:'<length>';inherits:true;initial-value:34px}
 @keyframes zin{from{--cx:560px;--cy:450px;--R:330px;--od:26px;--odm:40px;--push:34px}}
 @keyframes zinm{from{--cx:24px;--cy:44vh;--R:150px;--od:18px;--odm:18px;--push:8px}}
@@ -282,7 +285,11 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 .pnote{position:absolute;left:60px;margin:0;font-size:20px;color:var(--gray)}
 .calc label{position:absolute;left:60px;width:640px;display:flex;align-items:center;gap:20px;font-size:24px;color:var(--gray)}
 .calc label span{width:150px}
-.calc label input{flex:1;accent-color:var(--ink)}
+.calc .sl{position:relative;flex:1;height:40px;cursor:pointer;touch-action:none;outline:none}
+.calc .sl::before{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:#E2E5EA}
+.calc .sl i{position:absolute;top:50%;left:calc(var(--p) * 100%);width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:var(--ink);transition:scale .25s var(--ease),box-shadow .25s var(--ease)}
+.calc .sl:hover i,.calc .sl:active i{scale:1.15}
+.calc .sl:focus-visible i{box-shadow:0 0 0 6px rgba(28,34,48,.12)}
 .calc label b{width:130px;text-align:right;font-weight:500;color:var(--ink)}
 .calc .grid{position:absolute;left:60px;width:640px;height:130px}
 .calc .grid i{position:absolute;width:24px;height:24px;border-radius:50%;background:var(--gray)}
