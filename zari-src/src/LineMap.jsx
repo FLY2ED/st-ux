@@ -166,8 +166,9 @@ function bareColor(fk, layer, budget, off) {
     // 문장은 걸어서 5분(300m) 안 카페만 말하므로 그 밖 카페는 낮춘다
     ['all', KEYX.cafe, ['<=', ['coalesce', ['get', 'dist'], 9999], 300]], cafeOn ? BD.cafe : '#454c5d',
     KEYX.cafe, all ? BD.cafe : '#454c5d',
-    ['all', KEYX.empty, over], emptyOn ? '#8d4a26' : '#4a3832',
-    KEYX.empty, emptyOn ? BD.empty : '#6a4330',
+    // 공실은 늘 밝은 주황. 예산 밖이어도 어둡게 낮추지 않고 아주 조금만 옅게
+    ['all', KEYX.empty, over], emptyOn ? '#f5843f' : '#7a4a2e',
+    KEYX.empty, emptyOn ? '#ff7a26' : '#7a4a2e',
     KEYX.shop, all ? BD.cafe : BD.shop, BD.none]
 }
 export const BC_KEYS = [['cafe', '카페'], ['empty', '공실'], ['shop', '다른 가게'], ['tgt', '내 자리']]
