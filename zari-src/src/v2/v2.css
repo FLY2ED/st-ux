@@ -269,7 +269,7 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 .col.hi b{color:var(--ink);font-weight:500}
 .col span{position:absolute;left:0;top:-14px;width:60px;text-align:center;font-size:18px;color:var(--gray)}
 .col.hi span{color:var(--ink)}
-.col i{transform:translateY(-100%)}
+.col i{translate:0 -100%}
 .pgrid{position:absolute;left:60px;width:640px}
 .pgrid i{position:absolute;width:14px;height:14px;border-radius:50%;background:var(--gray)}
 .pgrid.hi i{background:var(--ink)}
@@ -302,11 +302,22 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 .ins li small{display:block;margin-top:4px;font-size:19px;color:var(--gray)}
 .ins li::before{content:'';position:absolute;left:4px;top:23px;width:14px;height:14px;border-radius:50%;background:var(--ink)}
 .ins .w li::before{background:none;box-shadow:inset 0 0 0 2px var(--ink)}
-.pip .row i,.col i,.pgrid i{scale:0;transition:scale .45s var(--ease)}
-.seen .pip .row i,.seen .col i{scale:1;transition-delay:calc(var(--r) * 60ms + var(--j) * 22ms)}
-.seen .pgrid i{scale:1;transition-delay:calc(var(--j) * 6ms)}
-.pip b,.pip em,.col b,.phead,.plab,.ins li,.calc label,.calc .start{opacity:0;transition:opacity .6s var(--ease)}
-.seen .pip b,.seen .pip em,.seen .col b,.seen .phead,.seen .plab,.seen .ins li,.seen .calc label,.seen .calc .start{opacity:1;transition-delay:calc(.2s + var(--r, 0) * 60ms + var(--j, 0) * 70ms)}
+/* 점그림: 섹션이 보이면 옅은 칸이 먼저 깔리고, 진한 점이 줄마다 한 칸씩 차오른 뒤 값이 뜬다. 나갈 땐 지연 없이 바로 접힌다 */
+.pip .row i,.col i,.pgrid i,.calc .grid i{scale:0;transition:scale .55s cubic-bezier(.34,1.56,.64,1)}
+.pip .row i.e,.col i.e{transition:scale .35s var(--ease)}
+.seen .pip .row i,.seen .col i{scale:1;transition-delay:calc(.25s + var(--row, 0) * 110ms + var(--j) * 45ms)}
+.seen .pip .row i.e,.seen .col i.e{transition-delay:calc(.1s + var(--row, 0) * 40ms)}
+.seen .pgrid i{scale:1;transition-delay:calc(.25s + var(--j) * 10ms)}
+.seen .calc .grid i{scale:1;transition-delay:calc(.3s + var(--j) * 24ms)}
+.pnote,.pip span,.pip b,.pip em,.col b,.col span,.phead,.plab,.ins li,.calc label,.calc .legend,.calc .start{opacity:0;translate:0 12px;transition:opacity .6s var(--ease),translate .6s var(--ease)}
+.seen .pnote{opacity:1;translate:none;transition-delay:.05s}
+.seen .phead{opacity:1;translate:none;transition-delay:.1s}
+.seen .pip span,.seen .col span,.seen .plab{opacity:1;translate:none;transition-delay:calc(.12s + var(--row, 0) * 110ms)}
+.seen .pip b,.seen .pip em,.seen .col b{opacity:1;translate:none;transition-delay:calc(.35s + var(--row, 0) * 110ms + var(--n, 0) * 45ms)}
+.seen .ins li{opacity:1;translate:none;transition-delay:calc(.2s + var(--j, 0) * 110ms)}
+.seen .calc label{opacity:1;translate:none;transition-delay:.15s}
+.seen .calc .legend{opacity:1;translate:none;transition-delay:1s}
+.seen .calc .start{opacity:1;translate:none;transition-delay:1.2s}
 .bubbles span{position:absolute;width:0;height:0}
 .bubbles i{position:absolute;left:0;top:0;transform:translate(-50%,-50%);border-radius:50%;background:var(--line);display:grid;place-items:center}
 .bubbles i b{font-size:26px;font-weight:500;color:var(--ink)}
@@ -347,7 +358,8 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 @media (prefers-reduced-motion:reduce){
   .band p span{animation:none}
   .wheel.zoom{animation:none}
-  .wd,.radar *,.dots *,.near li,.links li,.bubbles *,.pip *,.col *,.pgrid i,.plab,.phead,.ins li,.calc label,.calc .start{transition:none!important;filter:none!important;opacity:1!important;transform:none!important;scale:1!important}
+  .wd,.radar *,.dots *,.near li,.links li,.bubbles *,.pip *,.col *,.pgrid i,.plab,.phead,.ins li,.calc label,.calc .start,.calc .grid i,.calc .legend,.pnote{transition:none!important;filter:none!important;opacity:1!important;transform:none!important;scale:1!important}
+  .pnote,.pip span,.pip b,.pip em,.col b,.col span,.phead,.plab,.ins li,.calc label,.calc .legend,.calc .start{translate:none!important}
 }
 
 /* 휴대폰: 판을 줄이지 않고 화면 크기에 맞춰 다시 놓는다 */

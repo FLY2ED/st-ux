@@ -48,7 +48,7 @@ function Pips({ rows, u, y, gap = 50, hollow, k0 = 0, slots = 16, rest = true, w
   return rows.map(([t, v, s, hi, sub], r) => {
     const n = v > 0 ? Math.min(slots, Math.max(1, Math.round(v / u))) : 0, m = rest ? Math.max(n, slots) : n
     return (
-      <div key={t + r} className={'pip' + (hi ? ' hi' : '') + (hollow ? ' ho' : '') + (wide ? ' w' : '')} style={{ top: y + r * gap, '--r': r + k0 }}>
+      <div key={t + r} className={'pip' + (hi ? ' hi' : '') + (hollow ? ' ho' : '') + (wide ? ' w' : '')} style={{ top: y + r * gap, '--row': r + k0, '--n': n }}>
         <span>{t}</span>
         <i className="row">{Array.from({ length: m }, (_, j) => <i key={j} className={j < n ? '' : 'e'} style={{ left: j * 22, '--j': j }} />)}</i>
         <b>{s}</b>{sub != null && <em>{sub}</em>}
@@ -61,7 +61,7 @@ function Cols({ cols, u, base, slots }) {
   return cols.map(([t, v], c) => {
     const n = Math.min(slots, Math.max(1, Math.round(v / u))), last = c === cols.length - 1
     return (
-      <div key={t} className={'col' + (last ? ' hi' : '')} style={{ left: 60 + c * 80, top: base, '--r': c }}>
+      <div key={t} className={'col' + (last ? ' hi' : '')} style={{ left: 60 + c * 80, top: base, '--row': c, '--n': n }}>
         {Array.from({ length: slots }, (_, j) => <i key={j} className={j < n ? '' : 'e'} style={{ bottom: j * 23, '--j': j }} />)}
         <b style={{ bottom: slots * 23 + 22 }}>{v}</b>
         <span>{t}</span>
@@ -92,8 +92,8 @@ function Calc() {
         <label key={t} style={{ top: 112 + r * 58 }}><span>{t}</span><input type="range" min={lo} max={hi} step={st} value={v} onChange={e => set(+e.target.value)} /><b>{s}</b></label>
       ))}
       <Note y={318}>월 예상 매출 {fmt(sales)}만 · 점 하나 {fmt(u)}만</Note>
-      <div className="grid" style={{ top: 370 }}>{dots.slice(0, 45).map(({ c, j }) => <i key={j} className={c} style={{ left: (j % 15) * 42, top: Math.floor(j / 15) * 42 }} />)}</div>
-      <p className="legend" style={{ top: 520 }}>{parts.map(([t, v, c]) => <span key={t} className={c}><i />{t} {fmt(v)}만</span>)}</p>
+      <div className="grid" style={{ top: 370 }}>{dots.slice(0, 45).map(({ c, j }) => <i key={j} className={c} style={{ left: (j % 15) * 42, top: Math.floor(j / 15) * 42, '--j': j }} />)}</div>
+      <p className="legend" style={{ top: 520, '--j': 6 }}>{parts.map(([t, v, c]) => <span key={t} className={c}><i />{t} {fmt(v)}만</span>)}</p>
       <div className="start" style={{ top: 590 }}><b>처음 드는 돈 {fmt(total)}만</b>
         <span>{start.map(([t, v]) => t.replace('·인테리어', '') + ' ' + fmt(v)).join(' · ')} · {payback ? payback + '개월이면 되찾아요' : '이 값으로는 되찾기 어려워요'}</span></div>
     </div>
