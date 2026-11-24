@@ -7,6 +7,25 @@ import { pp, fmt } from './data.js'
 
 const pct = v => (v * 100).toFixed(1) + '%'
 const LV = ['적은 편', '보통', '높은 편']
+// 근처 빈 가게 견주기: 100m 안 같은 업종 수와 모든 가게 수(지나가는 사람 대신)
+const AR = 100
+const DIRS = ['동', '북동', '북', '북서', '서', '남서', '남', '남동']
+function alts(R, bld) {
+  const Q = R.query, kx = 111320 * Math.cos((Q.lat * Math.PI) / 180), ky = 110540
+  const at = (x, y) => {
+    const riv = R.competitors.filter(c => Math.hypot(c.x - x, c.y - y) <= AR).length
+    const sh = R.shops.filter(s => s[2] !== Q.cat && Math.hypot(s[0] - x, s[1] - y) <= AR).length
+    // 같은 업종 1곳(나 포함)이 나눠 갖는 주변 가게 수
+    return { riv, sh, v: sh / (riv + 1) }
+  }
+  const cen = g => { const r = (g.type === 'Polygon' ? g.coordinates[0] : g.coordinates[0][0]).slice(0, -1); return [r.reduce((a, p) => a + p[0], 0) / r.length, r.reduce((a, p) => a + p[1], 0) / r.length] }
+  // 가게 자료가 300m까지라 100m 원이 그 안에 들도록 200m 안 빈 가게만
+  const spots = (bld?.features || []).filter(f => f.properties.empty === 1 && !f.properties.tgt && f.properties.dist <= 200).map(f => {
+    const [lon, lat] = cen(f.geometry), x = (lon - Q.lon) * kx, y = (lat - Q.lat) * ky
+    return { x, y, dist: f.properties.dist, dir: DIRS[Math.round(Math.atan2(y, x) / (Math.PI / 4) + 8) % 8], ...at(x, y) }
+  })
+  return { me: { x: 0, y: 0, dist: 0, me: true, ...at(0, 0) }, spots, rivals: R.competitors.map(c => [c.x, c.y]) }
+}
 
 export function useFacts({ report: R, bld, what, budget }) {
   const S = useStats(R, 300)
@@ -32,7 +51,7 @@ export function useFacts({ report: R, bld, what, budget }) {
       return { lon: g[0].lon, lat: g[0].lat, t: nos.length > 1 ? nm.replace(/\d+호점/, nos.join('·') + '호점') : nm }
     })
     const kind = items.length && items.every(x => /청년가게/.test(x.name)) ? '청년가게 공고' : '공공 상가 공고'
-    return { Q, C, D, S, W, vac, fit, near, P, level, LV: LV[level], items, closed, only, pts, kind, addr: shortAddr(Q.address), pct, fmt, vacOk: !D.sales.none && D.sales.vac >= 5 }
+    return { alt: alts(R, bld), Q, C, D, S, W, vac, fit, near, P, level, LV: LV[level], items, closed, only, pts, kind, addr: shortAddr(Q.address), pct, fmt, vacOk: !D.sales.none && D.sales.vac >= 5 }
   }, [R, bld, what, budget, S])
 }
 

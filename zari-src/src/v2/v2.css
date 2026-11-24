@@ -440,3 +440,29 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
   .vis{position:relative;left:auto;width:740px;height:640px;zoom:var(--mk);overflow:hidden;margin-top:12px}
   .vis .in{top:-130px}
 }
+
+/* 근처 빈 가게 견주기 */
+.alt svg{position:absolute;inset:0;width:740px;height:900px;overflow:visible}
+.alt .ring100{fill:none;stroke:var(--gray);stroke-width:1.2;stroke-dasharray:6 8}
+.alt .rv{fill:var(--gray);opacity:.7}
+.alt .sp{fill:var(--bg);stroke:var(--or);stroke-width:3}
+.alt .sp.hi{fill:var(--or)}
+.alt .me{fill:var(--blue)}
+.alt text{font:400 20px var(--sans);fill:var(--gray)}
+.alt text .b{fill:var(--blue)}.alt text .o{fill:var(--or)}.alt text .g{fill:var(--gray)}
+.alt ol{position:absolute;left:60px;width:620px;margin:0;padding:0;list-style:none}
+.alt li{position:absolute;left:0;right:0;height:50px;display:flex;align-items:center;border-bottom:1px solid var(--line);font-size:24px}
+.alt li span{width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.alt li em{position:absolute;left:350px;font-style:normal;color:var(--gray)}
+.alt li b{position:absolute;right:0;font-weight:500}
+.alt li .bd{position:absolute;left:-28px;top:19px;width:12px;height:12px;border-radius:50%;background:var(--or)}
+.alt li.me .bd{background:var(--blue)}
+.alt li.me span{color:var(--blue)}
+.alt li{opacity:0;transform:translateY(14px);transition:opacity .6s var(--ease),transform .6s var(--ease)}
+.seen .alt li{opacity:1;transform:none;transition-delay:calc(.5s + var(--j) * 70ms)}
+.alt .sp,.alt .rv,.alt .me,.alt .ring100{transform-box:fill-box;transform-origin:center;transform:scale(0);transition:transform .5s cubic-bezier(.34,1.56,.64,1)}
+.seen .alt .ring100,.seen .alt .rv,.seen .alt .me{transform:none}
+.seen .alt .sp{transform:none;transition-delay:calc(.2s + var(--j) * 50ms)}
+.lens:not(.free):hover .look{opacity:.75}
+.lens .look{text-shadow:0 0 6px rgba(20,24,36,.9),0 0 2px rgba(20,24,36,.9)}
+@media (prefers-reduced-motion: reduce){.alt li,.alt .sp,.alt .rv,.alt .me,.alt .ring100{transition:none!important;opacity:1!important;transform:none!important}}

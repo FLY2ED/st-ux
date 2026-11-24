@@ -119,6 +119,43 @@ function Calc() {
 }
 
 // 자세히 조각: { id, txt(문장), pic(오른쪽 그림) }
+// 근처 빈 가게와 지금 자리 견주기: 위엔 작은 지도(나 파랑 · 빈 가게 주황 · 같은 업종 회색), 아래엔 순위
+const MS = 1.25, MX = 370, MY = 300
+function altPart(F) {
+  const { W } = F, A = F.alt, me = A.me
+  if (!A?.spots.length) return null
+  const rank = [me, ...A.spots].sort((a, b) => b.v - a.v)
+  const better = rank.filter(s => !s.me && s.v > me.v)
+  const lessRiv = [...A.spots].sort((a, b) => a.riv - b.riv || b.sh - a.sh)[0]
+  const moreSh = [...A.spots].sort((a, b) => b.sh - a.sh || a.riv - b.riv)[0]
+  const nm = s => (s.me ? '지금 자리' : s.dir + '쪽 ' + s.dist + 'm 빈 가게')
+  const ga = pp(W, '이', '가').slice(-1)
+  const b0 = better[0]
+  const txt = b0
+    ? <>이 자리보다 <b>{nm(b0)}</b>가 더 좋아요. 100m 안 {W}{ga} <b>{b0.riv}곳</b>(지금 {me.riv}곳)인데, 주변 가게는 <b>{b0.sh}곳</b>(지금 {me.sh}곳)이에요.</>
+    : <>근처 빈 가게 {A.spots.length}곳과 견주면 <b>지금 자리가 가장 나아요</b>.
+      {lessRiv.riv < me.riv && <> {W}{ga} 더 적은 곳은 <b>{nm(lessRiv)}</b>({lessRiv.riv}곳){moreSh.sh > me.sh ? ',' : '예요.'}</>}
+      {moreSh.sh > me.sh && <> 주변 가게가 더 많은 곳은 <b>{nm(moreSh)}</b>({moreSh.sh}곳)예요.</>}</>
+  const P = (x, y) => [MX + x * MS, MY - y * MS]
+  const top = rank.slice(0, 5)
+  const pic = <div className="alt">
+    <svg viewBox="0 0 740 900" aria-hidden="true">
+      <circle cx={MX} cy={MY} r={AR_ * MS} className="ring100" />
+      {A.rivals.filter(([x, y]) => Math.hypot(x, y) < 210).map(([x, y], j) => <circle key={'r' + j} cx={P(x, y)[0]} cy={P(x, y)[1]} r="5" className="rv" />)}
+      {A.spots.map((s, j) => <circle key={'s' + j} cx={P(s.x, s.y)[0]} cy={P(s.x, s.y)[1]} r="10" className={'sp' + (s === rank[0] || s === b0 ? ' hi' : '')} style={{ '--j': j }} />)}
+      <circle cx={MX} cy={MY} r="12" className="me" />
+      <text x={MX + 310} y={MY - 150} textAnchor="end"><tspan className="b">●</tspan> 지금 자리 &nbsp;<tspan className="o">●</tspan> 빈 가게 &nbsp;<tspan className="g">●</tspan> {W}</text>
+      <text x={MX + AR_ * MS * .72 + 12} y={MY + AR_ * MS * .72 + 26} className="s">100m</text>
+    </svg>
+    <Note y={600}>100m 안 · 같은 업종이 적고 주변 가게가 많을수록 위</Note>
+    <ol style={{ top: 640 }}>
+      {top.map((s, j) => <li key={j} className={s.me ? 'me' : ''} style={{ top: j * 50, '--j': j }}><i className="bd" /><span>{nm(s)}</span><em>{W} {s.riv}</em><b>가게 {s.sh}</b></li>)}
+    </ol>
+  </div>
+  return { id: 'alt', txt, pic }
+}
+const AR_ = 100
+
 export function moreParts(F) {
   const { W, S, C, D, near, Q } = F
   const sc = D.score
@@ -218,6 +255,7 @@ export function moreParts(F) {
         {near.slice(0, 8).map((n, j) => <li key={j} style={{ top: 194 + j * 64, '--j': j }}><i className="bd" /><span>{n.name || W}</span><em>{n.floor ? n.floor + '층' : '층 모름'}</em><b>{n.dist}m</b></li>)}
         {near.length > 8 && <li className="etc" style={{ top: 194 + 8 * 64, '--j': 8 }}>그 밖에 {near.length - 8}곳 더</li>}
       </ol> },
+    altPart(F),
     { id: 'bubbles', txt: <>이 근처에 가장 많은 건 <b>{top[0] ? top[0][0] + ' ' + top[0][1] + '곳' : ''}</b>. 그다음이 {top.slice(1, 4).map(([c, n], j) => <span key={c}>{j ? ', ' : ''}{c === Q.what ? <b>{c} {n}곳</b> : c + ' ' + n + '곳'}</span>)}이에요.</>,
       pic: <div className="bubbles">
         {top.map(([c, n], j) => {

@@ -214,6 +214,13 @@ function lock(map, on) {
   for (const h of [map.dragPan, map.scrollZoom, map.boxZoom, map.doubleClickZoom, map.touchZoomRotate, map.keyboard]) on ? h.disable() : h.enable()
   if (!on) map.touchZoomRotate.disableRotation()
 }
+// 렌즈: 늘 끌어서 옮기고, 오른쪽 버튼(또는 두 손가락)으로 돌리고 기울일 수 있게. 휠 확대는 넓게 볼 때만(작게 볼 땐 휠이 문장을 넘긴다)
+function roam(map, wheel) {
+  for (const h of [map.dragPan, map.dragRotate, map.touchZoomRotate, map.touchPitch, map.doubleClickZoom]) h.enable()
+  map.touchZoomRotate.enableRotation()
+  wheel ? map.scrollZoom.enable() : map.scrollZoom.disable()
+  map.boxZoom.disable(); map.keyboard.disable()
+}
 
 // ctl: 밖에서 정하는 층·보기 { layer, d3, sat, fk } · bare: 버튼·범례 없이 지도만(둥근 렌즈) · pts: 'list' 층에 찍을 점 [{lon, lat, t}]
 export default function LineMap({ report, bld, radius, active, onActive, onPick, shown, focus, center, budget, onMove, ctl, bare, pts }) {
@@ -257,9 +264,13 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
   useEffect(() => {
     const map = new maplibregl.Map({
       container: box.current, style: STYLE, center: [Q.lon, Q.lat], zoom: 15,
-      attributionControl: false, dragRotate: false, pitchWithRotate: false, fadeDuration: 0,
+      attributionControl: false, dragRotate: !!bare, pitchWithRotate: !!bare, fadeDuration: 0,
+      // 렌즈 평면에선 기울기를 0으로 묶고, 입체일 때만 풀어 준다
+      ...(bare ? { maxPitch: d3Ref.current ? 70 : 0 } : {}),
     })
     map.touchZoomRotate.disableRotation()
+    // 사람이 직접 옮기거나 돌렸는지 기억해 두었다가, 문장이 바뀌면 이 자리로 되돌린다
+    if (bare) for (const t of ['dragstart', 'rotatestart', 'pitchstart', 'zoomstart']) map.on(t, e => { if (e.originalEvent) map.__moved = true })
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
     mapRef.current = map
     window.__map = map
@@ -420,8 +431,8 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
     // 건물 색 지도로 들어오면 원을 크게 맞추고 지도를 고정, 나가면 다시 움직이게
     if (!bare && map.__solo !== undefined && solo !== map.__solo && solo) map.easeTo({ center: [Q.lon, Q.lat], zoom: zoomNow(), padding: { top: padTop() }, duration: 700 })
     // 렌즈: 넓게 보기에서만 모든 가게·생활인구·역·학교를 끌고 확대해 둘러볼 수 있게 (방향키는 문장 넘기기에 양보)
-    lock(map, bare ? !(lookRef.current && LOOK.has(layer)) : solo)
-    if (bare) map.keyboard.disable()
+    if (bare) roam(map, lookRef.current && LOOK.has(layer))
+    else lock(map, solo)
     map.__solo = solo
     document.documentElement.classList.toggle('solo', solo)
     if (!bare) for (const l of STYLE.layers) if (l.id !== 'bg' && l.id !== 'building-3d') vis(l.id, !solo || ROADS.includes(l.id))
@@ -488,10 +499,19 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
     const map = mapRef.current
     if (!bare || !map || !ready) return
     const on = !!ctl?.look && LOOK.has(layer)
-    lock(map, !on); map.keyboard.disable()
-    if (!ctl?.look && map.__looked) map.easeTo({ center: [Q.lon, Q.lat], zoom: LOOK.has(layer) ? lensZoom(box.current, 650, Q.lat) : zoomNow(), ...tilt(), duration: 700 })
+    roam(map, on)
+    if (!ctl?.look && map.__looked) { map.easeTo({ center: [Q.lon, Q.lat], zoom: homeZoom(), ...tilt(), duration: 700 }); map.__moved = false }
     map.__looked = !!ctl?.look
   }, [ctl?.look, layer, ready])
+  // 층마다 원에 맞는 확대
+  const homeZoom = () => (layerRef.current === 'list' ? lensZoom(box.current, listR(), Q.lat, .9) : layerRef.current === 'place' ? lensZoom(box.current, 700, Q.lat) : LOOK.has(layerRef.current) ? lensZoom(box.current, 650, Q.lat) : zoomNow())
+  // 문장이 바뀌면(ctl.home) 끌거나 돌려 둔 지도를 이 자리로 되돌린다
+  useEffect(() => {
+    const map = mapRef.current
+    if (!bare || !map || !ready || !map.__moved || ctl?.look) return
+    map.__moved = false
+    map.easeTo({ center: [Q.lon, Q.lat], zoom: homeZoom(), ...tilt(), duration: 900 })
+  }, [ctl?.home])
   // 밖에서 정하는 밝힐 건물(fk)
   useEffect(() => { if (ctl?.fk && ready) { fkRef.current = ctl.fk; focusNow(mapRef.current) } }, [ctl?.fk, ready, bld])
   // 리포트가 가려져 있는 동안은 빈 건물 색
@@ -553,7 +573,10 @@ export default function LineMap({ report, bld, radius, active, onActive, onPick,
     if (first.current) { first.current = false; return }
     const map = mapRef.current
     if (!map?.getLayer('building-3d')) return
+    // 렌즈: 입체로 갈 땐 먼저 기울기를 풀고, 평면으로 다 눕힌 뒤엔 다시 0으로 묶는다
+    if (bare && d3) map.setMaxPitch(70)
     map.easeTo({ ...tilt(), duration: 1200 })
+    if (bare && !d3) map.once('moveend', () => { if (!d3Ref.current) { map.setPitch(0); map.setMaxPitch(0) } })
     rise(map, d3 ? 1 : 0, d3 ? 1800 : 900, d3 ? 200 : 0)
   }, [d3])
 

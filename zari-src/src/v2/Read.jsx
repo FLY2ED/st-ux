@@ -8,9 +8,10 @@ import { moreParts } from './More.jsx'
 const TABS = [['bcol', null, -118], ['shops', '모든 가게', -99], ['flow', '생활인구', -81], ['place', '역·학교', -62]]
 const MODES = [['flat', '평면', 98], ['3d', '입체', 90], ['sat', '위성', 82]]
 const noop = () => {}
+const TOUCH = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
 
 // 그림이 바뀔 때 점 잇기: 앞 화면(원 지도 또는 앞 그림)의 점 자리에서 다음 그림의 점 자리로 점들이 날아가 앉는다
-const DOTS = '.pip .row i:not(.e),.col i:not(.e),.pgrid i,.calc .grid i,.dots .row i.on,.radar .vd,.ins li .bd,.near li .bd'
+const DOTS = '.pip .row i:not(.e),.col i:not(.e),.pgrid i,.calc .grid i,.dots .row i.on,.radar .vd,.ins li .bd,.near li .bd,.alt li .bd'
 const MAXB = 64
 function dotsIn(root, box) {
   if (!root) return []
@@ -107,7 +108,7 @@ export default function Read(ctx) {
       live.current.push(() => { a.cancel(); end() })
     }
   }, [i, hidden])
-  const ctl = { layer, d3: mode !== 'flat', sat: mode === 'sat', fk: cur.fk || 'both', look: wide, off: hidden || veil }
+  const ctl = { layer, d3: mode !== 'flat', sat: mode === 'sat', fk: cur.fk || 'both', home: i, look: wide, off: hidden || veil }
   return (
     <div className={'read' + (wide ? ' wide' : '') + (hidden ? ' off' : '') + (cur.vis ? ' pics' : '')} onWheel={wheel}>
       <div className="paras" aria-live="polite" {...touch}>
@@ -140,7 +141,7 @@ export default function Read(ctx) {
             <rect width="3160" height="1500" fill="#F7F7F7" fillOpacity=".92" mask="url(#vmask)" />
           </svg>
         </i>
-        <p className="look">끌어서 둘러보기 · 휠로 확대</p>
+        <p className="look">{free ? '끌어서 둘러보기 · 휠로 확대' : TOUCH ? '끌어서 옮기기 · 두 손가락으로 돌리기' : '끌어서 옮기기 · 오른쪽 버튼으로 끌면 ' + (mode === 'flat' ? '돌려요' : '돌리고 기울여요')}</p>
         <div className="ring" role="group" aria-label="지도에 보이는 것">
           {TABS.map(([k, t, a]) => (
             <button key={k} className={'tab' + (layer === k ? ' on' : '')} style={{ '--a': a + 'deg' }} onClick={() => setOver(k === cur.layer ? null : k)}>
