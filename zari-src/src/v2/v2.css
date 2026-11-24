@@ -60,7 +60,10 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 .wheel.zoom{animation:zin 1.15s cubic-bezier(.6,.05,.25,1) backwards,zsoft 1.15s cubic-bezier(.4,0,.2,1) backwards}
 @keyframes zsoft{0%{--sc:.965;--bl:.8px}40%{--bl:4px}100%{--sc:1;--bl:0px}}
 .home.where{animation:none}
-.where::before,.where .addr,.where .tail,.where .next{animation:fade .6s var(--ease) .3s backwards}
+.where::before,.where .addr,.where .tail,.where .next{animation:soft .8s cubic-bezier(.4,0,.2,1) .75s backwards}
+/* 고른 업종 글자가 자리에 거의 닿을 때 조사가 흐릿하게 떠올라 붙고, 나머지 문장이 뒤따라 또렷해진다 */
+.where .lead .josa{display:inline-block;animation:soft .7s cubic-bezier(.4,0,.2,1) .7s backwards}
+@keyframes soft{from{opacity:0;filter:blur(8px)}}
 
 /* 호를 따라 놓인 글 */
 .fan{list-style:none;margin:0;padding:0;position:absolute;left:var(--fx);top:var(--fy,450px);width:0;height:0;transition:left .6s var(--ease),top .6s var(--ease)}
@@ -383,6 +386,7 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 @media (prefers-reduced-motion:reduce){
   .band p span{animation:none}
   .wheel.zoom{animation:none}
+  .where .lead .josa,.where::before,.where .addr,.where .tail,.where .next{animation:none}
   .wd,.radar *,.dots *,.near li,.links li,.bubbles *,.pip *,.col *,.pgrid i,.plab,.phead,.ins li,.calc label,.calc .start,.calc .grid i,.calc .legend,.pnote{transition:none!important;filter:none!important;opacity:1!important;transform:none!important;scale:1!important}
   .pnote,.pip span,.pip b,.pip em,.col b,.col span,.phead,.plab,.ins li,.calc label,.calc .legend,.calc .start{translate:none!important}
 }

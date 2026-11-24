@@ -134,14 +134,14 @@ export function Where({ what, onPlace, onGo, onBack }) {
   const inp = useRef(null)
   const lead = useRef(null)
   useEffect(() => { inp.current?.focus() }, [])
-  // 앞 화면에서 고른 업종 글자 자리에서 문장 첫머리로 미끄러져 온다
+  // 앞 화면에서 고른 업종 글자 자리에서 문장 첫머리로 미끄러져 온다 (바퀴와 같은 속도·같은 곡선으로 함께 움직인다)
   useLayoutEffect(() => {
     const el = lead.current, h = HAND
     HAND = null
     if (!el || !h || matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const r = el.getBoundingClientRect(), k = r.width / el.offsetWidth || 1
     const dx = (h.left - r.left) / k, dy = (h.top + h.height / 2 - (r.top + r.height / 2)) / k
-    el.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: 'none' }], { duration: 750, easing: 'cubic-bezier(.22,.8,.24,1)' })
+    el.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: 'none' }], { duration: 1150, easing: 'cubic-bezier(.6,.05,.25,1)' })
   }, [])
   // 입력하면 주소 후보를 새로 찾는다 (두 글자부터)
   useEffect(() => {
@@ -171,7 +171,7 @@ export function Where({ what, onPlace, onGo, onBack }) {
     <div className={'home where' + (show ? ' typing' : '')}>
       <Wheel k={whatIndex(what.cat)} n={what.n} zoom />
       <div className="sent">
-        <button ref={lead} className="lead" onClick={onBack} aria-label="업종 다시 고르기">{pp(W, '을', '를')}</button>
+        <button ref={lead} className="lead" onClick={onBack} aria-label="업종 다시 고르기">{W}<span className="josa">{pp(W, '을', '를').slice(W.length)}</span></button>
         <label className={'addr' + (txt ? '' : ' blank')}>
           <span className="mir">{txt || '\u2003'.repeat(4)}</span>
           <input ref={inp} value={txt} aria-label="주소" autoComplete="off"
