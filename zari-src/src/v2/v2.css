@@ -193,7 +193,7 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 .fclock line{stroke:#fff;stroke-opacity:.38;stroke-width:.55;stroke-linecap:round;transition:stroke-opacity .25s}
 .fclock line.on{stroke-opacity:1;stroke-width:.8}
 .fclock .hit{fill:none;stroke:transparent;stroke-width:9;pointer-events:stroke;cursor:pointer}
-.fclock p{position:absolute;left:0;right:0;bottom:7%;margin:0;text-align:center;font-size:15px;font-weight:500;color:#fff;opacity:.9;letter-spacing:.01em;font-variant-numeric:tabular-nums}
+.fclock p{position:absolute;left:0;right:0;bottom:13%;margin:0;text-align:center;font-size:15px;font-weight:500;color:#fff;opacity:.9;letter-spacing:.01em;font-variant-numeric:tabular-nums}
 .fclock.held p{opacity:1}
 .linemap{position:absolute;inset:0}
 .maplibregl-map{font:inherit}
