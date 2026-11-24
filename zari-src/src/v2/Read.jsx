@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import LineMap from '../LineMap.jsx'
 import { useFacts, paras } from './facts.js'
 import { words } from './write.jsx'
@@ -8,6 +8,28 @@ import { moreParts } from './More.jsx'
 const TABS = [['bcol', null, -118], ['shops', '모든 가게', -99], ['flow', '생활인구', -81], ['place', '역·학교', -62]]
 const MODES = [['flat', '평면', 98], ['3d', '입체', 90], ['sat', '위성', 82]]
 const noop = () => {}
+
+// 그림이 바뀔 때 점 잇기: 앞 화면(원 지도 또는 앞 그림)의 점 자리에서 다음 그림의 점 자리로 점들이 날아가 앉는다
+const DOTS = '.pip .row i:not(.e),.col i:not(.e),.pgrid i,.calc .grid i,.dots .row i.on,.radar .vd'
+const MAXB = 64
+function dotsIn(root, box) {
+  if (!root) return []
+  return [...root.querySelectorAll(DOTS)].slice(0, MAXB).map(el => {
+    if (el instanceof SVGCircleElement) {
+      const m = el.ownerSVGElement.getScreenCTM(), p = new DOMPoint(+el.getAttribute('cx'), +el.getAttribute('cy')).matrixTransform(m)
+      return { el, x: (p.x - box.left) / box.k, y: (p.y - box.top) / box.k, s: 2 * el.r.baseVal.value * m.a / box.k, c: getComputedStyle(el).fill }
+    }
+    const r = el.getBoundingClientRect(), cs = getComputedStyle(el)
+    return { el, x: (r.left + r.width / 2 - box.left) / box.k, y: (r.top + r.height / 2 - box.top) / box.k, s: el.offsetWidth * (r.width ? 1 : 1), c: cs.backgroundColor }
+  })
+}
+// 원 지도에서 출발할 때: 원 안에 고르게 깔린 점 자리 (지도 위 흰 점처럼)
+function lensDots(lens, box, n) {
+  const r = lens.getBoundingClientRect(), cx = (r.left + r.width / 2 - box.left) / box.k, cy = (r.top + r.height / 2 - box.top) / box.k, R = r.width / 2 / box.k
+  const out = []
+  for (let j = 0; j < n; j++) { const a = j * 2.39996, d = R * .88 * Math.sqrt((j + .5) / n); out.push({ x: cx + d * Math.cos(a), y: cy + d * Math.sin(a), s: 7, c: '#1E2433' }) }
+  return out
+}
 
 export default function Read(ctx) {
   const { report, bld, budget, hidden, veil, onBack } = ctx
@@ -45,6 +67,43 @@ export default function Read(ctx) {
   // 넓게 보기에서 모든 가게·생활인구·역·학교: 지도를 끌고 확대해 둘러본다 (휠은 문장 넘기기 대신 지도 확대)
   // 작게 볼 때는 끌기·확대를 막아 휠이 늘 왼쪽 문장을 넘긴다
   const free = wide && (layer === 'shops' || layer === 'flow' || layer === 'place')
+  // 문장이 바뀌어 새 그림이 뜨면 점을 잇는다 (원 지도 → 그림, 그림 → 그림)
+  const prev = useRef(i), br = useRef(null), live = useRef([])
+  useLayoutEffect(() => {
+    const from = P[prev.current], to = P[i]
+    prev.current = i
+    const host = br.current
+    live.current.forEach(f => f()); live.current = []
+    if (!host || hidden || !to?.vis || from === to || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const hr = host.getBoundingClientRect(), box = { left: hr.left, top: hr.top, k: hr.width / host.offsetWidth || 1 }
+    const root = host.parentNode
+    const tgt = dotsIn(root.querySelector('.pv-' + to.vis), box)
+    if (!tgt.length) return
+    const lens = !from?.vis
+    let src = lens ? [] : dotsIn(root.querySelector('.pv-' + from.vis), box)
+    // 원 지도에서 올 때는 원 안 곳곳에서 점이 많이 일어나 그림 자리로 모인다
+    if (!src.length) src = lensDots(root.querySelector('.lens'), box, Math.max(56, tgt.length))
+    // 왼쪽 점은 왼쪽으로, 오른쪽 점은 오른쪽으로 가도록 가로 순서끼리 짝짓는다
+    const so = [...src].sort((a, b) => a.x - b.x || a.y - b.y), to2 = [...tgt].sort((a, b) => a.x - b.x || a.y - b.y)
+    // 출발 점이 더 많으면 남는 점도 함께 날아가 도착 점에 겹치며 사라진다
+    const n = Math.max(so.length, to2.length)
+    for (let j = 0; j < n; j++) {
+      const t = to2[Math.min(to2.length - 1, Math.floor((j * to2.length) / n))]
+      const s = so[Math.min(so.length - 1, Math.floor((j * so.length) / n))]
+      const keep = !t.el.classList.contains('bt')
+      t.el.classList.add('bt')
+      const d = document.createElement('i')
+      d.style.cssText = 'left:' + (t.x - t.s / 2) + 'px;top:' + (t.y - t.s / 2) + 'px;width:' + t.s + 'px;height:' + t.s + 'px;background:' + t.c
+      host.appendChild(d)
+      const k = s.s / t.s || 1
+      const a = d.animate([{ transform: 'translate(' + (s.x - t.x) + 'px,' + (s.y - t.y) + 'px) scale(' + k + ')', background: s.c, opacity: lens ? 0 : 1 },
+        { opacity: 1, offset: .2 }, { transform: 'none', background: t.c, opacity: keep ? 1 : 0 }],
+        { duration: lens ? 1000 : 900, delay: 60 + (lens ? (j * 7) % 240 : j * 9), easing: 'cubic-bezier(.65,0,.25,1)', fill: 'both' })
+      const end = () => { if (keep) t.el.classList.remove('bt'); d.remove() }
+      a.onfinish = end
+      live.current.push(() => { a.cancel(); end() })
+    }
+  }, [i, hidden])
   const ctl = { layer, d3: mode !== 'flat', sat: mode === 'sat', fk: cur.fk || 'both', look: wide, off: hidden || veil }
   return (
     <div className={'read' + (wide ? ' wide' : '') + (hidden ? ' off' : '') + (cur.vis ? ' pics' : '')} onWheel={wheel}>
@@ -95,6 +154,7 @@ export default function Read(ctx) {
       <div className="rvis" aria-hidden={!cur.vis}>
         {P.filter(p => p.pic).map(p => <div key={p.id} className={'pv pv-' + p.vis + (cur.id === p.id ? ' seen' : '')}><div className="in">{p.pic}</div></div>)}
       </div>
+      <div className="bridge" ref={br} aria-hidden="true" />
       <div className="ctrls">
         <button onClick={onBack}>← 원으로 돌아가기</button>
         {!cur.vis && <button onClick={() => setWide(w => !w)}>{wide ? '작게 보기 ↙' : '넓게 보기 ↗'}</button>}

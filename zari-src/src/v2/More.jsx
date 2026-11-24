@@ -17,8 +17,8 @@ function Radar({ score }) {
         const c = Math.cos(a), s = Math.sin(a)
         return <g key={k} className="arm" style={{ '--j': j }}>
           <line x1={RX} y1={RY} x2={ex} y2={ey} className="g" />
-          <g className="val"><line x1={RX} y1={RY} x2={x} y2={y} className="v" />
-          <circle cx={x} cy={y} r="13" /></g>
+          <g className="val"><line x1={RX} y1={RY} x2={x} y2={y} className="v" /></g>
+          <circle cx={x} cy={y} r="13" className="vd" />
           <text x={lx} y={ly + (s < -.9 ? 0 : s > .3 ? 22 : 9)} textAnchor={Math.abs(c) < .2 ? 'middle' : c > 0 ? 'start' : 'end'}>{k} <tspan className="n">{v}</tspan></text>
         </g>
       })}
@@ -137,7 +137,8 @@ export function moreParts(F) {
   // 분기 매출은 최근 2년 평균을 100으로 놓고 센다
   const qs = SA && !SA.none && SA.quarters ? SA.quarters : null
   const qAvg = qs ? qs.reduce((a, q) => a + q[1], 0) / qs.length : 1, qI = qs ? qs.map(([t, v]) => [t, Math.round((v / qAvg) * 100)]) : []
-  const qSlots = qs ? Math.min(14, Math.ceil(Math.max(...qI.map(q => q[1])) / 10)) : 0
+  // 기둥은 12칸을 넘지 않게 점 하나의 크기를 고른다 (위 큰 숫자와 띄우려고)
+  const qU = qs ? nice(Math.max(...qI.map(q => q[1])) / 12) : 10, qSlots = qs ? Math.min(12, Math.ceil(Math.max(...qI.map(q => q[1])) / qU)) : 0
   const fMax = FL?.hours ? Math.max(...FL.hours.map(h => h[1]), ...(FL.age || []).map(h => h[1])) : 0, fU = uOf(fMax)
   const near1 = (a, b) => { const r = a / b; return r >= 1.3 ? '훨씬 많고' : r >= 1.05 ? '조금 많고' : r > .95 ? '비슷하고' : r > .7 ? '조금 적고' : '훨씬 적고' }
   // "14–17" → 오후 2시~5시
@@ -170,7 +171,7 @@ export function moreParts(F) {
   const more = [
     qs && { id: 'sales', txt: <>{W} 1곳은 한 달에 평균 <b>{fmt(SA.month)}만 원</b>을 벌어요. 서울 평균 {fmt(SA.seoul)}만 원보다 <b>{SA.month >= SA.seoul ? '많고' : '적고'}</b>,
       {SA.grow != null ? <> 1년 전보다 <b>{Math.abs(SA.grow)}% {SA.grow >= 0 ? '늘었어요' : '줄었어요'}</b>.</> : <> 분기마다 조금씩 오르내려요.</>}</>,
-      pic: <><Head y={100} t={'1곳 월평균 매출 · ' + W} b={fmt(SA.month) + '만'} s={'서울 ' + fmt(SA.seoul) + '만'} /><Cols cols={qI} u={10} slots={qSlots} base={640} /><Note y={690}>분기별 매출 · 최근 2년 평균 100 기준 · 점 하나 10</Note></> },
+      pic: <><Head y={100} t={'1곳 월평균 매출 · ' + W} b={fmt(SA.month) + '만'} s={'서울 ' + fmt(SA.seoul) + '만'} /><Cols cols={qI} u={qU} slots={qSlots} base={660} /><Note y={712}>분기별 매출 · 최근 2년 평균 100 기준 · 점 하나 {qU}</Note></> },
     FL?.hours && { id: 'flow', txt: <>하루 <b>{fmt(FL.day)}명</b>이 지나가요.{FL.seoul ? <> 서울 상권 평균 {fmt(FL.seoul)}명보다 <b>{near1(FL.day, FL.seoul)}</b>,</> : null} 가장 붐비는 때는 <b>{when(FL.peak)}</b>예요.</>,
       pic: <><Note y={96}>시간대 · 점 하나 {fU}%</Note><Pips rows={FL.hours.map(([t, v]) => [String(t).replace(/^0(\d)/, '$1') + '시', v, v + '%', t === FL.peak])} u={fU} y={140} gap={46} />
         {FL.age && <><Note y={425}>지나가는 사람 나이</Note><Pips rows={FL.age.map(([t, v]) => [t, v, v + '%', v === Math.max(...FL.age.map(a => a[1]))])} u={fU} y={468} gap={46} k0={6} /></>}</> },

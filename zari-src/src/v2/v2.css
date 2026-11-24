@@ -71,7 +71,7 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 /* 자리 */
 .where::before{content:"";position:absolute;left:-3000px;right:-3000px;top:450px;height:1px;background:#ECEEF1}
 .sent{position:absolute;left:276px;top:450px;transform:translateY(-50%);display:flex;align-items:baseline;gap:18px;font-size:58px;font-weight:600;line-height:1.2;white-space:nowrap}
-.lead{font-size:56px;font-weight:500;line-height:1.2;white-space:nowrap}
+.lead{font-size:58px;font-weight:600;line-height:1.2;white-space:nowrap}
 .addr{position:relative;display:inline-block}
 .addr.blank{min-width:4em}
 .addr .mir{visibility:hidden;white-space:pre;padding-right:3px}
@@ -85,7 +85,7 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
   transform:translate(calc(var(--a)*var(--a)*-9px),calc(var(--d)*72px - 50%));opacity:calc(1 - var(--a)*.2);
   animation:cin .5s var(--ease) both;animation-delay:calc(var(--q)*55ms);transition:transform .45s var(--ease),opacity .3s}
 .cands li span{font-size:36px;font-weight:600;line-height:1.2;color:var(--ink);opacity:.5;transition:opacity .2s}
-.cands li small{font-size:14px;font-weight:500;color:var(--gray);opacity:0;transition:opacity .2s}
+.cands li small{font-size:14px;font-weight:600;color:var(--gray);opacity:0;transition:opacity .2s}
 .cands li:hover span,.cands li.hi span{opacity:1}
 .cands li:hover small,.cands li.hi small{opacity:1}
 .cands.gone li{opacity:0;pointer-events:none;transform:translate(0,-50%);transition-delay:0s}
@@ -123,13 +123,15 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 .gd.empty{width:7px;height:7px;background:var(--or)}
 .gd.tgt{width:13px;height:13px;background:var(--blue);z-index:1}
 /* 번지는 앞자락이 지나가면 점이 커지며 지도에 스며든다 */
-.go.out .gcover{animation:hole 1.1s cubic-bezier(.45,.05,.3,1) forwards}
-.go.out .gd{animation:gout .55s ease-out calc(var(--w) * .75s) forwards;transform:translate(-50%,-50%) scale(1)}
+/* 덮개는 가운데 구멍 없이 통째로 옅어지고, 점들은 가운데부터 차례로 부풀며 지도에 스며든다 */
+.go.out .gcover{animation:cfade 1.2s cubic-bezier(.4,0,.2,1) .1s forwards}
+@keyframes cfade{to{opacity:0}}
+.go.out .gd{animation:gout .9s cubic-bezier(.3,0,.3,1) calc(var(--w) * .6s) forwards;transform:translate(-50%,-50%) scale(1)}
 .go.out .fd{opacity:1;animation:gout .55s ease-out calc(var(--w) * .75s) forwards;transition:none}
 @property --h{syntax:'<length>';inherits:false;initial-value:-120px}
 @keyframes hole{to{--h:520px}}
 @keyframes gin{0%{transform:translate(-50%,-50%) scale(0)}60%{transform:translate(-50%,-50%) scale(1.4)}100%{transform:translate(-50%,-50%) scale(1)}}
-@keyframes gout{to{transform:translate(-50%,-50%) scale(2.6);opacity:0}}
+@keyframes gout{to{transform:translate(-50%,-50%) scale(3.2);opacity:0}}
 @keyframes gpop{0%{transform:translate(-50%,-50%) scale(0)}60%{transform:translate(-50%,-50%) scale(1.5)}100%{transform:translate(-50%,-50%) scale(1)}}
 .s-read .read{animation-duration:.9s}
 
@@ -180,7 +182,7 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 .ring .tab.low{transform:rotate(var(--a)) translateX(calc(var(--R) + 30px)) rotate(-90deg)}
 .ring .tab span{position:absolute;left:0;top:0;transform:translate(-50%,-50%);white-space:nowrap;font-size:20px;font-weight:500;color:var(--gray);padding:6px 4px;transition:color .2s}
 .ring .tab.on span,.ring .tab:hover span{color:var(--ink)}
-.ctrls{position:absolute;z-index:4;right:60px;top:762px;display:flex;flex-direction:column;align-items:flex-end;gap:12px;font-size:15px;font-weight:500}
+.ctrls{position:absolute;z-index:4;right:44px;bottom:34px;display:flex;flex-direction:column;align-items:flex-end;gap:12px;font-size:15px;font-weight:500}
 .ctrls button{color:var(--gray);transition:color .2s}
 .ctrls button:hover{color:var(--ink)}
 .medot{width:6px;height:6px;border-radius:50%;background:#fff;box-shadow:0 0 0 1.5px var(--blue)}
@@ -343,6 +345,12 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 .seen .radar .dash{transform:none;transition-delay:.1s}
 .seen .radar .arm .g{transform:none;transition-delay:calc(var(--j) * 70ms)}
 .seen .radar .val{transform:none;transition-delay:calc(.45s + var(--j) * 90ms);transition-duration:1.1s}
+.radar .vd{transform-box:fill-box;transform-origin:center;transform:scale(0);transition:transform .5s cubic-bezier(.34,1.56,.64,1)}
+.seen .radar .vd{transform:none;transition-delay:calc(1.2s + var(--j) * 90ms)}
+/* 그림이 바뀔 때 앞 화면의 점들이 날아와 다음 그림의 점 자리에 앉는다. 앉기 전까지 그 자리 점은 숨겨 둔다 */
+.bridge{position:absolute;inset:0;z-index:6;pointer-events:none}
+.bridge i{position:absolute;left:0;top:0;border-radius:50%;will-change:transform}
+.bt{opacity:0!important;scale:1!important;transform:none!important;transition:none!important}
 .seen .radar .arm text{opacity:1;transition-delay:calc(.6s + var(--j) * 90ms)}
 .dots .row i{transform:scale(0);transition:transform .45s var(--ease)}
 .seen .dots .row i{transform:none;transition-delay:calc(var(--j) * 35ms)}
