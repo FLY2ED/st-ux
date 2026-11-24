@@ -309,8 +309,10 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 .ins ul{position:absolute;left:60px;width:640px;margin:0;padding:0;list-style:none}
 .ins li{position:relative;padding:12px 0 12px 34px;font-size:26px;line-height:1.35;color:var(--ink)}
 .ins li small{display:block;margin-top:4px;font-size:19px;color:var(--gray)}
-.ins li::before{content:'';position:absolute;left:4px;top:23px;width:14px;height:14px;border-radius:50%;background:var(--ink)}
-.ins .w li::before{background:none;box-shadow:inset 0 0 0 2px var(--ink)}
+.ins li .bd{position:absolute;left:4px;top:23px;width:14px;height:14px;border-radius:50%;background:var(--ink)}
+.ins .w li .bd{background:none;box-shadow:inset 0 0 0 2px var(--ink)}
+.near li .bd{position:absolute;left:-30px;top:26px;width:12px;height:12px;border-radius:50%;background:var(--gray)}
+.near li:first-child .bd{background:var(--ink)}
 /* 점그림: 섹션이 보이면 옅은 칸이 먼저 깔리고, 진한 점이 줄마다 한 칸씩 차오른 뒤 값이 뜬다. 나갈 땐 지연 없이 바로 접힌다 */
 .pip .row i,.col i,.pgrid i,.calc .grid i{scale:0;transition:scale .55s cubic-bezier(.34,1.56,.64,1)}
 .pip .row i.e,.col i.e{transition:scale .35s var(--ease)}

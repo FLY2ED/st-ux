@@ -196,8 +196,8 @@ export function moreParts(F) {
       : <>10평에 1명 {fmt(6800)}원, 하루 110명이면 한 달 매출은 <b>{fmt(P.sales)}만 원</b>이에요. 처음 드는 돈은 <b>{fmt(P.total)}만 원</b>이에요.</>,
       pic: <Calc /> },
     D.insight && (IG.length || IW.length) && { id: 'insight', txt: <>{IG[0] && <>좋은 점부터 보면 <b>{IG[0][0]}</b>. </>}{IW[0] && <>다만 <b>{IW[0][0]}</b>.</>}</>,
-      pic: <div className="ins"><Note y={96}>좋은 점</Note><ul style={{ top: 136 }}>{IG.map(([t, s], j) => <li key={t} style={{ '--j': j }}>{t}{s && <small>{s}</small>}</li>)}</ul>
-        <Note y={440}>조심할 점</Note><ul className="w" style={{ top: 480 }}>{IW.map(([t, s], j) => <li key={t} style={{ '--j': j + 3 }}>{t}{s && <small>{s}</small>}</li>)}</ul></div> },
+      pic: <div className="ins"><Note y={96}>좋은 점</Note><ul style={{ top: 136 }}>{IG.map(([t, s], j) => <li key={t} style={{ '--j': j }}><i className="bd" />{t}{s && <small>{s}</small>}</li>)}</ul>
+        <Note y={440}>조심할 점</Note><ul className="w" style={{ top: 480 }}>{IW.map(([t, s], j) => <li key={t} style={{ '--j': j + 3 }}><i className="bd" />{t}{s && <small>{s}</small>}</li>)}</ul></div> },
     rec.length > 0 && { id: 'fit', txt: <>{meRec && meRec !== rec[0] ? <>이 자리엔 <b>{rec[0][0]}</b>{pp(rec[0][0], '이', '가').slice(-1)} 더 맞아요.{meN && <> 주변 상권엔 {W}{pp(W, '이', '가').slice(-1)} 이미 <b>{meN}곳</b> 있어요.</>}</> : <>이 자리엔 <b>{rec[0][0]}</b>{pp(rec[0][0], '이', '가').slice(-1)} 가장 잘 맞아요.</>}
       {tr[0] && <> {GU}에선 <b>{tr[0][0]}</b>{pp(tr[0][0], '이', '가').slice(-1)} 가장 빠르게 뜨고 있어요.</>}</>,
       pic: <><Note y={96}>이 자리에 맞는 업종 · 점 하나 {rU}점</Note>
@@ -215,7 +215,7 @@ export function moreParts(F) {
       {n0 && <> 가장 가까운 곳은 <b>{n0.dist}m</b> 떨어진 {pp(nm0, '이에요', '예요')}.</>}
       {near.length > 0 && <> 프랜차이즈는 {Math.round((S.fr / near.length) * 100)}%예요.</>}</>,
       pic: <ol className="near">
-        {near.slice(0, 8).map((n, j) => <li key={j} style={{ top: 194 + j * 64, '--j': j }}><span>{n.name || W}</span><em>{n.floor ? n.floor + '층' : '층 모름'}</em><b>{n.dist}m</b></li>)}
+        {near.slice(0, 8).map((n, j) => <li key={j} style={{ top: 194 + j * 64, '--j': j }}><i className="bd" /><span>{n.name || W}</span><em>{n.floor ? n.floor + '층' : '층 모름'}</em><b>{n.dist}m</b></li>)}
         {near.length > 8 && <li className="etc" style={{ top: 194 + 8 * 64, '--j': 8 }}>그 밖에 {near.length - 8}곳 더</li>}
       </ol> },
     { id: 'bubbles', txt: <>이 근처에 가장 많은 건 <b>{top[0] ? top[0][0] + ' ' + top[0][1] + '곳' : ''}</b>. 그다음이 {top.slice(1, 4).map(([c, n], j) => <span key={c}>{j ? ', ' : ''}{c === Q.what ? <b>{c} {n}곳</b> : c + ' ' + n + '곳'}</span>)}이에요.</>,

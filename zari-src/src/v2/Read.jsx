@@ -10,7 +10,7 @@ const MODES = [['flat', '평면', 98], ['3d', '입체', 90], ['sat', '위성', 8
 const noop = () => {}
 
 // 그림이 바뀔 때 점 잇기: 앞 화면(원 지도 또는 앞 그림)의 점 자리에서 다음 그림의 점 자리로 점들이 날아가 앉는다
-const DOTS = '.pip .row i:not(.e),.col i:not(.e),.pgrid i,.calc .grid i,.dots .row i.on,.radar .vd'
+const DOTS = '.pip .row i:not(.e),.col i:not(.e),.pgrid i,.calc .grid i,.dots .row i.on,.radar .vd,.ins li .bd,.near li .bd'
 const MAXB = 64
 function dotsIn(root, box) {
   if (!root) return []
@@ -20,7 +20,10 @@ function dotsIn(root, box) {
       return { el, x: (p.x - box.left) / box.k, y: (p.y - box.top) / box.k, s: 2 * el.r.baseVal.value * m.a / box.k, c: getComputedStyle(el).fill }
     }
     const r = el.getBoundingClientRect(), cs = getComputedStyle(el)
-    return { el, x: (r.left + r.width / 2 - box.left) / box.k, y: (r.top + r.height / 2 - box.top) / box.k, s: el.offsetWidth * (r.width ? 1 : 1), c: cs.backgroundColor }
+    // 속 빈 점은 바탕이 투명하니 테두리 색을 쓴다
+    const sh = cs.boxShadow !== 'none' ? cs.boxShadow : ''
+    const c = /rgba\(\d+, \d+, \d+, 0\)|transparent/.test(cs.backgroundColor) && sh ? (sh.match(/rgba?\([^)]*\)/) || ['#1E2433'])[0] : cs.backgroundColor
+    return { el, x: (r.left + r.width / 2 - box.left) / box.k, y: (r.top + r.height / 2 - box.top) / box.k, s: el.offsetWidth, c, sh, bg: cs.backgroundColor }
   })
 }
 // 원 지도에서 출발할 때: 원 안에 고르게 깔린 점 자리 (지도 위 흰 점처럼)
@@ -93,11 +96,11 @@ export default function Read(ctx) {
       const keep = !t.el.classList.contains('bt')
       t.el.classList.add('bt')
       const d = document.createElement('i')
-      d.style.cssText = 'left:' + (t.x - t.s / 2) + 'px;top:' + (t.y - t.s / 2) + 'px;width:' + t.s + 'px;height:' + t.s + 'px;background:' + t.c
+      d.style.cssText = 'left:' + (t.x - t.s / 2) + 'px;top:' + (t.y - t.s / 2) + 'px;width:' + t.s + 'px;height:' + t.s + 'px;background:' + t.c + (t.sh ? ';box-shadow:' + t.sh : '')
       host.appendChild(d)
       const k = s.s / t.s || 1
       const a = d.animate([{ transform: 'translate(' + (s.x - t.x) + 'px,' + (s.y - t.y) + 'px) scale(' + k + ')', background: s.c, opacity: lens ? 0 : 1 },
-        { opacity: 1, offset: .2 }, { transform: 'none', background: t.c, opacity: keep ? 1 : 0 }],
+        { opacity: 1, offset: .2 }, { transform: 'none', background: t.bg || t.c, opacity: keep ? 1 : 0 }],
         { duration: lens ? 1000 : 900, delay: 60 + (lens ? (j * 7) % 240 : j * 9), easing: 'cubic-bezier(.65,0,.25,1)', fill: 'both' })
       const end = () => { if (keep) t.el.classList.remove('bt'); d.remove() }
       a.onfinish = end
