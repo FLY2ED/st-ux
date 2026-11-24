@@ -57,7 +57,7 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 /* 호를 따라 놓인 글 */
 .fan{list-style:none;margin:0;padding:0;position:absolute;left:var(--fx);top:var(--fy,450px);width:0;height:0;transition:left .6s var(--ease),top .6s var(--ease)}
 .fan li{position:absolute;left:0;top:0;transform-origin:0 0;white-space:nowrap;cursor:pointer;
-  transform:rotate(calc(var(--d)*var(--fa,11deg))) translateX(var(--fr)) translateY(calc(var(--d)*var(--fs,0px)));transition:transform .5s var(--ease)}
+  transform:rotate(calc(var(--d)*var(--fa,11deg))) translateX(var(--fr)) translateY(calc(var(--d)*var(--fs,0px)));transition:transform .5s var(--ease),visibility .45s}
 .fan li span{display:block;transform:translateY(-50%);font-size:46px;font-weight:500;line-height:1.2;color:var(--ink);opacity:calc(var(--o)*.85);filter:blur(calc(max(0, var(--ad) - 1) * 1.6px));transition:opacity .4s,color .3s,font-size .3s,filter .4s}
 .fan li.on span{font-size:58px;font-weight:600;opacity:1}
 .fan li.far{visibility:hidden}
