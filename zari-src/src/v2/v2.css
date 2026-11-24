@@ -29,8 +29,8 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 .fan.kinds{--fa:10deg}
 /* 격자 점과 테두리 큰 점: 가운데부터 한 바퀴씩 생겨난다 */
 .wheel .wd,.wheel .wb{position:absolute;left:0;top:0;border-radius:50%;background:var(--ink);animation:wdin .5s var(--ease) var(--q) backwards}
-.wheel .wd{--s:5px;filter:none;opacity:1;display:block;transition:none;width:var(--s);height:var(--s);margin:calc(var(--s)/-2);transform:rotate(var(--a)) translateX(calc(var(--R)*var(--f)))}
-.wheel .wb{--s:calc(var(--od)*.55);width:var(--s);height:var(--s);margin:calc(var(--s)/-2);transform:rotate(var(--a)) translateX(var(--R));
+.wheel .wd{--s:5px;filter:none;opacity:1;display:block;transition:none;width:calc(var(--s)*var(--sw));height:calc(var(--s)*var(--sw));margin:calc(var(--s)*var(--sw)/-2);transform:rotate(var(--a)) translateX(calc(var(--R)*var(--f)))}
+.wheel .wb{--s:calc(var(--od)*.55);width:calc(var(--s)*var(--sb));height:calc(var(--s)*var(--sb));margin:calc(var(--s)*var(--sb)/-2);transform:rotate(var(--a)) translateX(var(--R));
   transition:transform .6s var(--ease),width .4s var(--ease),height .4s var(--ease),margin .4s var(--ease)}
 .wheel.filled .wd{opacity:.2;transition:opacity .35s}
 .wheel.filled .wd.on{opacity:1}
@@ -48,9 +48,19 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
 .wheel.zoom .wd,.wheel.zoom .wb{animation:none}
 .wheel.zoom .wb{transition:none}
 @property --push{syntax:'<length>';inherits:true;initial-value:34px}
-@keyframes zin{from{--cx:560px;--cy:450px;--R:330px;--od:26px;--odm:40px;--push:34px}}
-@keyframes zinm{from{--cx:24px;--cy:44vh;--R:150px;--od:18px;--odm:18px;--push:8px}}
+@keyframes zinm{from{--cx:24px;--cy:44vh;--R:150px;--od:18px;--odm:18px;--push:8px;--sw:1.45;--sb:1.2}}
 .wheel.filled .wd.c{opacity:0}
+/* 업종을 고르면 납작한 점이 빛을 받은 구슬로 부풀며 다음 화면으로 커진다 */
+@property --sw{syntax:'<number>';inherits:true;initial-value:1}
+@property --sb{syntax:'<number>';inherits:true;initial-value:1}
+@property --lit{syntax:'<number>';inherits:true;initial-value:0}
+.wheel{--sw:1;--sb:1;--lit:0}
+.wheel .wd::after,.wheel .wb::after{content:'';position:absolute;inset:0;border-radius:50%;opacity:var(--lit);
+  background:radial-gradient(circle at 33% 28%,rgba(255,255,255,.75),rgba(255,255,255,.18) 22%,transparent 46%),radial-gradient(circle at 50% 50%,transparent 52%,rgba(0,0,0,.55) 100%)}
+.wheel .wd,.wheel .wb{box-shadow:0 calc(var(--lit)*var(--sw)*1.6px) calc(var(--lit)*var(--sw)*2.4px) rgba(30,36,51,calc(var(--lit)*.28))}
+.home.what.leave .wheel{--sw:2.1;--sb:1.35;--lit:1;transition:--sw .34s cubic-bezier(.3,0,.2,1),--sb .34s cubic-bezier(.3,0,.2,1),--lit .26s ease-out}
+.wheel.zoom{--sw:2.8;--sb:1;--lit:1}
+@keyframes zin{from{--cx:560px;--cy:450px;--R:330px;--od:26px;--odm:40px;--push:34px;--sw:2.1;--sb:1.35}}
 .home.where{animation:none}
 .where::before,.where .addr,.where .tail,.where .next{animation:fade .6s var(--ease) .3s backwards}
 
@@ -393,7 +403,8 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0;padding:0}
   .what .wheel .wd.c{opacity:1}
   .wnum{left:20px;top:calc(44vh + 172px);transform:none;text-align:left}
   .wnum b{font-size:30px}
-  .wheel.zoom{--cx:-292px;--cy:30vh;--R:310px;--r:150px;--od:20px;--id:0px;--odm:28px;--push:-20px}
+  .wheel.zoom{--cx:-292px;--cy:30vh;--R:310px;--r:150px;--od:20px;--id:0px;--odm:28px;--push:-20px;--sw:2.2}
+  .home.what.leave .wheel{--sw:1.45;--sb:1.2}
   .where::before{top:30vh}
   .sent{left:22px;top:30vh;font-size:26px;gap:8px}
   .lead{font-size:26px}
